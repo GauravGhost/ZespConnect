@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
+import { ControlsPanel } from "@/features/controls";
 import { OverviewPanel } from "@/features/devices";
 import { MirrorPanel } from "@/features/mirror";
 import { DependencyCheck } from "@/features/onboarding";
@@ -30,6 +31,7 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "overview") return <OverviewPanel />;
   if (tab === "apps") return <AppsPanel />;
   if (tab === "mirror") return <MirrorPanel />;
+  if (tab === "controls") return <ControlsPanel />;
   if (tab === "wireless") return <WirelessPanel />;
   if (tab === "settings") return <SettingsPanel />;
   return (

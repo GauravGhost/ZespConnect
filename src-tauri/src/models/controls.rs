@@ -33,6 +33,25 @@ impl Default for QuickState {
     }
 }
 
+/// Whitelisted reboot targets; anything else is rejected before it reaches adb.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RebootMode {
+    Normal,
+    Bootloader,
+    Recovery,
+}
+
+impl RebootMode {
+    pub fn as_arg(self) -> &'static str {
+        match self {
+            RebootMode::Normal => "normal",
+            RebootMode::Bootloader => "bootloader",
+            RebootMode::Recovery => "recovery",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceInfo {
     pub model: String,

@@ -7,12 +7,12 @@ Zesp Connect lists your devices, shows real app names (not package ids), mirrors
 screen and camera, drives quick toggles, browses files, exposes an adb console and
 handles wireless pairing — all from a single window.
 
-> Status: **M0–M3** are implemented — the architecture skeleton, tool discovery, the push-based
+> Status: **M0–M4** are implemented — the architecture skeleton, tool discovery, the push-based
 > device tracker (`adb track-devices`), device list/dedupe, the header switcher, onboarding,
 > wireless (QR) pairing, the system tray, an installed-apps manager (real names, search/filter,
-> launch, uninstall, clear data, install APK), and mirroring (screen, camera, and app windows
-> with the Android 12–13 virtual-display fallback, plus a running-windows list). Extracted app
-> icons land in a later pass.
+> launch, uninstall, clear data, install APK), mirroring (screen, camera, and app windows
+> with the Android 12–13 virtual-display fallback, plus a running-windows list), and quick
+> controls (toggles, brightness/volume sliders, reboot). Extracted app icons land in a later pass.
 
 ## Requirements
 
@@ -100,7 +100,7 @@ React UI ──(typed invoke / events via src/lib/ipc.ts)──> #[tauri::comman
    launch, uninstall, clear data, install APK. ✅ (icons extracted from APKs still to come)
 4. **M3 Mirroring** — screen, camera, app-window (with the Android 12–13 virtual-display
    fallback), running windows list. ✅
-5. **M4 Controls** — quick toggles, coalesced brightness/volume sliders, reboot.
+5. **M4 Controls** — quick toggles, coalesced brightness/volume sliders, reboot. ✅
 6. **M5 Wireless** — QR + code pairing, connect/disconnect, TCP/IP, duplicate-transport merge.
 7. **M6 Files, Console, Clipboard, AVDs.**
 8. **M7 Polish & release** — tray, settings, installers, signed builds.

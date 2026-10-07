@@ -4,6 +4,7 @@ pub mod devices;
 pub mod install;
 pub mod mirror;
 pub mod scrcpy;
+pub mod toggles;
 pub mod tools;
 pub mod tracker;
 pub mod updates;

@@ -1,4 +1,4 @@
-import { PlugZap, ShieldAlert, Smartphone } from "lucide-react";
+import { PlugZap, ShieldAlert, SlidersHorizontal } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -54,10 +54,10 @@ export function OverviewPanel() {
       <DeviceStatusCard device={device} info={info} />
 
       <div className="rounded-lg border border-dashed p-6 text-center">
-        <Smartphone className="text-muted-foreground mx-auto mb-2 size-5" />
-        <p className="text-sm font-medium">Quick controls arrive next</p>
+        <SlidersHorizontal className="text-muted-foreground mx-auto mb-2 size-5" />
+        <p className="text-sm font-medium">Looking for quick controls?</p>
         <p className="text-muted-foreground text-sm">
-          Toggles, brightness, volume and mirroring land in the following milestones.
+          Toggles, brightness, volume and reboot are on the Controls tab.
         </p>
       </div>
 
