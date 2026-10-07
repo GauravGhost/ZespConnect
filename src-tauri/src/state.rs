@@ -15,11 +15,13 @@ pub struct AppState {
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
     pairing: AtomicBool,
+    selected: RwLock<Option<String>>,
 }
 
 impl AppState {
     pub fn new(app_data_dir: PathBuf) -> Self {
         let overrides = load_overrides(&app_data_dir).unwrap_or_default();
+        let selected = load_selected(&app_data_dir);
         AppState {
             tools: RwLock::new(ToolStatus::default()),
             tool_overrides: RwLock::new(overrides),
@@ -27,6 +29,7 @@ impl AppState {
             app_data_dir,
             tracker: RwLock::new(None),
             pairing: AtomicBool::new(false),
+            selected: RwLock::new(selected),
         }
     }
 
@@ -76,6 +79,26 @@ impl AppState {
         if let Ok(mut guard) = self.devices.write() {
             *guard = devices;
         }
+    }
+
+    pub fn selected_file(&self) -> PathBuf {
+        self.app_data_dir.join("selected-device.json")
+    }
+
+    /// The device the user last selected (mirrored to the tray), if any.
+    pub fn selected_serial(&self) -> Option<String> {
+        self.selected.read().ok().and_then(|guard| guard.clone())
+    }
+
+    pub fn set_selected_serial(&self, serial: Option<String>) -> crate::error::Result<()> {
+        {
+            let mut guard = self
+                .selected
+                .write()
+                .map_err(|_| crate::error::AppError::Other("state poisoned".into()))?;
+            *guard = serial.clone();
+        }
+        util::write_json(&self.selected_file(), &serial)
     }
 
     pub fn override_for(&self, tool: &str) -> Option<String> {
@@ -145,4 +168,12 @@ impl Drop for PairingGuard<'_> {
 fn load_overrides(app_data_dir: &Path) -> crate::error::Result<HashMap<String, String>> {
     let path = app_data_dir.join("tool-paths.json");
     Ok(util::read_json::<HashMap<String, String>>(&path)?.unwrap_or_default())
+}
+
+fn load_selected(app_data_dir: &Path) -> Option<String> {
+    let path = app_data_dir.join("selected-device.json");
+    util::read_json::<Option<String>>(&path)
+        .ok()
+        .flatten()
+        .flatten()
 }

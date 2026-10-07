@@ -35,6 +35,8 @@ export const ipc = {
   devices: {
     list: () => invoke<Device[]>("list_devices"),
     info: (serial: string) => invoke<DeviceInfo>("get_device_info", { serial }),
+    setSelected: (serial: string | null) => invoke<void>("set_selected_device", { serial }),
+    selected: () => invoke<string | null>("get_selected_device"),
   },
 
   apps: {

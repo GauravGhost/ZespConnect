@@ -66,6 +66,8 @@ pub fn run() {
             commands::system::install_tool,
             commands::devices::list_devices,
             commands::devices::get_device_info,
+            commands::devices::set_selected_device,
+            commands::devices::get_selected_device,
             commands::wireless::get_qr_payload,
             commands::wireless::pair_wireless_qr,
         ])

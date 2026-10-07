@@ -29,7 +29,10 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "zesp-connect-ui",
-      partialize: (state) => ({ activeTab: state.activeTab }),
+      partialize: (state) => ({
+        activeTab: state.activeTab,
+        selectedSerial: state.selectedSerial,
+      }),
     },
   ),
 );

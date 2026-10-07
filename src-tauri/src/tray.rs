@@ -119,17 +119,18 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
 fn build_devices_submenu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
     let devices = app.state::<AppState>().devices();
-    let connected = devices.iter().filter(|device| device.connected).count();
-    let label = match connected {
+    let selected = app.state::<AppState>().selected_serial();
+    let label = match devices.len() {
         0 => "Devices".to_string(),
         count => format!("Devices ({count})"),
     };
 
-    let entries: Vec<MenuItem<Wry>> = if devices.is_empty() {
-        vec![MenuItem::with_id(
+    let entries: Vec<CheckMenuItem<Wry>> = if devices.is_empty() {
+        vec![CheckMenuItem::with_id(
             app,
             ID_NO_DEVICES,
             "No devices",
+            false,
             false,
             None::<&str>,
         )?]
@@ -137,11 +138,12 @@ fn build_devices_submenu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
         devices
             .iter()
             .map(|device| {
-                MenuItem::with_id(
+                CheckMenuItem::with_id(
                     app,
                     format!("{DEVICE_PREFIX}{}", device.serial),
                     device_label(device),
                     true,
+                    Some(device.serial.clone()) == selected,
                     None::<&str>,
                 )
             })
@@ -192,6 +194,12 @@ fn navigate(app: &AppHandle, tab: &'static str) {
 }
 
 fn select_device(app: &AppHandle, serial: &str) {
+    // Persist the choice first so the tray's checkmark moves immediately.
+    let _ = app
+        .state::<AppState>()
+        .set_selected_serial(Some(serial.to_string()));
+    sync(app);
+
     show_window(app);
     let _ = app.emit(
         EVENT_SELECT_DEVICE,
