@@ -3,7 +3,15 @@
 # Point Zesp Connect's "adb" tool path at this file.
 set -eu
 
-sub="${1:-}"
+args=("$@")
+
+# Most commands are run scoped as `-s <serial> <subcommand> ...`; skip the scope.
+i=0
+if [ "${args[0]:-}" = "-s" ]; then
+  i=2
+fi
+sub="${args[$i]:-}"
+cmd="${args[$((i + 1))]:-}"
 
 case "$sub" in
   devices)
@@ -15,22 +23,49 @@ case "$sub" in
     ;;
   start-server)
     ;;
+  install | uninstall)
+    printf 'Success\n'
+    ;;
   shell)
-    printf 'MODEL:Pixel 8\n'
-    printf 'VER:15\n'
-    printf 'SDK:35\n'
-    printf '  level: 82\n'
-    printf '  powered: true\n'
-    printf 'WIFI:1\n'
-    printf 'BT:1\n'
-    printf 'DARK:Night mode: yes\n'
-    printf 'AIR:0\n'
-    printf 'DATA:1\n'
-    printf 'LOC:3\n'
-    printf 'DND:1\n'
-    printf 'ROT:1\n'
-    printf 'BRI:1024\n'
-    printf 'VOL:volume is 80 in range [0..150]\n'
+    case "$cmd" in
+      *"pm list packages -f"*)
+        printf 'package:/data/app/~~1a2b==/com.example.notes-xyz==/base.apk=com.example.notes\n'
+        printf 'package:/data/app/~~3c4d==/com.google.android.apps.maps-xyz==/base.apk=com.google.android.apps.maps\n'
+        printf 'package:/system/priv-app/Settings/Settings.apk=com.android.settings\n'
+        printf 'package:/system_ext/priv-app/SystemUI/SystemUI.apk=com.android.systemui\n'
+        ;;
+      *"pm list packages"*)
+        printf 'package:com.example.notes\n'
+        printf 'package:com.google.android.apps.maps\n'
+        printf 'package:com.android.settings\n'
+        ;;
+      *"pm path"*)
+        printf 'package:/data/app/~~1a2b==/com.example.notes-xyz==/base.apk\n'
+        ;;
+      *"pm clear"* | *"pm uninstall"*)
+        printf 'Success\n'
+        ;;
+      *"monkey"*)
+        printf 'Events injected: 1\n'
+        ;;
+      *)
+        printf 'MODEL:Pixel 8\n'
+        printf 'VER:15\n'
+        printf 'SDK:35\n'
+        printf '  level: 82\n'
+        printf '  powered: true\n'
+        printf 'WIFI:1\n'
+        printf 'BT:1\n'
+        printf 'DARK:Night mode: yes\n'
+        printf 'AIR:0\n'
+        printf 'DATA:1\n'
+        printf 'LOC:3\n'
+        printf 'DND:1\n'
+        printf 'ROT:1\n'
+        printf 'BRI:1024\n'
+        printf 'VOL:volume is 80 in range [0..150]\n'
+        ;;
+    esac
     ;;
   track-devices)
     # One empty frame (length 0000), then stay alive to keep the stream open.

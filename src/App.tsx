@@ -5,6 +5,7 @@ import { ComingSoon } from "@/components/app/ComingSoon";
 import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { useAppStore, type TabId } from "@/app/store";
+import { AppsPanel } from "@/features/apps";
 import { OverviewPanel } from "@/features/devices";
 import { DependencyCheck } from "@/features/onboarding";
 import { SettingsPanel } from "@/features/settings";
@@ -26,6 +27,7 @@ const TAB_TITLES: Record<TabId, string> = {
 
 function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "overview") return <OverviewPanel />;
+  if (tab === "apps") return <AppsPanel />;
   if (tab === "wireless") return <WirelessPanel />;
   if (tab === "settings") return <SettingsPanel />;
   return (

@@ -1,0 +1,4 @@
+List of apps:
+ * com.android.systemui    System UI
+ - com.example.notes    Notes
+ - com.google.android.apps.maps    Google Maps

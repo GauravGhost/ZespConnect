@@ -68,6 +68,11 @@ pub fn run() {
             commands::devices::get_device_info,
             commands::devices::set_selected_device,
             commands::devices::get_selected_device,
+            commands::apps::list_apps,
+            commands::apps::launch_app,
+            commands::apps::uninstall_app,
+            commands::apps::clear_app_data,
+            commands::apps::install_apk,
             commands::wireless::get_qr_payload,
             commands::wireless::pair_wireless_qr,
         ])

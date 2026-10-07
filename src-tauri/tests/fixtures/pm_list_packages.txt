@@ -1,0 +1,5 @@
+package:/data/app/~~1a2b3c==/com.example.notes-9xYz==/base.apk=com.example.notes
+package:/data/app/~~4d5e6f==/com.google.android.apps.maps-9xYz==/base.apk=com.google.android.apps.maps
+package:/data/app/~~4d5e6f==/com.google.android.apps.maps-9xYz==/split_config.arm64_v8a.apk=com.google.android.apps.maps
+package:/system/priv-app/Settings/Settings.apk=com.android.settings
+package:/system_ext/priv-app/SystemUI/SystemUI.apk=com.android.systemui
