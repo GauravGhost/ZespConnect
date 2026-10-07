@@ -1,0 +1,16 @@
+MODEL:Pixel 8
+VER:15
+SDK:35
+  level: 82
+  powered: true
+  USB powered: true
+WIFI:1
+BT:1
+DARK:Night mode: yes
+AIR:0
+DATA:1
+LOC:3
+DND:1
+ROT:1
+BRI:1024
+VOL:volume is 80 in range [0..150]

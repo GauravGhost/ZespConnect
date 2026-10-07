@@ -1,7 +1,55 @@
+pub mod commands;
+pub mod error;
+pub mod models;
+pub mod platform;
+pub mod services;
+pub mod state;
+pub mod util;
+
+use std::path::PathBuf;
+
+use tauri::Manager;
+
+use crate::state::AppState;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .setup(|app| {
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| PathBuf::from("."));
+            let _ = std::fs::create_dir_all(&data_dir);
+            app.manage(AppState::new(data_dir));
+
+            // Resolve tools synchronously so the first paint shows the real status.
+            let status = {
+                let overrides = app.state::<AppState>().overrides();
+                tauri::async_runtime::block_on(services::tools::resolve(
+                    overrides.get("adb").map(String::as_str),
+                    overrides.get("scrcpy").map(String::as_str),
+                ))
+            };
+            app.state::<AppState>().set_tools(status);
+
+            // Start the push-based device tracker.
+            let handle = app.handle().clone();
+            let tracker = services::tracker::spawn(handle.clone());
+            handle.state::<AppState>().set_tracker(tracker);
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::system::get_tools_status,
+            commands::system::set_tool_path,
+            commands::system::get_scrcpy_version,
+            commands::devices::list_devices,
+            commands::devices::get_device_info,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

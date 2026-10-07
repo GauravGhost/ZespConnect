@@ -1,0 +1,3 @@
+List of devices attached
+0123456789ABCDEF          device product:husky model:Pixel_8 device:husky transport_id:1
+9876543210FEDCBA             unauthorized usb:1-3 product:e3q model:SM_S928B device:e3q transport_id:2
