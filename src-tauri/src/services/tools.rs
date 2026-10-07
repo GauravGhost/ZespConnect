@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use once_cell::sync::Lazy;
@@ -113,12 +113,57 @@ fn known_locations(name: &str) -> Vec<PathBuf> {
                 .join("platform-tools")
                 .join(&exe),
         );
+        // winget installs shims here (e.g. scrcpy after `winget install`).
+        paths.push(
+            local
+                .join("Microsoft")
+                .join("WinGet")
+                .join("Links")
+                .join(&exe),
+        );
     }
     if let Some(program_data) = &program_data {
         paths.push(program_data.join("chocolatey").join("bin").join(&exe));
     }
     paths.push(PathBuf::from("C:\\Android\\platform-tools").join(&exe));
+    // Portable packages (e.g. scrcpy) land under WinGet\Packages with no shim.
+    paths.extend(winget_package_binaries(name));
     paths
+}
+
+/// Search `%LOCALAPPDATA%\Microsoft\WinGet\Packages` for `<name>.exe`.
+///
+/// winget extracts portable packages into a versioned subfolder without a
+/// `Links` shim, so the binary is only reachable by scanning.
+#[cfg(windows)]
+fn winget_package_binaries(name: &str) -> Vec<PathBuf> {
+    let Some(local) = env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
+        return Vec::new();
+    };
+    let base = local.join("Microsoft").join("WinGet").join("Packages");
+    let exe = format!("{name}{EXE_SUFFIX}");
+
+    let mut found = Vec::new();
+    find_named_files(&base, &exe, 3, &mut found);
+    found
+}
+
+#[cfg(windows)]
+fn find_named_files(dir: &Path, file_name: &str, depth: usize, out: &mut Vec<PathBuf>) {
+    if depth == 0 || out.len() >= 4 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            find_named_files(&path, file_name, depth - 1, out);
+        } else if path.file_name().and_then(|n| n.to_str()) == Some(file_name) {
+            out.push(path);
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -178,5 +223,22 @@ mod tests {
                 .to_string(),
             "3.1"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn finds_a_nested_portable_binary() {
+        let root = std::env::temp_dir().join("zesp-winget-scan-test");
+        let nested = root
+            .join("Genymobile.scrcpy_source_hash")
+            .join("scrcpy-win64-v4.1");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("scrcpy.exe"), b"stub").unwrap();
+
+        let mut found = Vec::new();
+        find_named_files(&root, "scrcpy.exe", 3, &mut found);
+        assert_eq!(found, vec![nested.join("scrcpy.exe")]);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

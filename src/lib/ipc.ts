@@ -14,6 +14,7 @@ import type {
   RebootMode,
   SerializedAppError,
   ShellResult,
+  ToolKind,
   ToolStatus,
 } from "@/types";
 
@@ -24,8 +25,10 @@ import type {
 export const ipc = {
   tools: {
     status: () => invoke<ToolStatus>("get_tools_status"),
-    setPath: (tool: "adb" | "scrcpy", path: string | null) =>
+    setPath: (tool: ToolKind, path: string | null) =>
       invoke<ToolStatus>("set_tool_path", { tool, path }),
+    clearPath: (tool: ToolKind) => invoke<ToolStatus>("set_tool_path", { tool, path: null }),
+    install: (tool: ToolKind) => invoke<ToolStatus>("install_tool", { tool }),
     scrcpyVersion: () => invoke<string | null>("get_scrcpy_version"),
   },
 

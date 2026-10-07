@@ -1,14 +1,16 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { Check, Copy, FolderSearch, RefreshCw, Terminal } from "lucide-react";
+import { Check, Copy, DownloadCloud, FolderSearch, RefreshCw, Terminal } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-
-import { useSetToolPath, useToolsStatus } from "../hooks";
+import { useInstallLog } from "@/hooks/useInstallLog";
+import { useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
+import { errorMessage } from "@/lib/ipc";
+import type { ToolInfo, ToolKind } from "@/types";
 
 type Os = "windows" | "macos" | "linux";
 
@@ -24,7 +26,7 @@ interface Command {
   command: string;
 }
 
-const INSTALL: Record<Os, Record<"adb" | "scrcpy", Command[]>> = {
+const INSTALL: Record<Os, Record<ToolKind, Command[]>> = {
   windows: {
     adb: [
       { manager: "winget", command: "winget install Google.PlatformTools" },
@@ -69,7 +71,7 @@ function CopyCommand({ command }: { command: Command }) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+    <div className="bg-muted/40 flex items-center justify-between gap-2 rounded-md border px-3 py-2">
       <div className="min-w-0">
         <div className="text-muted-foreground text-xs">{command.manager}</div>
         <code className="block truncate font-mono text-xs">{command.command}</code>
@@ -82,17 +84,22 @@ function CopyCommand({ command }: { command: Command }) {
 }
 
 function ToolRow({
-  name,
+  kind,
+  label,
   tool,
   os,
+  busy,
   onBrowse,
+  onInstall,
 }: {
-  name: "adb" | "scrcpy";
-  tool: { found: boolean; path: string | null; version: string | null; source: string };
+  kind: ToolKind;
+  label: string;
+  tool: ToolInfo;
   os: Os;
-  onBrowse: () => void;
+  busy: boolean;
+  onBrowse: (kind: ToolKind) => void;
+  onInstall: (kind: ToolKind) => void;
 }) {
-  const label = name === "adb" ? "ADB (Android Debug Bridge)" : "scrcpy (Screen Copy)";
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex items-center justify-between">
@@ -117,16 +124,27 @@ function ToolRow({
       ) : (
         <>
           <p className="text-muted-foreground text-sm">
-            Install {name} with your package manager, or point Zesp Connect at an existing binary.
+            Install {kind} with your package manager, or locate an existing binary.
           </p>
-          <div className="grid gap-2">
-            {INSTALL[os][name].map((command) => (
-              <CopyCommand key={command.command} command={command} />
-            ))}
+
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" className="gap-2" onClick={() => onInstall(kind)} disabled={busy}>
+              <DownloadCloud className="size-4" />
+              Install
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => onBrowse(kind)}>
+              <FolderSearch className="size-4" /> Locate binary…
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={onBrowse} className="gap-2">
-            <FolderSearch className="size-4" /> Locate {name} binary
-          </Button>
+
+          <details className="text-sm">
+            <summary className="text-muted-foreground cursor-pointer">Or install manually</summary>
+            <div className="mt-2 grid gap-2">
+              {INSTALL[os][kind].map((command) => (
+                <CopyCommand key={command.command} command={command} />
+              ))}
+            </div>
+          </details>
         </>
       )}
     </div>
@@ -136,17 +154,26 @@ function ToolRow({
 export function DependencyCheck() {
   const { data: tools, isLoading, isFetching, refetch } = useToolsStatus();
   const setToolPath = useSetToolPath();
+  const install = useInstallTool();
+  const log = useInstallLog();
   const os = detectOs();
 
-  async function browse(name: "adb" | "scrcpy") {
+  async function browse(kind: ToolKind) {
     const selected = await open({
       multiple: false,
       directory: false,
-      title: `Select the ${name} executable`,
+      title: `Select the ${kind} executable`,
     });
     if (typeof selected === "string") {
-      setToolPath.mutate({ tool: name, path: selected });
+      setToolPath.mutate({ tool: kind, path: selected });
     }
+  }
+
+  function runInstall(kind: ToolKind) {
+    log.reset();
+    install.mutate(kind, {
+      onError: (error) => toast.error(errorMessage(error)),
+    });
   }
 
   return (
@@ -166,10 +193,41 @@ export function DependencyCheck() {
         </div>
       ) : (
         <>
-          <ToolRow name="adb" tool={tools.adb} os={os} onBrowse={() => browse("adb")} />
-          <ToolRow name="scrcpy" tool={tools.scrcpy} os={os} onBrowse={() => browse("scrcpy")} />
+          <ToolRow
+            kind="adb"
+            label="ADB (Android Debug Bridge)"
+            tool={tools.adb}
+            os={os}
+            busy={install.isPending}
+            onBrowse={browse}
+            onInstall={runInstall}
+          />
+          <ToolRow
+            kind="scrcpy"
+            label="scrcpy (Screen Copy)"
+            tool={tools.scrcpy}
+            os={os}
+            busy={install.isPending}
+            onBrowse={browse}
+            onInstall={runInstall}
+          />
         </>
       )}
+
+      {log.running || log.lines.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">
+              Installer output{log.tool ? ` · ${log.tool}` : ""}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-muted/50 max-h-40 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre-wrap">
+              {log.lines.length > 0 ? log.lines.join("\n") : "Waiting for output…"}
+            </pre>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" className="gap-2" onClick={() => refetch()}>

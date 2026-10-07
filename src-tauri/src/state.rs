@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-use crate::models::{AppSettings, Device, ToolStatus};
+use crate::models::{Device, ToolStatus};
 use crate::util;
 
 /// Shared, process-wide state. Guards are only ever held for short,
@@ -10,7 +10,6 @@ use crate::util;
 pub struct AppState {
     tools: RwLock<ToolStatus>,
     tool_overrides: RwLock<HashMap<String, String>>,
-    settings: RwLock<AppSettings>,
     devices: RwLock<Vec<Device>>,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
@@ -19,11 +18,9 @@ pub struct AppState {
 impl AppState {
     pub fn new(app_data_dir: PathBuf) -> Self {
         let overrides = load_overrides(&app_data_dir).unwrap_or_default();
-        let settings = load_settings(&app_data_dir).unwrap_or_default();
         AppState {
             tools: RwLock::new(ToolStatus::default()),
             tool_overrides: RwLock::new(overrides),
-            settings: RwLock::new(settings),
             devices: RwLock::new(Vec::new()),
             app_data_dir,
             tracker: RwLock::new(None),
@@ -36,28 +33,6 @@ impl AppState {
 
     pub fn overrides_file(&self) -> PathBuf {
         self.app_data_dir.join("tool-paths.json")
-    }
-
-    pub fn settings_file(&self) -> PathBuf {
-        self.app_data_dir.join("settings.json")
-    }
-
-    pub fn settings(&self) -> AppSettings {
-        self.settings
-            .read()
-            .map(|guard| guard.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn set_settings(&self, settings: AppSettings) -> crate::error::Result<()> {
-        {
-            let mut guard = self
-                .settings
-                .write()
-                .map_err(|_| crate::error::AppError::Other("state poisoned".into()))?;
-            *guard = settings;
-        }
-        util::write_json(&self.settings_file(), &self.settings())
     }
 
     pub fn tools(&self) -> ToolStatus {
@@ -147,9 +122,4 @@ impl AppState {
 fn load_overrides(app_data_dir: &Path) -> crate::error::Result<HashMap<String, String>> {
     let path = app_data_dir.join("tool-paths.json");
     Ok(util::read_json::<HashMap<String, String>>(&path)?.unwrap_or_default())
-}
-
-fn load_settings(app_data_dir: &Path) -> crate::error::Result<AppSettings> {
-    let path = app_data_dir.join("settings.json");
-    Ok(util::read_json::<AppSettings>(&path)?.unwrap_or_default())
 }

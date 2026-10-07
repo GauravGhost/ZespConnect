@@ -6,7 +6,10 @@ import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { useAppStore, type TabId } from "@/app/store";
 import { OverviewPanel } from "@/features/devices";
-import { DependencyCheck, useToolsStatus } from "@/features/onboarding";
+import { DependencyCheck } from "@/features/onboarding";
+import { SettingsPanel } from "@/features/settings";
+import { useToolsStatus } from "@/hooks/useTools";
+import { useTrayNavigation } from "@/hooks/useTray";
 
 const TAB_TITLES: Record<TabId, string> = {
   overview: "Overview",
@@ -22,6 +25,7 @@ const TAB_TITLES: Record<TabId, string> = {
 
 function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "overview") return <OverviewPanel />;
+  if (tab === "settings") return <SettingsPanel />;
   return (
     <div className="flex h-full items-center justify-center">
       <ComingSoon title={TAB_TITLES[tab]} />
@@ -54,6 +58,8 @@ function Main() {
 }
 
 export default function App() {
+  useTrayNavigation();
+
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       <Sidebar />

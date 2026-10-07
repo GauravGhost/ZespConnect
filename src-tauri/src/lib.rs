@@ -4,6 +4,7 @@ pub mod models;
 pub mod platform;
 pub mod services;
 pub mod state;
+pub mod tray;
 pub mod util;
 
 use std::path::PathBuf;
@@ -18,6 +19,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -41,12 +46,24 @@ pub fn run() {
             let tracker = services::tracker::spawn(handle.clone());
             handle.state::<AppState>().set_tracker(tracker);
 
+            // Tray icon + menu.
+            tray::build(app.handle())?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the window keeps the app running in the tray; quit from
+            // the tray's Exit entry.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::system::get_tools_status,
             commands::system::set_tool_path,
             commands::system::get_scrcpy_version,
+            commands::system::install_tool,
             commands::devices::list_devices,
             commands::devices::get_device_info,
         ])

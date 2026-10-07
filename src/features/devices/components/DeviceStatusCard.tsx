@@ -25,20 +25,24 @@ export function DeviceStatusCard({
   const charging = info?.charging ?? device.charging ?? false;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Smartphone className="size-4" />
-            {device.display_name || device.model}
+    <Card className="min-w-0">
+      <CardHeader className="min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="flex min-w-0 items-center gap-2">
+            <Smartphone className="size-4 shrink-0" />
+            <span className="truncate">{device.display_name || device.model}</span>
           </CardTitle>
           {device.state === "device" ? (
-            <Badge variant="success">Connected</Badge>
+            <Badge variant="success" className="shrink-0">
+              Connected
+            </Badge>
           ) : (
-            <Badge variant="warning">{device.state}</Badge>
+            <Badge variant="warning" className="shrink-0">
+              {device.state}
+            </Badge>
           )}
         </div>
-        <CardDescription className="font-mono text-xs">{device.serial}</CardDescription>
+        <CardDescription className="font-mono text-xs break-all">{device.serial}</CardDescription>
       </CardHeader>
 
       <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">

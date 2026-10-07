@@ -6,6 +6,8 @@
 
 export type ToolSource = "override" | "path" | "known" | "not_found";
 
+export type ToolKind = "adb" | "scrcpy";
+
 export interface ToolInfo {
   found: boolean;
   path: string | null;
@@ -16,6 +18,17 @@ export interface ToolInfo {
 export interface ToolStatus {
   adb: ToolInfo;
   scrcpy: ToolInfo;
+}
+
+export interface InstallProgress {
+  tool: ToolKind;
+  line: string;
+}
+
+export interface InstallDone {
+  tool: ToolKind;
+  ok: boolean;
+  message: string;
 }
 
 export type DeviceState = "device" | "unauthorized" | "offline" | "connecting" | "unknown";

@@ -19,7 +19,22 @@ handles wireless pairing — all from a single window.
 - **scrcpy 3.x+** — required for mirroring
 
 Zesp Connect detects both tools on `PATH` and at well-known install locations, and lets
-you point it at a custom binary from the onboarding screen.
+you point it at a custom binary from the Settings screen.
+
+## Tool management
+
+Open **Settings** to manage both binaries:
+
+- See each tool's status, resolved path, version and how it was found.
+- **Change location…** to point at your own `adb`/`scrcpy`, or **Use auto-detected** to
+  clear the override.
+- **Install** (also on the onboarding screen) installs a missing tool via your package
+  manager — winget/scoop/choco on Windows, Homebrew on macOS, apt/dnf/pacman on Linux —
+  streaming the installer output live into the UI. Installs are always user-triggered;
+  nothing runs on its own.
+
+After an install or a path change the app re-scans and restarts the device tracker, so
+the new binary is used immediately.
 
 ## Development
 
@@ -77,6 +92,7 @@ React UI ──(typed invoke / events via src/lib/ipc.ts)──> #[tauri::comman
 1. **M0 Scaffold** — tooling, architecture skeleton, error type, typed IPC, CI. ✅
 2. **M1 Core + devices** — tool discovery, `adb track-devices`, device list/dedupe,
    header switcher, onboarding. ✅
+   - Settings: tool status, custom paths, and one-click package-manager install. ✅
 3. **M2 Apps** — real app names (scrcpy `--list-apps` → cache → `pm` → prettify) and
    icons extracted from APKs; search/filter, launch, uninstall, clear data, install APK.
 4. **M3 Mirroring** — screen, camera, app-window (with the Android 12–13 virtual-display

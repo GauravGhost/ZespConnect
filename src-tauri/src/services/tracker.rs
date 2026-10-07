@@ -30,7 +30,7 @@ async fn run(app: AppHandle) {
         };
 
         let _ = adb::start_server(&adb_path).await;
-        publish_snapshot(&app).await;
+        refresh(&app).await;
 
         // Track until the stream ends, then retry.
         let _ = track_stream(&app, &adb_path).await;
@@ -38,12 +38,13 @@ async fn run(app: AppHandle) {
     }
 }
 
-/// Fetch the full list, store it, and notify the UI.
-async fn publish_snapshot(app: &AppHandle) {
+/// Fetch the full list, store it, notify the UI, and refresh the tray menu.
+pub async fn refresh(app: &AppHandle) {
     let tools = app.state::<AppState>().tools();
     if let Ok(list) = devices::list(&tools).await {
         app.state::<AppState>().set_devices(list.clone());
         let _ = app.emit("devices:changed", &list);
+        crate::tray::sync(app);
     }
 }
 
@@ -91,6 +92,6 @@ async fn track_stream(app: &AppHandle, adb_path: &str) -> crate::error::Result<(
             .await
             .map_err(|e| crate::error::AppError::Io(e.to_string()))?;
 
-        publish_snapshot(app).await;
+        refresh(app).await;
     }
 }

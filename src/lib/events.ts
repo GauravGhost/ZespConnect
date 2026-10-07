@@ -1,12 +1,16 @@
 import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { Device, MirrorProcess } from "@/types";
+import type { Device, InstallDone, InstallProgress, MirrorProcess } from "@/types";
 
 /** Typed map of the backend events emitted via `AppHandle::emit`. */
 export interface BackendEvents {
   "devices:changed": Device[];
   "mirror:exited": MirrorProcess;
   "install:progress": { serial: string; package: string; progress: number; message: string };
+  "tools:install:progress": InstallProgress;
+  "tools:install:done": InstallDone;
+  "tray:navigate": { tab: string };
+  "tray:select-device": { serial: string };
 }
 
 export function onBackendEvent<K extends keyof BackendEvents>(
@@ -21,4 +25,12 @@ export const events = {
   mirrorExited: (handler: EventCallback<MirrorProcess>) => onBackendEvent("mirror:exited", handler),
   installProgress: (handler: EventCallback<BackendEvents["install:progress"]>) =>
     onBackendEvent("install:progress", handler),
+  toolsInstallProgress: (handler: EventCallback<InstallProgress>) =>
+    onBackendEvent("tools:install:progress", handler),
+  toolsInstallDone: (handler: EventCallback<InstallDone>) =>
+    onBackendEvent("tools:install:done", handler),
+  trayNavigate: (handler: EventCallback<BackendEvents["tray:navigate"]>) =>
+    onBackendEvent("tray:navigate", handler),
+  traySelectDevice: (handler: EventCallback<BackendEvents["tray:select-device"]>) =>
+    onBackendEvent("tray:select-device", handler),
 };
