@@ -73,6 +73,11 @@ pub fn run() {
             commands::apps::uninstall_app,
             commands::apps::clear_app_data,
             commands::apps::install_apk,
+            commands::mirror::start_app_window,
+            commands::mirror::start_app_on_screen,
+            commands::mirror::stop_mirror,
+            commands::mirror::stop_all_mirrors,
+            commands::mirror::list_mirrors,
             commands::wireless::get_qr_payload,
             commands::wireless::pair_wireless_qr,
         ])

@@ -1,4 +1,13 @@
-import { Eraser, MoreVertical, Package, Play, Trash2 } from "lucide-react";
+import {
+  Eraser,
+  MonitorPlay,
+  MoreVertical,
+  Package,
+  Play,
+  Smartphone,
+  Square,
+  Trash2,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,12 +23,20 @@ import type { AppInfo } from "@/types";
 export function AppRow({
   app,
   busy,
+  isOpen,
+  onOpen,
+  onOpenScreen,
+  onStop,
   onLaunch,
   onClearData,
   onUninstall,
 }: {
   app: AppInfo;
   busy: boolean;
+  isOpen: boolean;
+  onOpen: (app: AppInfo) => void;
+  onOpenScreen: (app: AppInfo) => void;
+  onStop: (app: AppInfo) => void;
   onLaunch: (app: AppInfo) => void;
   onClearData: (app: AppInfo) => void;
   onUninstall: (app: AppInfo) => void;
@@ -38,18 +55,24 @@ export function AppRow({
               System
             </Badge>
           ) : null}
+          {isOpen ? (
+            <Badge variant="success" className="shrink-0">
+              Open
+            </Badge>
+          ) : null}
         </div>
         <p className="text-muted-foreground truncate font-mono text-xs">{app.package}</p>
       </div>
 
       <Button
-        variant="ghost"
+        variant={isOpen ? "secondary" : "ghost"}
         size="icon"
-        aria-label={`Launch ${app.label}`}
+        aria-label={isOpen ? `Close ${app.label} window` : `Open ${app.label} on the laptop`}
+        title={isOpen ? "Close window" : "Open on the laptop"}
         disabled={busy}
-        onClick={() => onLaunch(app)}
+        onClick={() => (isOpen ? onStop(app) : onOpen(app))}
       >
-        <Play />
+        {isOpen ? <Square /> : <MonitorPlay />}
       </Button>
 
       <DropdownMenu>
@@ -59,10 +82,26 @@ export function AppRow({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {isOpen ? (
+            <DropdownMenuItem onSelect={() => onStop(app)}>
+              <Square />
+              Close window
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => onOpen(app)}>
+              <MonitorPlay />
+              Open in a window
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => onOpenScreen(app)}>
+            <Smartphone />
+            Open on phone screen
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onLaunch(app)}>
             <Play />
-            Launch
+            Launch on phone
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => onClearData(app)}>
             <Eraser />
             Clear data

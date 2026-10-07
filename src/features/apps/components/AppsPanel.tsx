@@ -8,6 +8,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActiveDevice } from "@/features/devices";
+import {
+  useMirrors,
+  useOpenAppOnScreen,
+  useOpenAppWindow,
+  useStopMirror,
+} from "@/hooks/useMirrors";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { AppInfo } from "@/types";
@@ -47,6 +53,12 @@ export function AppsPanel() {
   const installApk = useInstallApk();
   const clearData = useClearAppData();
   const uninstall = useUninstallApp();
+
+  const { data: mirrors = [] } = useMirrors();
+  const openWindow = useOpenAppWindow();
+  const openScreen = useOpenAppOnScreen();
+  const stopMirror = useStopMirror();
+  const windowFor = (pkg: string) => mirrors.filter((mirror) => mirror.package === pkg);
 
   // When we painted from cache, pull the real list from the device in the background.
   const stale = Boolean(data?.stale);
@@ -98,6 +110,12 @@ export function AppsPanel() {
   }
 
   const confirmPending = uninstall.isPending || clearData.isPending;
+  const rowBusy =
+    launch.isPending ||
+    confirmPending ||
+    openWindow.isPending ||
+    openScreen.isPending ||
+    stopMirror.isPending;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -195,7 +213,19 @@ export function AppsPanel() {
                 >
                   <AppRow
                     app={app}
-                    busy={launch.isPending || confirmPending}
+                    busy={rowBusy}
+                    isOpen={windowFor(app.package).length > 0}
+                    onOpen={(target) =>
+                      serial &&
+                      openWindow.mutate({ serial, pkg: target.package, label: target.label })
+                    }
+                    onOpenScreen={(target) =>
+                      serial &&
+                      openScreen.mutate({ serial, pkg: target.package, label: target.label })
+                    }
+                    onStop={(target) =>
+                      windowFor(target.package).forEach((mirror) => stopMirror.mutate(mirror.pid))
+                    }
                     onLaunch={(target) => serial && launch.mutate({ serial, pkg: target.package })}
                     onClearData={(target) => setConfirm({ app: target, action: "clearData" })}
                     onUninstall={(target) => setConfirm({ app: target, action: "uninstall" })}

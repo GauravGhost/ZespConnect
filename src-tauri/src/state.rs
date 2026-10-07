@@ -3,8 +3,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 
-use crate::models::{Device, ToolStatus};
+use crate::models::{Device, MirrorProcess, ToolStatus};
 use crate::util;
+
+/// A tracked scrcpy window plus the channel that asks its watcher to stop it.
+pub struct MirrorHandle {
+    pub info: MirrorProcess,
+    pub stop: tokio::sync::oneshot::Sender<()>,
+}
 
 /// Shared, process-wide state. Guards are only ever held for short,
 /// synchronous critical sections (never across `.await`).
@@ -12,6 +18,7 @@ pub struct AppState {
     tools: RwLock<ToolStatus>,
     tool_overrides: RwLock<HashMap<String, String>>,
     devices: RwLock<Vec<Device>>,
+    mirrors: RwLock<HashMap<u32, MirrorHandle>>,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
     pairing: AtomicBool,
@@ -26,6 +33,7 @@ impl AppState {
             tools: RwLock::new(ToolStatus::default()),
             tool_overrides: RwLock::new(overrides),
             devices: RwLock::new(Vec::new()),
+            mirrors: RwLock::new(HashMap::new()),
             app_data_dir,
             tracker: RwLock::new(None),
             pairing: AtomicBool::new(false),
@@ -79,6 +87,44 @@ impl AppState {
         if let Ok(mut guard) = self.devices.write() {
             *guard = devices;
         }
+    }
+
+    /// The scrcpy windows currently tracked.
+    pub fn list_mirrors(&self) -> Vec<MirrorProcess> {
+        self.mirrors
+            .read()
+            .map(|guard| guard.values().map(|handle| handle.info.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Register a running scrcpy window and its stop channel.
+    pub fn set_mirror(&self, info: MirrorProcess, stop: tokio::sync::oneshot::Sender<()>) {
+        if let Ok(mut guard) = self.mirrors.write() {
+            guard.insert(info.pid, MirrorHandle { info, stop });
+        }
+    }
+
+    /// Drop a window's record (used by its watcher once the process ends).
+    pub fn remove_mirror(&self, pid: u32) {
+        if let Ok(mut guard) = self.mirrors.write() {
+            guard.remove(&pid);
+        }
+    }
+
+    /// Take a window's stop channel, if it is still tracked.
+    pub fn take_mirror(&self, pid: u32) -> Option<MirrorHandle> {
+        self.mirrors
+            .write()
+            .ok()
+            .and_then(|mut guard| guard.remove(&pid))
+    }
+
+    /// Take every tracked window (used to stop them all).
+    pub fn drain_mirrors(&self) -> Vec<MirrorHandle> {
+        self.mirrors
+            .write()
+            .map(|mut guard| guard.drain().map(|(_, handle)| handle).collect())
+            .unwrap_or_default()
     }
 
     pub fn selected_file(&self) -> PathBuf {

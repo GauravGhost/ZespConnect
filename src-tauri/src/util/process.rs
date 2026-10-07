@@ -85,7 +85,37 @@ pub fn spawn_detached(program: &str, args: &[String], log_path: &std::path::Path
     Ok(child.id())
 }
 
-/// Read up to `max` bytes of a file, for surfacing a process's log tail.
+/// Spawn a process whose stdout/stderr are captured into `log_path`, returning
+/// the child so the caller can await its exit (and optionally kill it). Used for
+/// long-lived scrcpy windows. `kill_on_drop(false)` keeps the window alive if the
+/// task that owns the child is dropped.
+pub fn spawn_captured(
+    program: &str,
+    args: &[String],
+    log_path: &std::path::Path,
+    env: &[(&str, &str)],
+) -> Result<tokio::process::Child> {
+    let (program, args) = platform::prepare(program, args);
+    let display = program.clone();
+    let log = std::fs::File::create(log_path)?;
+    let log_err = log.try_clone()?;
+
+    let mut std_cmd = std::process::Command::new(&program);
+    std_cmd
+        .args(args)
+        .envs(env.iter().copied())
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(log_err));
+    platform::configure_command(&mut std_cmd);
+
+    tokio::process::Command::from(std_cmd)
+        .kill_on_drop(false)
+        .spawn()
+        .map_err(|e| AppError::CommandFailed(format!("Could not start {display}: {e}")))
+}
+
+/// Read up to `max` lines from a file, for surfacing a process's log tail.
 pub fn read_log_tail(path: &std::path::Path, max_lines: usize) -> String {
     match std::fs::read_to_string(path) {
         Ok(contents) => {
