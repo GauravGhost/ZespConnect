@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
+import type { MirrorOptions } from "@/types";
 
 export const mirrorsKey = ["mirrors"] as const;
 
@@ -70,6 +71,38 @@ export function useStopMirror() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (pid: number) => ipc.mirror.stop(pid),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: mirrorsKey }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+/** Mirror the full device screen. */
+export function useStartMirror() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serial, options }: { serial: string; options: MirrorOptions }) =>
+      ipc.mirror.start(serial, options),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: mirrorsKey }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+/** Stream the device camera. */
+export function useStartCamera() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serial, options }: { serial: string; options: MirrorOptions }) =>
+      ipc.mirror.startCamera(serial, options),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: mirrorsKey }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+/** Close every open scrcpy window. */
+export function useStopAllMirrors() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => ipc.mirror.stopAll(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: mirrorsKey }),
     onError: (error) => toast.error(errorMessage(error)),
   });

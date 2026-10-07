@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
+import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
 import type { AppListResult } from "@/types";
+
+const APK_INSTALL_TOAST = "apk-install";
 
 export interface AppVars {
   serial: string;
@@ -66,13 +70,41 @@ export function useClearAppData() {
 
 export function useInstallApk() {
   const queryClient = useQueryClient();
+
+  // Mirror the backend's `install:progress` lines into a single, updating toast.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    events
+      .installProgress((event) => {
+        const { message, progress } = event.payload;
+        if (progress >= 100) {
+          toast.success(message, { id: APK_INSTALL_TOAST });
+        } else {
+          toast.loading(message, { id: APK_INSTALL_TOAST });
+        }
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {
+        /* backend not ready yet */
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   return useMutation({
     mutationFn: ({ serial, path }: { serial: string; path: string }) =>
       ipc.apps.installApk(serial, path),
     onSuccess: (_result, vars) => {
-      toast.success("APK installed");
       queryClient.invalidateQueries({ queryKey: ["apps", vars.serial] });
     },
-    onError: (error) => toast.error(errorMessage(error)),
+    onError: (error) => toast.error(errorMessage(error), { id: APK_INSTALL_TOAST }),
   });
 }

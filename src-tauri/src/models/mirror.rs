@@ -24,3 +24,25 @@ pub struct MirrorProcess {
     pub label: Option<String>,
     pub started: u64,
 }
+
+/// Options for a screen-mirror or camera session, mirroring the `MirrorOptions`
+/// TypeScript interface (`src/types/index.ts`). Unknown fields are rejected so a
+/// typo in the UI fails loudly instead of silently being ignored.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MirrorOptions {
+    pub resolution: Option<u32>,
+    pub fps: Option<u32>,
+    pub bitrate: Option<u32>,
+    pub audio: bool,
+    pub borderless: bool,
+    pub stay_awake: bool,
+    pub virtual_display: bool,
+    pub always_on_top: bool,
+    pub aspect_lock: bool,
+    pub background: Option<String>,
+    pub fit: Option<String>,
+    pub camera_facing: Option<String>,
+    pub camera_torch: bool,
+    pub camera_zoom: Option<f64>,
+}

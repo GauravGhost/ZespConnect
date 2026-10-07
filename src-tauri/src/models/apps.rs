@@ -39,3 +39,13 @@ pub struct AppListResult {
     pub source: AppListSource,
     pub stale: bool,
 }
+
+/// Progress for an in-flight APK install, streamed to the UI as `install:progress`.
+/// `package` is the APK's file stem, since the installer only knows the file path.
+#[derive(Debug, Clone, Serialize)]
+pub struct AppInstallProgress {
+    pub serial: String,
+    pub package: String,
+    pub progress: u32,
+    pub message: String,
+}

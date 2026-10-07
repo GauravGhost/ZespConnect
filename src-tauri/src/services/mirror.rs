@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{AppError, Result};
-use crate::models::{MirrorKind, MirrorProcess};
+use crate::models::{MirrorKind, MirrorOptions, MirrorProcess};
 use crate::services::{adb, scrcpy};
 use crate::state::AppState;
 use crate::util::{self, process};
@@ -56,9 +56,9 @@ pub async fn start_app(
     };
 
     let label = if label.trim().is_empty() {
-        package
+        package.to_string()
     } else {
-        label
+        label.to_string()
     };
     let title = format!("Zesp Connect — {label}");
     let args = scrcpy::app_window_args(
@@ -70,12 +70,111 @@ pub async fn start_app(
         scrcpy::DEFAULT_MAX_SIZE,
     );
 
+    spawn_window(
+        app,
+        WindowSpec {
+            serial,
+            kind,
+            package: Some(package.to_string()),
+            label,
+            scrcpy_bin: &scrcpy_bin,
+            adb_bin: &adb_bin,
+            args: &args,
+        },
+    )
+    .await
+}
+
+/// Mirror the full device screen in a new window.
+pub async fn start_mirror(
+    app: &AppHandle,
+    serial: &str,
+    options: &MirrorOptions,
+) -> Result<MirrorProcess> {
+    let tools = app.state::<AppState>().tools();
+    let scrcpy_bin = scrcpy::scrcpy_path(&tools)?;
+    let adb_bin = adb::adb_path(&tools)?;
+
+    let label = device_label(app, serial);
+    let title = format!("Zesp Connect — {label}");
+    let args = scrcpy::mirror_args(serial, &title, options);
+
+    spawn_window(
+        app,
+        WindowSpec {
+            serial,
+            kind: MirrorKind::Mirror,
+            package: None,
+            label,
+            scrcpy_bin: &scrcpy_bin,
+            adb_bin: &adb_bin,
+            args: &args,
+        },
+    )
+    .await
+}
+
+/// Stream the device camera in a new window.
+pub async fn start_camera(
+    app: &AppHandle,
+    serial: &str,
+    options: &MirrorOptions,
+) -> Result<MirrorProcess> {
+    let tools = app.state::<AppState>().tools();
+    let scrcpy_bin = scrcpy::scrcpy_path(&tools)?;
+    let adb_bin = adb::adb_path(&tools)?;
+
+    let label = format!("{} camera", device_label(app, serial));
+    let title = format!("Zesp Connect — {label}");
+    let args = scrcpy::camera_args(serial, &title, options);
+
+    spawn_window(
+        app,
+        WindowSpec {
+            serial,
+            kind: MirrorKind::Camera,
+            package: None,
+            label,
+            scrcpy_bin: &scrcpy_bin,
+            adb_bin: &adb_bin,
+            args: &args,
+        },
+    )
+    .await
+}
+
+/// A human name for a connected device, falling back to its serial.
+fn device_label(app: &AppHandle, serial: &str) -> String {
+    app.state::<AppState>()
+        .devices()
+        .into_iter()
+        .find(|device| device.serial == serial)
+        .map(|device| device.display_name)
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| serial.to_string())
+}
+
+/// Everything needed to launch and track one scrcpy window.
+struct WindowSpec<'a> {
+    serial: &'a str,
+    kind: MirrorKind,
+    package: Option<String>,
+    label: String,
+    scrcpy_bin: &'a str,
+    adb_bin: &'a str,
+    args: &'a [String],
+}
+
+/// Spawn a scrcpy window, confirm it came up, register it in `AppState`, and
+/// watch it until it exits (or is stopped) — then clean up and emit
+/// `mirror:exited`. Shared by app windows, screen mirrors and the camera.
+async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorProcess> {
     let log_dir = util::ensure_dir(app.state::<AppState>().app_data_dir().join("mirror-logs"))?;
     let log_path = log_dir.join(format!("{}.log", uuid::Uuid::new_v4()));
     // scrcpy finds adb on PATH, but pass our resolved binary through the ADB env
     // variable so a custom/fake path is honoured (scrcpy 4.x has no `--adb` option).
-    let child_env = [("ADB", adb_bin.as_str())];
-    let mut child = process::spawn_captured(&scrcpy_bin, &args, &log_path, &child_env)?;
+    let child_env = [("ADB", spec.adb_bin)];
+    let mut child = process::spawn_captured(spec.scrcpy_bin, spec.args, &log_path, &child_env)?;
 
     tokio::time::sleep(STARTUP_GRACE).await;
     if let Some(status) = child.try_wait()? {
@@ -92,10 +191,10 @@ pub async fn start_app(
     let pid = child.id().unwrap_or_default();
     let info = MirrorProcess {
         pid,
-        serial: serial.to_string(),
-        kind,
-        package: Some(package.to_string()),
-        label: Some(label.to_string()),
+        serial: spec.serial.to_string(),
+        kind: spec.kind,
+        package: spec.package,
+        label: Some(spec.label),
         started: unix_now(),
     };
 

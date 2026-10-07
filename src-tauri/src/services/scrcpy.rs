@@ -6,10 +6,20 @@
 use std::time::Duration;
 
 use crate::error::{AppError, Result};
-use crate::models::ToolStatus;
+use crate::models::{MirrorOptions, ToolStatus};
 use crate::services::{adb, updates};
 
 const API_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Bounds for the numeric options the UI can send, so a bad value can never
+/// reach scrcpy (they are clamped, not rejected, to keep the UI forgiving).
+const MIN_RESOLUTION: u32 = 240;
+const MAX_RESOLUTION: u32 = 4096;
+const MAX_FPS_LIMIT: u32 = 240;
+const MAX_BITRATE: u32 = 200;
+
+/// `--render-fit` values scrcpy understands.
+const FIT_VALUES: &[&str] = &["contain", "cover", "stretch"];
 
 /// Default `-m` cap when an app is mirrored on the main display.
 pub const DEFAULT_MAX_SIZE: u32 = 1024;
@@ -95,6 +105,127 @@ pub fn app_window_args(
     args
 }
 
+/// Whether `value` is a `#rrggbb` colour.
+fn is_hex_color(value: &str) -> bool {
+    value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// `-m <size>`, clamped to a sane range.
+fn push_max_size(args: &mut Vec<String>, opts: &MirrorOptions) {
+    if let Some(value) = opts
+        .resolution
+        .map(|v| v.clamp(MIN_RESOLUTION, MAX_RESOLUTION))
+    {
+        args.push("-m".to_string());
+        args.push(value.to_string());
+    }
+}
+
+/// `--max-fps <fps>`, clamped to `1..=240`.
+fn push_max_fps(args: &mut Vec<String>, opts: &MirrorOptions) {
+    if let Some(value) = opts.fps.map(|v| v.clamp(1, MAX_FPS_LIMIT)) {
+        args.push("--max-fps".to_string());
+        args.push(value.to_string());
+    }
+}
+
+/// `-b <bitrate>M`, clamped to `1..=200`.
+fn push_bitrate(args: &mut Vec<String>, opts: &MirrorOptions) {
+    if let Some(value) = opts.bitrate.map(|v| v.clamp(1, MAX_BITRATE)) {
+        args.push("-b".to_string());
+        args.push(format!("{value}M"));
+    }
+}
+
+/// Window/window-decoration flags shared by mirror and camera sessions. Values
+/// that scrcpy would reject (bad colour, unknown fit mode) are simply dropped.
+fn push_window_flags(args: &mut Vec<String>, opts: &MirrorOptions) {
+    if opts.stay_awake {
+        args.push("--stay-awake".to_string());
+    }
+    if opts.borderless {
+        args.push("--window-borderless".to_string());
+    }
+    if opts.always_on_top {
+        args.push("--always-on-top".to_string());
+    }
+    if !opts.aspect_lock {
+        args.push("--no-window-aspect-ratio-lock".to_string());
+    }
+    if let Some(background) = opts
+        .background
+        .as_deref()
+        .filter(|value| is_hex_color(value))
+    {
+        args.push(format!("--background-color={background}"));
+    }
+    if let Some(fit) = opts
+        .fit
+        .as_deref()
+        .filter(|value| FIT_VALUES.contains(value))
+    {
+        args.push(format!("--render-fit={fit}"));
+    }
+}
+
+/// Build the argv for a full-screen mirror of `serial`.
+pub fn mirror_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Vec<String> {
+    let mut args = vec![
+        "--serial".to_string(),
+        serial.to_string(),
+        "--window-title".to_string(),
+        window_title.to_string(),
+    ];
+
+    push_max_size(&mut args, opts);
+    push_max_fps(&mut args, opts);
+    push_bitrate(&mut args, opts);
+    if !opts.audio {
+        args.push("--no-audio".to_string());
+    }
+    push_window_flags(&mut args, opts);
+    args
+}
+
+/// Build the argv for a camera feed of `serial`.
+pub fn camera_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Vec<String> {
+    // Anything other than an explicit "front" is treated as the back camera.
+    let facing = match opts.camera_facing.as_deref() {
+        Some("front") => "front",
+        _ => "back",
+    };
+
+    let mut args = vec![
+        "--serial".to_string(),
+        serial.to_string(),
+        "--window-title".to_string(),
+        window_title.to_string(),
+        "--video-source=camera".to_string(),
+        format!("--camera-facing={facing}"),
+    ];
+
+    if opts.camera_torch {
+        args.push("--camera-torch".to_string());
+    }
+    if let Some(zoom) = opts
+        .camera_zoom
+        .filter(|zoom| zoom.is_finite() && *zoom > 0.0)
+    {
+        args.push(format!("--camera-zoom={zoom}"));
+    }
+
+    // A camera feed is not a display, so `-m` is omitted; fps/bitrate still apply.
+    push_max_fps(&mut args, opts);
+    push_bitrate(&mut args, opts);
+    args.push(if opts.audio {
+        "--audio-source=playback".to_string()
+    } else {
+        "--no-audio".to_string()
+    });
+    push_window_flags(&mut args, opts);
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,5 +287,126 @@ mod tests {
 
         let size_index = args.iter().position(|a| a == "-m").expect("-m");
         assert_eq!(args[size_index + 1], "800");
+    }
+
+    fn value_after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+        args.iter()
+            .position(|arg| arg == flag)
+            .map(|index| args[index + 1].as_str())
+    }
+
+    #[test]
+    fn builds_screen_mirror_args_with_every_option() {
+        let opts = MirrorOptions {
+            resolution: Some(1080),
+            fps: Some(60),
+            bitrate: Some(8),
+            audio: true,
+            borderless: true,
+            stay_awake: true,
+            always_on_top: true,
+            aspect_lock: true,
+            background: Some("#112233".to_string()),
+            fit: Some("contain".to_string()),
+            ..Default::default()
+        };
+
+        let args = mirror_args("SERIAL", "Zesp Connect", &opts);
+
+        assert_eq!(value_after(&args, "--serial"), Some("SERIAL"));
+        assert_eq!(value_after(&args, "-m"), Some("1080"));
+        assert_eq!(value_after(&args, "--max-fps"), Some("60"));
+        assert_eq!(value_after(&args, "-b"), Some("8M"));
+        assert!(!args.contains(&"--no-audio".to_string()));
+        assert!(args.contains(&"--window-borderless".to_string()));
+        assert!(args.contains(&"--stay-awake".to_string()));
+        assert!(args.contains(&"--always-on-top".to_string()));
+        assert!(!args.contains(&"--no-window-aspect-ratio-lock".to_string()));
+        assert!(args.contains(&"--background-color=#112233".to_string()));
+        assert!(args.contains(&"--render-fit=contain".to_string()));
+    }
+
+    #[test]
+    fn mirror_defaults_omit_audio_and_unlock_aspect() {
+        let args = mirror_args("SERIAL", "t", &MirrorOptions::default());
+
+        assert!(args.contains(&"--no-audio".to_string()));
+        // aspect_lock defaults to false, so the lock is disabled.
+        assert!(args.contains(&"--no-window-aspect-ratio-lock".to_string()));
+        assert!(!args.contains(&"-m".to_string()));
+        assert!(!args.contains(&"--window-borderless".to_string()));
+    }
+
+    #[test]
+    fn mirror_clamps_out_of_range_numbers() {
+        let opts = MirrorOptions {
+            resolution: Some(99_999),
+            fps: Some(0),
+            bitrate: Some(9_999),
+            ..Default::default()
+        };
+
+        let args = mirror_args("s", "t", &opts);
+        assert_eq!(value_after(&args, "-m"), Some("4096"));
+        assert_eq!(value_after(&args, "--max-fps"), Some("1"));
+        assert_eq!(value_after(&args, "-b"), Some("200M"));
+    }
+
+    #[test]
+    fn mirror_drops_invalid_background_and_fit() {
+        let opts = MirrorOptions {
+            background: Some("red".to_string()),
+            fit: Some("nonsense".to_string()),
+            ..Default::default()
+        };
+
+        let args = mirror_args("s", "t", &opts);
+        assert!(!args.iter().any(|a| a.starts_with("--background-color")));
+        assert!(!args.iter().any(|a| a.starts_with("--render-fit")));
+    }
+
+    #[test]
+    fn camera_defaults_to_back_with_no_audio() {
+        let args = camera_args("SERIAL", "t", &MirrorOptions::default());
+
+        assert!(args.contains(&"--video-source=camera".to_string()));
+        assert!(args.contains(&"--camera-facing=back".to_string()));
+        assert!(args.contains(&"--no-audio".to_string()));
+        assert!(!args.contains(&"-m".to_string()));
+        assert!(!args.contains(&"--camera-torch".to_string()));
+    }
+
+    #[test]
+    fn camera_supports_front_torch_zoom_and_audio() {
+        let opts = MirrorOptions {
+            camera_facing: Some("front".to_string()),
+            camera_torch: true,
+            camera_zoom: Some(2.5),
+            audio: true,
+            fps: Some(30),
+            bitrate: Some(12),
+            ..Default::default()
+        };
+
+        let args = camera_args("SERIAL", "t", &opts);
+
+        assert!(args.contains(&"--camera-facing=front".to_string()));
+        assert!(args.contains(&"--camera-torch".to_string()));
+        assert!(args.contains(&"--camera-zoom=2.5".to_string()));
+        assert!(args.contains(&"--audio-source=playback".to_string()));
+        assert!(!args.contains(&"--no-audio".to_string()));
+        assert_eq!(value_after(&args, "--max-fps"), Some("30"));
+        assert_eq!(value_after(&args, "-b"), Some("12M"));
+    }
+
+    #[test]
+    fn camera_ignores_non_positive_zoom() {
+        let opts = MirrorOptions {
+            camera_zoom: Some(-1.0),
+            ..Default::default()
+        };
+
+        let args = camera_args("s", "t", &opts);
+        assert!(!args.iter().any(|a| a.starts_with("--camera-zoom")));
     }
 }

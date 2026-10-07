@@ -84,6 +84,8 @@ pub fn run() {
             commands::apps::uninstall_app,
             commands::apps::clear_app_data,
             commands::apps::install_apk,
+            commands::mirror::start_mirror,
+            commands::mirror::start_camera,
             commands::mirror::start_app_window,
             commands::mirror::start_app_on_screen,
             commands::mirror::stop_mirror,
