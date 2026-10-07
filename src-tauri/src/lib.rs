@@ -66,6 +66,8 @@ pub fn run() {
             commands::system::install_tool,
             commands::devices::list_devices,
             commands::devices::get_device_info,
+            commands::wireless::get_qr_payload,
+            commands::wireless::pair_wireless_qr,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

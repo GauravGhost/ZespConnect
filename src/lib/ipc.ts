@@ -78,6 +78,8 @@ export const ipc = {
     disconnect: (addr: string) => invoke<void>("disconnect", { addr }),
     enableTcpip: (serial: string, port = 5555) => invoke<void>("enable_tcpip", { serial, port }),
     qrPayload: () => invoke<QrPayload>("get_qr_payload"),
+    qrPair: (payload: string, timeout?: number) =>
+      invoke<string>("pair_wireless_qr", { payload, timeout }),
   },
 
   files: {

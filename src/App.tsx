@@ -8,6 +8,7 @@ import { useAppStore, type TabId } from "@/app/store";
 import { OverviewPanel } from "@/features/devices";
 import { DependencyCheck } from "@/features/onboarding";
 import { SettingsPanel } from "@/features/settings";
+import { WirelessPanel } from "@/features/wireless";
 import { useToolsStatus } from "@/hooks/useTools";
 import { useTrayNavigation } from "@/hooks/useTray";
 
@@ -25,6 +26,7 @@ const TAB_TITLES: Record<TabId, string> = {
 
 function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "overview") return <OverviewPanel />;
+  if (tab === "wireless") return <WirelessPanel />;
   if (tab === "settings") return <SettingsPanel />;
   return (
     <div className="flex h-full items-center justify-center">

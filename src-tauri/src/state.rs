@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 
 use crate::models::{Device, ToolStatus};
@@ -13,6 +14,7 @@ pub struct AppState {
     devices: RwLock<Vec<Device>>,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
+    pairing: AtomicBool,
 }
 
 impl AppState {
@@ -24,6 +26,7 @@ impl AppState {
             devices: RwLock::new(Vec::new()),
             app_data_dir,
             tracker: RwLock::new(None),
+            pairing: AtomicBool::new(false),
         }
     }
 
@@ -116,6 +119,26 @@ impl AppState {
         if let Ok(mut guard) = self.tracker.write() {
             *guard = Some(handle);
         }
+    }
+
+    /// Claim the single wireless-pairing slot. Returns a guard that releases it
+    /// on drop, or an error when a session is already in progress.
+    pub fn begin_pairing(&self) -> crate::error::Result<PairingGuard<'_>> {
+        self.pairing
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .map(|_| PairingGuard(&self.pairing))
+            .map_err(|_| {
+                crate::error::AppError::Other("A pairing session is already in progress".into())
+            })
+    }
+}
+
+/// RAII release for the slot claimed by [`AppState::begin_pairing`].
+pub struct PairingGuard<'a>(&'a AtomicBool);
+
+impl Drop for PairingGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
     }
 }
 
