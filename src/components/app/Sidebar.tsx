@@ -45,13 +45,20 @@ function NavButton({ item }: { item: NavItem }) {
       onClick={() => setActiveTab(item.id)}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        "flex w-full items-center gap-3 rounded-full px-3 py-2.5 text-sm font-medium transition-all duration-150 ease-emphasized active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-xs"
           : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
       )}
     >
-      <Icon className="size-4 shrink-0" />
+      <span
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full transition-colors",
+          active ? "bg-primary/15 text-primary" : "bg-transparent",
+        )}
+      >
+        <Icon className="size-4" />
+      </span>
       <span>{item.label}</span>
     </button>
   );
@@ -60,20 +67,20 @@ function NavButton({ item }: { item: NavItem }) {
 export function Sidebar() {
   return (
     <nav className="bg-sidebar text-sidebar-foreground flex w-52 shrink-0 flex-col border-r">
-      <div className="flex h-14 items-center gap-2 px-4">
-        <div className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md">
-          <Smartphone className="size-4" />
+      <div className="flex h-16 items-center gap-2.5 px-4">
+        <div className="bg-primary-container text-on-primary-container flex size-9 items-center justify-center rounded-2xl shadow-sm">
+          <Smartphone className="size-5" />
         </div>
         <span className="text-sm font-semibold tracking-tight">Zesp Connect</span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-2">
+      <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-2.5 py-2">
         {PRIMARY.map((item) => (
           <NavButton key={item.id} item={item} />
         ))}
       </div>
 
-      <div className="flex flex-col gap-1 border-t px-2 py-2">
+      <div className="flex flex-col gap-1.5 border-t border-sidebar-border px-2.5 py-2">
         {SECONDARY.map((item) => (
           <NavButton key={item.id} item={item} />
         ))}

@@ -21,7 +21,7 @@ function Alert({
       role="alert"
       data-slot="alert"
       className={cn(
-        "relative grid w-full grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm [&>svg]:size-4 [&>svg]:translate-y-0.5",
+        "relative grid w-full grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 rounded-2xl border px-4 py-3 text-sm [&>svg]:size-4 [&>svg]:translate-y-0.5",
         variantClasses[variant],
         className,
       )}

@@ -19,12 +19,12 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center",
+        "flex flex-col items-center justify-center gap-4 rounded-[1.75rem] border border-dashed border-border px-6 py-12 text-center",
         className,
       )}
     >
-      <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
-        <Icon className="size-6" />
+      <div className="bg-muted/60 text-muted-foreground flex size-16 items-center justify-center rounded-full">
+        <Icon className="size-7" />
       </div>
       <div className="space-y-1">
         <p className="text-sm font-medium">{title}</p>

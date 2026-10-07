@@ -8,6 +8,7 @@ import { useInstallLog } from "@/hooks/useInstallLog";
 import { useCheckUpdates, useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
 import { errorMessage } from "@/lib/ipc";
 import type { ToolKind } from "@/types";
+import { AppearanceCard } from "./AppearanceCard";
 import { ToolCard } from "./ToolCard";
 
 export function SettingsPanel() {
@@ -81,6 +82,8 @@ export function SettingsPanel() {
           </Button>
         </div>
       </div>
+
+      <AppearanceCard />
 
       <div className="grid min-w-0 gap-4">
         <ToolCard

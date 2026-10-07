@@ -4,6 +4,7 @@ import { RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppStore } from "@/app/store";
+import { ThemeModeToggle } from "@/components/app/ThemeModeToggle";
 import { DeviceSwitcher } from "@/features/devices";
 import { useActiveDevice } from "@/features/devices/hooks";
 import { useInstallLog } from "@/hooks/useInstallLog";
@@ -21,7 +22,7 @@ export function AppHeader() {
   const scrcpyLatest = tools?.scrcpy_update.latest_version ?? null;
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4">
+    <header className="bg-background/80 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border/60 px-4 backdrop-blur">
       <div className="flex items-center gap-2">
         {install.running ? (
           <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium">
@@ -42,7 +43,8 @@ export function AppHeader() {
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        <ThemeModeToggle />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
