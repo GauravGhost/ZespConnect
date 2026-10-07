@@ -16,7 +16,7 @@ import {
   Volume2,
   Wifi,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -60,18 +60,23 @@ const REBOOT_MODES: { mode: RebootMode; label: string; icon: LucideIcon }[] = [
 function PercentSlider({
   value,
   disabled,
+  pending,
+  leadingIcon,
   onCommit,
 }: {
   value: number;
   disabled?: boolean;
+  pending?: boolean;
+  leadingIcon?: ReactNode;
   onCommit: (percent: number) => void;
 }) {
   const [draft, setDraft] = useState<number | null>(null);
 
-  // Drop the draft once the backend echoes (within a point of) the committed value.
+  // Keep the thumb on the drafted value until the write settles, then hand
+  // control back to the polled value (the device may quantise it).
   useEffect(() => {
-    if (draft !== null && Math.abs(value - draft) <= 1) setDraft(null);
-  }, [value, draft]);
+    if (!pending) setDraft(null);
+  }, [pending]);
 
   return (
     <Slider
@@ -80,6 +85,7 @@ function PercentSlider({
       max={100}
       step={1}
       disabled={disabled}
+      leadingIcon={leadingIcon}
       onValueChange={([next]) => setDraft(next)}
       onValueCommit={([next]) => onCommit(next)}
     />
@@ -92,6 +98,7 @@ function SliderRow({
   label,
   value,
   disabled,
+  pending,
   onCommit,
 }: {
   id: string;
@@ -99,18 +106,31 @@ function SliderRow({
   label: string;
   value: number;
   disabled?: boolean;
+  pending?: boolean;
   onCommit: (percent: number) => void;
 }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor={id} className="font-normal">
-          <Icon className="text-muted-foreground size-4" />
           {label}
         </Label>
         <span className="text-muted-foreground tabular-nums text-xs">{value}%</span>
       </div>
-      <PercentSlider value={value} disabled={disabled} onCommit={onCommit} />
+      <PercentSlider
+        value={value}
+        disabled={disabled}
+        pending={pending}
+        leadingIcon={
+          <Icon
+            className={cn(
+              "transition-colors",
+              value >= 10 ? "text-primary-foreground" : "text-muted-foreground",
+            )}
+          />
+        }
+        onCommit={onCommit}
+      />
     </div>
   );
 }
@@ -251,14 +271,16 @@ export function ControlsPanel() {
             label="Brightness"
             value={brightnessPct}
             disabled={setBrightness.isPending}
+            pending={setBrightness.isPending}
             onCommit={(percent) => setBrightness.mutate(percent)}
           />
           <SliderRow
             id="volume"
             icon={Volume2}
-            label="Volume"
+            label="Media volume"
             value={data.volume}
             disabled={setVolume.isPending}
+            pending={setVolume.isPending}
             onCommit={(percent) => setVolume.mutate(percent)}
           />
         </CardContent>

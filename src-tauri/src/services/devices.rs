@@ -207,7 +207,10 @@ pub fn parse_info(text: &str) -> DeviceInfo {
             }
         } else if line.contains("powered: true") {
             info.charging = true;
-        } else if line.starts_with("VOL:") {
+        } else if line.starts_with("VOL:") || VOLUME_RE.is_match(line) {
+            // `cmd media_session volume --get` also prints `[V] ...` verbose lines
+            // (to stdout), so the value often lands on its own line rather than the
+            // `VOL:`-prefixed one — match either.
             if let Some(caps) = VOLUME_RE.captures(line) {
                 let current: i32 = caps[1].parse().unwrap_or(0);
                 let low: i32 = caps[2].parse().unwrap_or(0);

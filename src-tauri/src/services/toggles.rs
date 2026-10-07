@@ -1,8 +1,8 @@
 //! Quick controls: toggles, brightness, volume and reboot.
 //!
-//! Brightness span and volume stream range differ per device and are not
-//! reported by any single adb call, so each is detected once and cached for the
-//! life of the process. The pure helpers at the bottom are unit-tested.
+//! The brightness ceiling differs per device and is read from the framework
+//! resource (cached for the life of the process). The pure helpers at the bottom
+//! are unit-tested.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -19,20 +19,21 @@ use crate::util::process::ProcessOutput;
 const SET_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Android 12+ widened the brightness range to 0–4095; older releases use 0–255.
-const SPAN_WIDE: i32 = 4095;
-const SPAN_NARROW: i32 = 255;
-/// A value above the narrow range that persists only on a wide-range device.
-const PROBE_BRIGHTNESS: i32 = 260;
+/// Fallback screen-brightness ceiling (the AOSP default) for devices that do not
+/// expose `config_screenBrightnessSettingMaximum`.
+const BRIGHTNESS_MAX_FALLBACK: i32 = 255;
+/// Framework resource holding the upper bound of `Settings.System.SCREEN_BRIGHTNESS`.
+const OVERLAY_BRIGHTNESS_MAX: &str =
+    "cmd overlay lookup android android:integer/config_screenBrightnessSettingMaximum";
+/// Android volume key codes, used to nudge the stream up/down.
+const KEYCODE_VOLUME_UP: &str = "24";
+const KEYCODE_VOLUME_DOWN: &str = "25";
 
 static DIGITS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\d+)").expect("valid regex"));
 static VOLUME_RANGE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"volume is (\d+) in range \[(\d+)\.\.(\d+)\]").expect("valid regex"));
 
-static BRIGHTNESS_SPAN: Lazy<Mutex<HashMap<String, i32>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
-static VOLUME_RANGE: Lazy<Mutex<HashMap<String, (i32, i32)>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static BRIGHTNESS_MAX: Lazy<Mutex<HashMap<String, i32>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// The remote shell command for one quick toggle.
 pub fn toggle_command(key: &str, on: bool) -> Result<String> {
@@ -60,13 +61,11 @@ pub fn toggle_command(key: &str, on: bool) -> Result<String> {
     Ok(command)
 }
 
-/// Battery + version + quick state, with the real brightness span folded in.
+/// Battery + version + quick state, with the real brightness ceiling folded in.
 pub async fn quick_state(tools: &ToolStatus, serial: &str) -> Result<QuickState> {
     let mut info = devices::info(tools, serial).await?;
     let adb = adb::adb_path(tools)?;
-    if let Ok(span) = brightness_span(&adb, serial).await {
-        info.quick.brightness_max = span;
-    }
+    info.quick.brightness_max = brightness_max(&adb, serial).await;
     Ok(info.quick)
 }
 
@@ -79,8 +78,8 @@ pub async fn set_toggle(tools: &ToolStatus, serial: &str, key: &str, on: bool) -
 
 pub async fn set_brightness(tools: &ToolStatus, serial: &str, percent: i32) -> Result<()> {
     let adb = adb::adb_path(tools)?;
-    let span = brightness_span(&adb, serial).await?;
-    let raw = percent_to_raw(percent, span);
+    let max = brightness_max(&adb, serial).await;
+    let raw = percent_to_raw(percent, max);
     let output = adb::shell(
         &adb,
         serial,
@@ -93,29 +92,24 @@ pub async fn set_brightness(tools: &ToolStatus, serial: &str, percent: i32) -> R
 
 pub async fn set_volume(tools: &ToolStatus, serial: &str, percent: i32) -> Result<()> {
     let adb = adb::adb_path(tools)?;
-    let (low, high) = volume_range(&adb, serial).await?;
-    let index = volume_index(percent, low, high);
-
-    let output = adb::shell(
-        &adb,
-        serial,
-        &format!("cmd media_session volume --stream 3 --set {index}"),
-        SET_TIMEOUT,
-    )
-    .await?;
-    if output.success {
+    let (current, low, high) = volume_levels(&adb, serial).await?;
+    let target = volume_index(percent, low, high);
+    let delta = target - current;
+    if delta == 0 {
         return Ok(());
     }
 
-    // Older releases only expose `media volume`.
-    let fallback = adb::shell(
-        &adb,
-        serial,
-        &format!("media volume --stream 3 --set {index}"),
-        SET_TIMEOUT,
-    )
-    .await?;
-    ensure_ok(&fallback)
+    // `cmd media_session volume --set` is a silent no-op on several Android
+    // builds (verified on Android 16), so drive the stream with volume key
+    // events instead — the platform always honours those.
+    let key = if delta > 0 {
+        KEYCODE_VOLUME_UP
+    } else {
+        KEYCODE_VOLUME_DOWN
+    };
+    let keys = vec![key; delta.unsigned_abs() as usize].join(" ");
+    let output = adb::shell(&adb, serial, &format!("input keyevent {keys}"), SET_TIMEOUT).await?;
+    ensure_ok(&output)
 }
 
 pub async fn reboot(tools: &ToolStatus, serial: &str, mode: RebootMode) -> Result<()> {
@@ -125,63 +119,35 @@ pub async fn reboot(tools: &ToolStatus, serial: &str, mode: RebootMode) -> Resul
     ensure_ok(&output)
 }
 
-/// Detect (once per device) whether brightness runs 0–255 or 0–4095 by writing a
-/// value above the narrow range and seeing whether it sticks, then restoring.
-async fn brightness_span(adb: &str, serial: &str) -> Result<i32> {
-    if let Some(span) = cache_get(&BRIGHTNESS_SPAN, serial) {
-        return Ok(span);
+/// Read (once per device) the framework's screen-brightness ceiling.
+///
+/// The `screen_brightness` setting accepts any integer, so writing a probe value
+/// cannot reveal the range — the configured maximum has to be read directly.
+/// `cmd overlay lookup` is available on Android 13+; older devices fall back to
+/// the AOSP default of 255.
+async fn brightness_max(adb: &str, serial: &str) -> i32 {
+    if let Some(max) = cache_get(&BRIGHTNESS_MAX, serial) {
+        return max;
     }
 
-    let original = read_brightness(adb, serial).await?.unwrap_or(128);
-    let _ = write_brightness(adb, serial, PROBE_BRIGHTNESS).await;
-    let after = read_brightness(adb, serial).await?;
-    let span = if after == Some(PROBE_BRIGHTNESS) {
-        SPAN_WIDE
-    } else {
-        SPAN_NARROW
+    let max = match adb::shell(adb, serial, OVERLAY_BRIGHTNESS_MAX, READ_TIMEOUT).await {
+        Ok(output) => parse_brightness_max(&output.text()).unwrap_or(BRIGHTNESS_MAX_FALLBACK),
+        Err(_) => BRIGHTNESS_MAX_FALLBACK,
     };
-    let _ = write_brightness(adb, serial, original).await;
 
-    cache_set(&BRIGHTNESS_SPAN, serial, span);
-    Ok(span)
+    cache_set(&BRIGHTNESS_MAX, serial, max);
+    max
 }
 
-async fn read_brightness(adb: &str, serial: &str) -> Result<Option<i32>> {
-    let output = adb::shell(
-        adb,
-        serial,
-        "settings get system screen_brightness",
-        READ_TIMEOUT,
-    )
-    .await?;
-    Ok(first_int(&output.text()))
-}
-
-async fn write_brightness(adb: &str, serial: &str, raw: i32) -> Result<()> {
-    let output = adb::shell(
-        adb,
-        serial,
-        &format!("settings put system screen_brightness {raw}"),
-        READ_TIMEOUT,
-    )
-    .await?;
-    ensure_ok(&output)
-}
-
-/// Cache the `[low..high]` volume range of stream 3 (music).
-async fn volume_range(adb: &str, serial: &str) -> Result<(i32, i32)> {
-    if let Some(range) = cache_get(&VOLUME_RANGE, serial) {
-        return Ok(range);
-    }
-
+/// Current stream-3 (music) `(index, low, high)` from `cmd media_session volume`.
+async fn volume_levels(adb: &str, serial: &str) -> Result<(i32, i32, i32)> {
     for command in [
         "cmd media_session volume --stream 3 --get",
         "media volume --stream 3 --get",
     ] {
         if let Ok(output) = adb::shell(adb, serial, command, READ_TIMEOUT).await {
-            if let Some(range) = parse_volume_range(&output.text()) {
-                cache_set(&VOLUME_RANGE, serial, range);
-                return Ok(range);
+            if let Some(levels) = parse_volume_levels(&output.text()) {
+                return Ok(levels);
             }
         }
     }
@@ -219,22 +185,30 @@ pub fn first_int(text: &str) -> Option<i32> {
         .and_then(|caps| caps[1].parse::<i32>().ok())
 }
 
-/// `(low, high)` from a `volume is X in range [low..high]` line.
-pub fn parse_volume_range(text: &str) -> Option<(i32, i32)> {
+/// `(current, low, high)` from a `volume is X in range [low..high]` line.
+pub fn parse_volume_levels(text: &str) -> Option<(i32, i32, i32)> {
     let caps = VOLUME_RANGE_RE.captures(text)?;
+    let current = caps[1].parse::<i32>().ok()?;
     let low = caps[2].parse::<i32>().ok()?;
     let high = caps[3].parse::<i32>().ok()?;
     if high > low {
-        Some((low, high))
+        Some((current, low, high))
     } else {
         None
     }
 }
 
-/// Map a UI percentage to a raw brightness value for the given span.
-pub fn percent_to_raw(percent: i32, span: i32) -> i32 {
+/// The brightness ceiling from `cmd overlay lookup` output, if it is a sane
+/// integer (a bare number on the first line; error text is rejected).
+pub fn parse_brightness_max(text: &str) -> Option<i32> {
+    let value = text.lines().next()?.trim().parse::<i32>().ok()?;
+    (1..=65_535).contains(&value).then_some(value)
+}
+
+/// Map a UI percentage to a raw brightness value for the given ceiling.
+pub fn percent_to_raw(percent: i32, max: i32) -> i32 {
     let pct = percent.clamp(0, 100);
-    ((pct as f64 / 100.0) * span as f64).round() as i32
+    ((pct as f64 / 100.0) * max as f64).round() as i32
 }
 
 /// Map a UI percentage to a stream volume index within `[low..high]`.
@@ -284,17 +258,34 @@ mod tests {
     }
 
     #[test]
-    fn parses_volume_range_lines() {
+    fn parses_volume_level_lines() {
         assert_eq!(
-            parse_volume_range("volume is 10 in range [0..15]"),
-            Some((0, 15))
+            parse_volume_levels("volume is 10 in range [0..15]"),
+            Some((10, 0, 15))
+        );
+        // The verbose `[V] ...` prefix that `media_session` emits must not matter.
+        assert_eq!(
+            parse_volume_levels("[V] volume is 17 in range [0..25]"),
+            Some((17, 0, 25))
         );
         assert_eq!(
-            parse_volume_range("volume is 3 in range [1..10]"),
-            Some((1, 10))
+            parse_volume_levels("volume is 3 in range [1..10]"),
+            Some((3, 1, 10))
         );
-        assert_eq!(parse_volume_range("garbage"), None);
-        assert_eq!(parse_volume_range("volume is 3 in range [5..5]"), None);
+        assert_eq!(parse_volume_levels("garbage"), None);
+        assert_eq!(parse_volume_levels("volume is 3 in range [5..5]"), None);
+    }
+
+    #[test]
+    fn parses_brightness_max_output() {
+        assert_eq!(parse_brightness_max("255"), Some(255));
+        assert_eq!(parse_brightness_max("4095\n"), Some(4095));
+        assert_eq!(parse_brightness_max(""), None);
+        assert_eq!(parse_brightness_max("null"), None);
+        assert_eq!(
+            parse_brightness_max("Error: no such resource (code 0x1)"),
+            None
+        );
     }
 
     #[test]

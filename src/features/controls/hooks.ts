@@ -34,7 +34,8 @@ export function useQuickState(serial: string | null) {
     queryKey: quickStateKey(serial ?? ""),
     queryFn: () => ipc.controls.quickState(serial as string),
     enabled: Boolean(serial),
-    refetchInterval: 10_000,
+    // Poll so changes made on the phone itself show up here.
+    refetchInterval: 5_000,
   });
 }
 
