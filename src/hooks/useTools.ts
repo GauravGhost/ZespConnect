@@ -26,7 +26,7 @@ export function useSetToolPath() {
   });
 }
 
-/** Install a tool through the OS package manager (user-triggered). */
+/** Install or update a tool by downloading it from upstream (user-triggered). */
 export function useInstallTool() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -34,6 +34,17 @@ export function useInstallTool() {
     onSuccess: (status: ToolStatus) => {
       queryClient.setQueryData(toolsKey, status);
       queryClient.invalidateQueries({ queryKey: ["devices"] });
+    },
+  });
+}
+
+/** Compare installed tools against the latest upstream releases. */
+export function useCheckUpdates() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => ipc.tools.checkUpdates(),
+    onSuccess: (status: ToolStatus) => {
+      queryClient.setQueryData(toolsKey, status);
     },
   });
 }

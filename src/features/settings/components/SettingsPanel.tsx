@@ -1,11 +1,11 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { RefreshCw, Terminal } from "lucide-react";
+import { RefreshCw, Search, Terminal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInstallLog } from "@/hooks/useInstallLog";
-import { useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
+import { useCheckUpdates, useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
 import { errorMessage } from "@/lib/ipc";
 import type { ToolKind } from "@/types";
 import { ToolCard } from "./ToolCard";
@@ -14,6 +14,7 @@ export function SettingsPanel() {
   const { data: tools, refetch, isFetching } = useToolsStatus();
   const setPath = useSetToolPath();
   const install = useInstallTool();
+  const checkUpdates = useCheckUpdates();
   const log = useInstallLog();
 
   async function locate(kind: ToolKind) {
@@ -43,6 +44,17 @@ export function SettingsPanel() {
     });
   }
 
+  function checkForUpdates() {
+    checkUpdates.mutate(undefined, {
+      onError: (error) => toast.error(errorMessage(error)),
+      onSuccess: (status) => {
+        const problems = [status.adb_update.error, status.scrcpy_update.error].filter(Boolean);
+        if (problems.length > 0) toast.warning(`Update check incomplete — ${problems[0]}`);
+        else toast.success("Checked for updates");
+      },
+    });
+  }
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -52,10 +64,22 @@ export function SettingsPanel() {
             Manage the adb and scrcpy binaries Zesp Connect uses.
           </p>
         </div>
-        <Button variant="ghost" size="sm" className="shrink-0 gap-2" onClick={() => refetch()}>
-          <RefreshCw className={isFetching ? "size-4 animate-spin" : "size-4"} />
-          Re-check
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={checkForUpdates}
+            disabled={checkUpdates.isPending}
+          >
+            <Search className={checkUpdates.isPending ? "size-4 animate-pulse" : "size-4"} />
+            Check for updates
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-2" onClick={() => refetch()}>
+            <RefreshCw className={isFetching ? "size-4 animate-spin" : "size-4"} />
+            Re-check
+          </Button>
+        </div>
       </div>
 
       <div className="grid min-w-0 gap-4">
@@ -64,6 +88,7 @@ export function SettingsPanel() {
           title="ADB (Android Debug Bridge)"
           description="Required. Talks to your Android devices."
           info={tools?.adb}
+          update={tools?.adb_update}
           busy={install.isPending}
           onLocate={locate}
           onClear={clear}
@@ -74,6 +99,7 @@ export function SettingsPanel() {
           title="scrcpy (Screen Copy)"
           description="Optional. Needed for screen and camera mirroring."
           info={tools?.scrcpy}
+          update={tools?.scrcpy_update}
           busy={install.isPending}
           onLocate={locate}
           onClear={clear}

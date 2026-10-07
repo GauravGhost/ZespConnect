@@ -47,6 +47,8 @@ pub async fn start_app(
             scrcpy::virtual_display_safe(scrcpy::android_api(&adb_bin, serial).await)
         }
     };
+    // `--flex-display` only exists in scrcpy 4.0+; omit it on older releases.
+    let flex = use_virtual && scrcpy::flex_display_supported(tools.scrcpy.version.as_deref());
     let kind = if use_virtual {
         MirrorKind::App
     } else {
@@ -64,6 +66,7 @@ pub async fn start_app(
         package,
         &title,
         use_virtual,
+        flex,
         scrcpy::DEFAULT_MAX_SIZE,
     );
 

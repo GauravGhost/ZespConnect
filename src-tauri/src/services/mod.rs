@@ -6,4 +6,5 @@ pub mod mirror;
 pub mod scrcpy;
 pub mod tools;
 pub mod tracker;
+pub mod updates;
 pub mod wireless;

@@ -29,6 +29,7 @@ export const ipc = {
       invoke<ToolStatus>("set_tool_path", { tool, path }),
     clearPath: (tool: ToolKind) => invoke<ToolStatus>("set_tool_path", { tool, path: null }),
     install: (tool: ToolKind) => invoke<ToolStatus>("install_tool", { tool }),
+    checkUpdates: () => invoke<ToolStatus>("check_for_updates"),
     scrcpyVersion: () => invoke<string | null>("get_scrcpy_version"),
   },
 

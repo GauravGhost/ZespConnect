@@ -33,10 +33,13 @@ pub fn run() {
 
             // Resolve tools synchronously so the first paint shows the real status.
             let status = {
-                let overrides = app.state::<AppState>().overrides();
+                let state = app.state::<AppState>();
+                let overrides = state.overrides();
+                let managed_dir = state.app_data_dir();
                 tauri::async_runtime::block_on(services::tools::resolve(
                     overrides.get("adb").map(String::as_str),
                     overrides.get("scrcpy").map(String::as_str),
+                    &managed_dir,
                 ))
             };
             app.state::<AppState>().set_tools(status);
@@ -48,6 +51,13 @@ pub fn run() {
 
             // Tray icon + menu.
             tray::build(app.handle())?;
+
+            // Check for newer adb/scrcpy in the background; the UI polls the
+            // status, so it just fills in once the request returns.
+            let updater = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = commands::system::check_for_updates(updater).await;
+            });
 
             Ok(())
         })
@@ -64,6 +74,7 @@ pub fn run() {
             commands::system::set_tool_path,
             commands::system::get_scrcpy_version,
             commands::system::install_tool,
+            commands::system::check_for_updates,
             commands::devices::list_devices,
             commands::devices::get_device_info,
             commands::devices::set_selected_device,

@@ -17,6 +17,8 @@ export function AppHeader() {
   const install = useInstallLog();
 
   const scrcpyMissing = Boolean(tools && tools.adb.found && !tools.scrcpy.found);
+  const scrcpyOutdated = Boolean(tools?.scrcpy.found && tools.scrcpy_update.outdated);
+  const scrcpyLatest = tools?.scrcpy_update.latest_version ?? null;
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-4">
@@ -26,14 +28,16 @@ export function AppHeader() {
             <RefreshCw className="size-3.5 animate-spin" />
             Installing {install.tool ?? "tool"}…
           </span>
-        ) : scrcpyMissing ? (
+        ) : scrcpyMissing || scrcpyOutdated ? (
           <button
             type="button"
             onClick={() => setActiveTab("settings")}
             className="text-warning hover:text-warning/80 inline-flex items-center gap-1 text-xs font-medium"
           >
             <TriangleAlert className="size-4" />
-            scrcpy missing — set it up
+            {scrcpyMissing
+              ? "scrcpy missing — set it up"
+              : `scrcpy update available${scrcpyLatest ? ` (v${scrcpyLatest})` : ""}`}
           </button>
         ) : null}
       </div>

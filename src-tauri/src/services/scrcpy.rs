@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::error::{AppError, Result};
 use crate::models::ToolStatus;
-use crate::services::adb;
+use crate::services::{adb, updates};
 
 const API_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -18,6 +18,10 @@ pub const DEFAULT_MAX_SIZE: u32 = 1024;
 /// the platform SystemUI crashes on it and the phone ends up locked, so those
 /// versions (and any unknown version) must mirror the main display instead.
 const UNSAFE_VIRTUAL_DISPLAY_APIS: &[u32] = &[31, 32, 33];
+
+/// scrcpy added `--flex-display` in 4.0; older releases (e.g. 3.3.3) reject it
+/// with "unrecognized option", so it must only be sent when supported.
+const FLEX_DISPLAY_MIN_VERSION: &str = "4.0";
 
 pub fn scrcpy_path(tools: &ToolStatus) -> Result<String> {
     tools.scrcpy.path.clone().ok_or(AppError::ScrcpyMissing)
@@ -44,6 +48,14 @@ pub async fn android_api(adb_path: &str, serial: &str) -> Option<u32> {
     output.stdout.trim().parse().ok()
 }
 
+/// Whether the installed scrcpy understands `--flex-display` (added in 4.0).
+/// An unknown version is treated as unsupported, so we err toward omitting it.
+pub fn flex_display_supported(version: Option<&str>) -> bool {
+    version
+        .map(|version| updates::compare(version, FLEX_DISPLAY_MIN_VERSION).is_ge())
+        .unwrap_or(false)
+}
+
 /// Build the argv for an app window. With a virtual display the app gets its own
 /// resizable window; otherwise the main display is mirrored with the app in front.
 ///
@@ -54,6 +66,7 @@ pub fn app_window_args(
     package: &str,
     window_title: &str,
     use_virtual_display: bool,
+    flex_display: bool,
     max_size: u32,
 ) -> Vec<String> {
     let mut args = vec![
@@ -66,7 +79,13 @@ pub fn app_window_args(
 
     if use_virtual_display {
         args.push("--new-display".to_string());
-        args.push("--flex-display".to_string());
+        if flex_display {
+            args.push("--flex-display".to_string());
+        } else {
+            // Older scrcpy has no `--flex-display`; cap the virtual display instead.
+            args.push("-m".to_string());
+            args.push(max_size.to_string());
+        }
     } else {
         args.push("-m".to_string());
         args.push(max_size.to_string());
@@ -91,11 +110,20 @@ mod tests {
     }
 
     #[test]
+    fn flex_display_needs_scrcpy_4() {
+        assert!(flex_display_supported(Some("4.0")));
+        assert!(flex_display_supported(Some("5.0")));
+        assert!(!flex_display_supported(Some("3.3.3")));
+        assert!(!flex_display_supported(None));
+    }
+
+    #[test]
     fn builds_virtual_display_app_args() {
         let args = app_window_args(
             "SERIAL",
             "com.example.app",
             "Zesp Connect — Example",
+            true,
             true,
             1024,
         );
@@ -109,8 +137,19 @@ mod tests {
     }
 
     #[test]
+    fn omits_flex_display_on_older_scrcpy() {
+        let args = app_window_args("SERIAL", "com.example.app", "title", true, false, 1024);
+
+        assert!(args.contains(&"--new-display".to_string()));
+        assert!(!args.contains(&"--flex-display".to_string()));
+
+        let size_index = args.iter().position(|a| a == "-m").expect("-m");
+        assert_eq!(args[size_index + 1], "1024");
+    }
+
+    #[test]
     fn builds_main_display_app_args() {
-        let args = app_window_args("SERIAL", "com.example.app", "title", false, 800);
+        let args = app_window_args("SERIAL", "com.example.app", "title", false, false, 800);
 
         assert!(args.contains(&"--start-app=com.example.app".to_string()));
         assert!(!args.contains(&"--new-display".to_string()));

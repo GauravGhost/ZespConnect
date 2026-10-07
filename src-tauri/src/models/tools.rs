@@ -50,10 +50,28 @@ impl ToolInfo {
     }
 }
 
+/// Result of comparing an installed tool against the latest upstream release.
+///
+/// Computed by `services::updates` (needs the network); a `Default` value means
+/// "not checked yet".
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateInfo {
+    /// Latest version published upstream, if it could be read.
+    pub latest_version: Option<String>,
+    /// True when a newer version than the installed one exists.
+    pub outdated: bool,
+    /// Why the check failed (offline, rate-limited, …), if it did.
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolStatus {
     pub adb: ToolInfo,
     pub scrcpy: ToolInfo,
+    /// Update check for adb (independent of whether it is installed).
+    pub adb_update: UpdateInfo,
+    /// Update check for scrcpy.
+    pub scrcpy_update: UpdateInfo,
 }
 
 impl Default for ToolStatus {
@@ -61,6 +79,8 @@ impl Default for ToolStatus {
         ToolStatus {
             adb: ToolInfo::missing(),
             scrcpy: ToolInfo::missing(),
+            adb_update: UpdateInfo::default(),
+            scrcpy_update: UpdateInfo::default(),
         }
     }
 }

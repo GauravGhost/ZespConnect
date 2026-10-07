@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useInstallLog } from "@/hooks/useInstallLog";
 import { useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
 import { errorMessage } from "@/lib/ipc";
-import type { ToolInfo, ToolKind } from "@/types";
+import type { ToolInfo, ToolKind, UpdateInfo } from "@/types";
 
 type Os = "windows" | "macos" | "linux";
 
@@ -87,6 +87,7 @@ function ToolRow({
   kind,
   label,
   tool,
+  update,
   os,
   busy,
   onBrowse,
@@ -95,11 +96,15 @@ function ToolRow({
   kind: ToolKind;
   label: string;
   tool: ToolInfo;
+  update: UpdateInfo | undefined;
   os: Os;
   busy: boolean;
   onBrowse: (kind: ToolKind) => void;
   onInstall: (kind: ToolKind) => void;
 }) {
+  const outdated = Boolean(update?.outdated);
+  const latest = update?.latest_version ?? null;
+
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex items-center justify-between">
@@ -108,8 +113,8 @@ function ToolRow({
           <span className="text-sm font-medium">{label}</span>
         </div>
         {tool.found ? (
-          <Badge variant="success">
-            <Check /> Found
+          <Badge variant={outdated ? "warning" : "success"}>
+            <Check /> {outdated ? "Update available" : "Found"}
           </Badge>
         ) : (
           <Badge variant="warning">Not found</Badge>
@@ -117,14 +122,28 @@ function ToolRow({
       </div>
 
       {tool.found ? (
-        <p className="text-muted-foreground truncate font-mono text-xs">
-          {tool.path}
-          {tool.version ? ` · ${tool.version}` : ""}
-        </p>
+        <div className="space-y-2">
+          <p className="text-muted-foreground truncate font-mono text-xs">
+            {tool.path}
+            {tool.version ? ` · ${tool.version}` : ""}
+          </p>
+          {outdated ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-xs">
+                {latest ? `v${latest} is available` : "A newer version is available"}
+              </span>
+              <Button size="sm" className="gap-2" onClick={() => onInstall(kind)} disabled={busy}>
+                <DownloadCloud className="size-4" />
+                {latest ? `Update to v${latest}` : "Update"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <>
           <p className="text-muted-foreground text-sm">
-            Install {kind} with your package manager, or locate an existing binary.
+            Install {kind} automatically, or with your package manager.
+            {latest ? ` Latest is v${latest}.` : ""}
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -197,6 +216,7 @@ export function DependencyCheck() {
             kind="adb"
             label="ADB (Android Debug Bridge)"
             tool={tools.adb}
+            update={tools.adb_update}
             os={os}
             busy={install.isPending}
             onBrowse={browse}
@@ -206,6 +226,7 @@ export function DependencyCheck() {
             kind="scrcpy"
             label="scrcpy (Screen Copy)"
             tool={tools.scrcpy}
+            update={tools.scrcpy_update}
             os={os}
             busy={install.isPending}
             onBrowse={browse}

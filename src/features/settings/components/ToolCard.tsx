@@ -3,7 +3,7 @@ import { DownloadCloud, FolderSearch, RotateCcw, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ToolInfo, ToolKind } from "@/types";
+import type { ToolInfo, ToolKind, UpdateInfo } from "@/types";
 
 const SOURCE_LABEL: Record<ToolInfo["source"], string> = {
   override: "Custom path",
@@ -17,6 +17,7 @@ export function ToolCard({
   title,
   description,
   info,
+  update,
   busy,
   onLocate,
   onClear,
@@ -26,12 +27,15 @@ export function ToolCard({
   title: string;
   description: string;
   info: ToolInfo | undefined;
+  update: UpdateInfo | undefined;
   busy: boolean;
   onLocate: (kind: ToolKind) => void;
   onClear: (kind: ToolKind) => void;
   onInstall: (kind: ToolKind) => void;
 }) {
   const found = Boolean(info?.found);
+  const outdated = Boolean(update?.outdated);
+  const latest = update?.latest_version ?? null;
 
   return (
     <Card className="min-w-0">
@@ -41,8 +45,14 @@ export function ToolCard({
             <Terminal className="size-4 shrink-0" />
             <span className="truncate">{title}</span>
           </CardTitle>
-          <Badge variant={found ? "success" : "warning"} className="shrink-0">
-            {found ? `Found${info?.version ? ` · v${info.version}` : ""}` : "Not found"}
+          <Badge variant={found && !outdated ? "success" : "warning"} className="shrink-0">
+            {!found
+              ? "Not found"
+              : outdated
+                ? `Update available${latest ? ` · v${latest}` : ""}`
+                : found && update?.latest_version
+                  ? "Up to date"
+                  : `Found${info?.version ? ` · v${info.version}` : ""}`}
           </Badge>
         </div>
         <CardDescription>{description}</CardDescription>
@@ -50,8 +60,11 @@ export function ToolCard({
 
       <CardContent className="min-w-0 space-y-4">
         <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{info ? SOURCE_LABEL[info.source] : "Checking…"}</Badge>
+            {found && info?.version ? (
+              <span className="text-muted-foreground text-xs">installed v{info.version}</span>
+            ) : null}
           </div>
           <p
             className="text-muted-foreground font-mono text-xs break-all"
@@ -59,6 +72,9 @@ export function ToolCard({
           >
             {info?.path ?? "No binary resolved yet"}
           </p>
+          {update?.error ? (
+            <p className="text-muted-foreground text-xs">Update check failed — {update.error}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -78,6 +94,11 @@ export function ToolCard({
             <Button size="sm" className="gap-2" onClick={() => onInstall(kind)} disabled={busy}>
               <DownloadCloud className="size-4" />
               Install
+            </Button>
+          ) : outdated ? (
+            <Button size="sm" className="gap-2" onClick={() => onInstall(kind)} disabled={busy}>
+              <DownloadCloud className="size-4" />
+              {latest ? `Update to v${latest}` : "Update"}
             </Button>
           ) : null}
         </div>

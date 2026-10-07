@@ -18,6 +18,15 @@ export interface ToolInfo {
 export interface ToolStatus {
   adb: ToolInfo;
   scrcpy: ToolInfo;
+  adb_update: UpdateInfo;
+  scrcpy_update: UpdateInfo;
+}
+
+/** Result of comparing an installed tool against the latest upstream release. */
+export interface UpdateInfo {
+  latest_version: string | null;
+  outdated: boolean;
+  error: string | null;
 }
 
 export interface InstallProgress {
