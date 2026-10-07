@@ -65,6 +65,50 @@ pub async fn shell(
     run_scoped(adb, serial, &args, timeout).await
 }
 
+/// `adb -s <serial> push <local> <remote>`.
+pub async fn push(
+    adb: &str,
+    serial: &str,
+    local: &str,
+    remote: &str,
+    timeout: Duration,
+) -> Result<ProcessOutput> {
+    let args = vec!["push".to_string(), local.to_string(), remote.to_string()];
+    run_scoped(adb, serial, &args, timeout).await
+}
+
+/// `adb -s <serial> reverse <remote> tcp:<local_port>` — the device connects back
+/// to a host port we are listening on (scrcpy's default tunnel direction).
+pub async fn reverse(
+    adb: &str,
+    serial: &str,
+    remote: &str,
+    local_port: u16,
+    timeout: Duration,
+) -> Result<ProcessOutput> {
+    let args = vec![
+        "reverse".to_string(),
+        remote.to_string(),
+        format!("tcp:{local_port}"),
+    ];
+    run_scoped(adb, serial, &args, timeout).await
+}
+
+/// `adb -s <serial> reverse --remove <remote>`.
+pub async fn reverse_remove(
+    adb: &str,
+    serial: &str,
+    remote: &str,
+    timeout: Duration,
+) -> Result<ProcessOutput> {
+    let args = vec![
+        "reverse".to_string(),
+        "--remove".to_string(),
+        remote.to_string(),
+    ];
+    run_scoped(adb, serial, &args, timeout).await
+}
+
 pub async fn start_server(adb: &str) -> Result<ProcessOutput> {
     run(adb, &["start-server".to_string()], Duration::from_secs(15)).await
 }

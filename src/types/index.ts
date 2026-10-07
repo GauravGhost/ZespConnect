@@ -125,6 +125,16 @@ export interface MirrorProcess {
   started: number;
 }
 
+/** A mirror rendered inside a Tauri window the app owns (no external scrcpy window). */
+export interface MirrorSession {
+  id: number;
+  serial: string;
+  kind: MirrorKind;
+  package: string | null;
+  label: string | null;
+  started: number;
+}
+
 export type QuickToggleKey =
   "wifi" | "bluetooth" | "darkmode" | "airplane" | "data" | "location" | "dnd" | "rotate";
 

@@ -1,14 +1,21 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
-use crate::models::{Device, MirrorProcess, ToolStatus};
+use crate::models::{Device, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolStatus};
 use crate::util;
 
 /// A tracked scrcpy window plus the channel that asks its watcher to stop it.
 pub struct MirrorHandle {
     pub info: MirrorProcess,
+    pub stop: tokio::sync::oneshot::Sender<()>,
+}
+
+/// A tracked in-app mirror session plus the channel that asks its supervisor to
+/// stop it.
+pub struct SessionHandle {
+    pub info: MirrorSession,
     pub stop: tokio::sync::oneshot::Sender<()>,
 }
 
@@ -19,6 +26,9 @@ pub struct AppState {
     tool_overrides: RwLock<HashMap<String, String>>,
     devices: RwLock<Vec<Device>>,
     mirrors: RwLock<HashMap<u32, MirrorHandle>>,
+    sessions: RwLock<HashMap<u64, SessionHandle>>,
+    pending_sessions: RwLock<HashMap<u64, MirrorSessionSpec>>,
+    next_session: AtomicU64,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
     pairing: AtomicBool,
@@ -34,6 +44,9 @@ impl AppState {
             tool_overrides: RwLock::new(overrides),
             devices: RwLock::new(Vec::new()),
             mirrors: RwLock::new(HashMap::new()),
+            sessions: RwLock::new(HashMap::new()),
+            pending_sessions: RwLock::new(HashMap::new()),
+            next_session: AtomicU64::new(1),
             app_data_dir,
             tracker: RwLock::new(None),
             pairing: AtomicBool::new(false),
@@ -122,6 +135,67 @@ impl AppState {
     /// Take every tracked window (used to stop them all).
     pub fn drain_mirrors(&self) -> Vec<MirrorHandle> {
         self.mirrors
+            .write()
+            .map(|mut guard| guard.drain().map(|(_, handle)| handle).collect())
+            .unwrap_or_default()
+    }
+
+    /// Allocate the next in-app session id.
+    pub fn next_session_id(&self) -> u64 {
+        self.next_session.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Remember a session's settings until its window asks for the stream.
+    pub fn set_pending_session(&self, id: u64, spec: MirrorSessionSpec) {
+        if let Ok(mut guard) = self.pending_sessions.write() {
+            guard.insert(id, spec);
+        }
+    }
+
+    /// Take a pending session's settings, if it has not been started yet.
+    pub fn take_pending_session(&self, id: u64) -> Option<MirrorSessionSpec> {
+        self.pending_sessions
+            .write()
+            .ok()
+            .and_then(|mut guard| guard.remove(&id))
+    }
+
+    /// The in-app mirror sessions currently running.
+    pub fn list_sessions(&self) -> Vec<MirrorSession> {
+        self.sessions
+            .read()
+            .map(|guard| guard.values().map(|handle| handle.info.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Register a running session and its stop channel.
+    pub fn set_session(&self, info: MirrorSession, stop: tokio::sync::oneshot::Sender<()>) {
+        if let Ok(mut guard) = self.sessions.write() {
+            guard.insert(info.id, SessionHandle { info, stop });
+        }
+    }
+
+    /// Drop a session's record (used by its supervisor once it ends).
+    pub fn remove_session(&self, id: u64) {
+        if let Ok(mut guard) = self.sessions.write() {
+            guard.remove(&id);
+        }
+        if let Ok(mut guard) = self.pending_sessions.write() {
+            guard.remove(&id);
+        }
+    }
+
+    /// Take a session's stop channel, if it is still tracked.
+    pub fn take_session(&self, id: u64) -> Option<SessionHandle> {
+        self.sessions
+            .write()
+            .ok()
+            .and_then(|mut guard| guard.remove(&id))
+    }
+
+    /// Take every tracked session (used to stop them all).
+    pub fn drain_sessions(&self) -> Vec<SessionHandle> {
+        self.sessions
             .write()
             .map(|mut guard| guard.drain().map(|(_, handle)| handle).collect())
             .unwrap_or_default()

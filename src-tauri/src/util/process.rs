@@ -126,3 +126,34 @@ pub fn read_log_tail(path: &std::path::Path, max_lines: usize) -> String {
         Err(_) => String::new(),
     }
 }
+
+/// The most informative line from a failed process's log: the first line that
+/// looks like an error, otherwise the first non-empty line.
+///
+/// A Java stack trace puts its message *before* the frames, so a tail is useless
+/// for the scrcpy server — the exception is the first line, not the last.
+pub fn read_log_error(path: &std::path::Path) -> String {
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        return String::new();
+    };
+
+    let mut first = "";
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if first.is_empty() {
+            first = line;
+        }
+        let looks_like_error = line.contains("Exception")
+            || line.contains("Error")
+            || line.starts_with("Invalid")
+            || line.contains("not supported")
+            || line.contains("Unknown");
+        if looks_like_error {
+            return line.to_string();
+        }
+    }
+    first.to_string()
+}

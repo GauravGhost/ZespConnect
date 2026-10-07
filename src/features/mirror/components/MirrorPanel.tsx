@@ -8,32 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveDevice } from "@/features/devices";
 import {
-  useMirrors,
+  useOpenWindows,
   useStartCamera,
   useStartMirror,
   useStopAllMirrors,
-  useStopMirror,
+  useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
+import { DEFAULT_MIRROR_OPTIONS } from "@/lib/mirror";
 import type { MirrorKind, MirrorOptions } from "@/types";
 import { MirrorOptionsForm } from "./MirrorOptionsForm";
-
-const DEFAULT_OPTIONS: MirrorOptions = {
-  resolution: null,
-  fps: null,
-  bitrate: 8,
-  audio: true,
-  borderless: false,
-  stay_awake: true,
-  virtual_display: false,
-  always_on_top: false,
-  aspect_lock: true,
-  background: null,
-  fit: null,
-  camera_facing: "back",
-  camera_torch: false,
-  camera_zoom: null,
-};
 
 const KIND_LABEL: Record<MirrorKind, string> = {
   mirror: "Screen",
@@ -46,14 +30,14 @@ export function MirrorPanel() {
   const { device } = useActiveDevice();
   const serial = device?.serial ?? null;
   const { data: tools } = useToolsStatus();
-  const { data: mirrors = [] } = useMirrors();
+  const { windows } = useOpenWindows();
 
-  const [screenOptions, setScreenOptions] = useState<MirrorOptions>(DEFAULT_OPTIONS);
-  const [cameraOptions, setCameraOptions] = useState<MirrorOptions>(DEFAULT_OPTIONS);
+  const [screenOptions, setScreenOptions] = useState<MirrorOptions>(DEFAULT_MIRROR_OPTIONS);
+  const [cameraOptions, setCameraOptions] = useState<MirrorOptions>(DEFAULT_MIRROR_OPTIONS);
 
   const startMirror = useStartMirror();
   const startCamera = useStartCamera();
-  const stopMirror = useStopMirror();
+  const stopWindow = useStopOpenWindow();
   const stopAll = useStopAllMirrors();
 
   if (!device) {
@@ -134,9 +118,9 @@ export function MirrorPanel() {
             <CardTitle className="flex items-center gap-2 text-sm">
               <MonitorSmartphone className="size-4" />
               Open windows
-              <Badge variant="secondary">{mirrors.length}</Badge>
+              <Badge variant="secondary">{windows.length}</Badge>
             </CardTitle>
-            {mirrors.length > 0 ? (
+            {windows.length > 0 ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -149,26 +133,26 @@ export function MirrorPanel() {
           </div>
         </CardHeader>
         <CardContent className="px-5">
-          {mirrors.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No scrcpy windows are open.</p>
+          {windows.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No mirror windows are open.</p>
           ) : (
             <ul className="divide-y">
-              {mirrors.map((mirror) => (
-                <li key={mirror.pid} className="flex items-center justify-between gap-3 py-1.5">
+              {windows.map((window) => (
+                <li key={window.key} className="flex items-center justify-between gap-3 py-1.5">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{mirror.label || mirror.serial}</p>
+                    <p className="truncate text-sm font-medium">{window.label || window.serial}</p>
                     <p className="text-muted-foreground truncate font-mono text-xs">
-                      pid {mirror.pid} · {mirror.serial}
+                      {window.serial}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant="outline">{KIND_LABEL[mirror.kind]}</Badge>
+                    <Badge variant="outline">{KIND_LABEL[window.kind]}</Badge>
                     <Button
                       variant="ghost"
                       size="icon"
                       aria-label="Stop window"
-                      disabled={stopMirror.isPending}
-                      onClick={() => stopMirror.mutate(mirror.pid)}
+                      disabled={stopWindow.isPending}
+                      onClick={() => stopWindow.mutate(window)}
                     >
                       <X />
                     </Button>

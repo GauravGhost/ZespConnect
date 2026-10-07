@@ -13,10 +13,10 @@ const API_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Bounds for the numeric options the UI can send, so a bad value can never
 /// reach scrcpy (they are clamped, not rejected, to keep the UI forgiving).
-const MIN_RESOLUTION: u32 = 240;
-const MAX_RESOLUTION: u32 = 4096;
-const MAX_FPS_LIMIT: u32 = 240;
-const MAX_BITRATE: u32 = 200;
+pub const MIN_RESOLUTION: u32 = 240;
+pub const MAX_RESOLUTION: u32 = 4096;
+pub const MAX_FPS_LIMIT: u32 = 240;
+pub const MAX_BITRATE: u32 = 200;
 
 /// `--render-fit` values scrcpy understands.
 const FIT_VALUES: &[&str] = &["contain", "cover", "stretch"];
@@ -29,6 +29,10 @@ pub const DEFAULT_MAX_SIZE: u32 = 1024;
 /// versions (and any unknown version) must mirror the main display instead.
 const UNSAFE_VIRTUAL_DISPLAY_APIS: &[u32] = &[31, 32, 33];
 
+/// scrcpy refuses a virtual display before Android 10, so older devices mirror
+/// the main display with the app brought to the foreground.
+const MIN_VIRTUAL_DISPLAY_API: u32 = 29;
+
 /// scrcpy added `--flex-display` in 4.0; older releases (e.g. 3.3.3) reject it
 /// with "unrecognized option", so it must only be sent when supported.
 const FLEX_DISPLAY_MIN_VERSION: &str = "4.0";
@@ -40,7 +44,9 @@ pub fn scrcpy_path(tools: &ToolStatus) -> Result<String> {
 /// Whether it is safe to give an app its own virtual display on this device.
 pub fn virtual_display_safe(api: Option<u32>) -> bool {
     match api {
-        Some(value) => !UNSAFE_VIRTUAL_DISPLAY_APIS.contains(&value),
+        Some(value) => {
+            value >= MIN_VIRTUAL_DISPLAY_API && !UNSAFE_VIRTUAL_DISPLAY_APIS.contains(&value)
+        }
         None => false,
     }
 }
@@ -238,6 +244,12 @@ mod tests {
         assert!(!virtual_display_safe(Some(32)));
         assert!(!virtual_display_safe(Some(33)));
         assert!(!virtual_display_safe(None));
+    }
+
+    #[test]
+    fn virtual_display_needs_android_10() {
+        assert!(virtual_display_safe(Some(29)));
+        assert!(!virtual_display_safe(Some(28)));
     }
 
     #[test]

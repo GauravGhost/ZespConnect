@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type {
   AppListResult,
@@ -6,8 +6,10 @@ import type {
   Device,
   DeviceInfo,
   FileEntry,
+  MirrorKind,
   MirrorOptions,
   MirrorProcess,
+  MirrorSession,
   QrPayload,
   QuickState,
   QuickToggleKey,
@@ -63,6 +65,22 @@ export const ipc = {
     stop: (pid: number) => invoke<void>("stop_mirror", { pid }),
     stopAll: () => invoke<void>("stop_all_mirrors"),
     list: () => invoke<MirrorProcess[]>("list_mirrors"),
+
+    /** Open a mirror inside a Tauri window the app owns; returns the session id. */
+    openWindow: (args: {
+      serial: string;
+      kind: MirrorKind;
+      package: string | null;
+      label: string;
+      options: MirrorOptions;
+    }) => invoke<number>("open_mirror_window", args),
+    /** Stream a session's video into the calling window over an IPC channel. */
+    startStream: (id: number, channel: Channel<ArrayBuffer>) =>
+      invoke<MirrorSession>("start_mirror_stream", { id, channel }),
+    stopSession: (id: number) => invoke<void>("stop_mirror_session", { id }),
+    listSessions: () => invoke<MirrorSession[]>("list_mirror_sessions"),
+    /** Reopen a session as an external window when in-app rendering is unavailable. */
+    fallback: (id: number) => invoke<void>("mirror_session_fallback", { id }),
   },
 
   controls: {

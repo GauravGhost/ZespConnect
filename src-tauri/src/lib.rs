@@ -62,11 +62,20 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the window keeps the app running in the tray; quit from
-            // the tray's Exit entry.
+            // Closing the main window keeps the app running in the tray; quit from
+            // the tray's Exit entry. A mirror window closes for real, stopping the
+            // session it is rendering.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if let Some(id) = window
+                    .label()
+                    .strip_prefix("mirror-")
+                    .and_then(|value| value.parse::<u64>().ok())
+                {
+                    services::mirror_session::stop(window.app_handle(), id);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -96,6 +105,11 @@ pub fn run() {
             commands::mirror::stop_mirror,
             commands::mirror::stop_all_mirrors,
             commands::mirror::list_mirrors,
+            commands::mirror::open_mirror_window,
+            commands::mirror::start_mirror_stream,
+            commands::mirror::stop_mirror_session,
+            commands::mirror::list_mirror_sessions,
+            commands::mirror::mirror_session_fallback,
             commands::wireless::get_qr_payload,
             commands::wireless::pair_wireless_qr,
         ])

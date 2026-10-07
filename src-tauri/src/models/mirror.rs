@@ -25,6 +25,30 @@ pub struct MirrorProcess {
     pub started: u64,
 }
 
+/// A mirror rendered inside a Tauri window the app owns (no external scrcpy
+/// window). `id` is a process-local session id, not an OS pid.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MirrorSession {
+    pub id: u64,
+    pub serial: String,
+    pub kind: MirrorKind,
+    pub package: Option<String>,
+    pub label: Option<String>,
+    pub started: u64,
+}
+
+/// Everything needed to start one in-app mirror session. Kept in `AppState`
+/// between opening the window and the window asking for its stream, so a failed
+/// stream can fall back to the external scrcpy window with the same settings.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MirrorSessionSpec {
+    pub serial: String,
+    pub kind: MirrorKind,
+    pub package: Option<String>,
+    pub label: String,
+    pub options: MirrorOptions,
+}
+
 /// Options for a screen-mirror or camera session, mirroring the `MirrorOptions`
 /// TypeScript interface (`src/types/index.ts`). Unknown fields are rejected so a
 /// typo in the UI fails loudly instead of silently being ignored.

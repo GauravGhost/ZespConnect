@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActiveDevice } from "@/features/devices";
 import {
-  useMirrors,
   useOpenAppOnScreen,
   useOpenAppWindow,
-  useStopMirror,
+  useOpenWindows,
+  useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
@@ -54,11 +54,11 @@ export function AppsPanel() {
   const clearData = useClearAppData();
   const uninstall = useUninstallApp();
 
-  const { data: mirrors = [] } = useMirrors();
+  const { windows } = useOpenWindows();
   const openWindow = useOpenAppWindow();
   const openScreen = useOpenAppOnScreen();
-  const stopMirror = useStopMirror();
-  const windowFor = (pkg: string) => mirrors.filter((mirror) => mirror.package === pkg);
+  const stopWindow = useStopOpenWindow();
+  const windowFor = (pkg: string) => windows.filter((window) => window.package === pkg);
 
   // When we painted from cache, pull the real list from the device in the background.
   const stale = Boolean(data?.stale);
@@ -115,7 +115,7 @@ export function AppsPanel() {
     confirmPending ||
     openWindow.isPending ||
     openScreen.isPending ||
-    stopMirror.isPending;
+    stopWindow.isPending;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -224,7 +224,7 @@ export function AppsPanel() {
                       openScreen.mutate({ serial, pkg: target.package, label: target.label })
                     }
                     onStop={(target) =>
-                      windowFor(target.package).forEach((mirror) => stopMirror.mutate(mirror.pid))
+                      windowFor(target.package).forEach((window) => stopWindow.mutate(window))
                     }
                     onLaunch={(target) => serial && launch.mutate({ serial, pkg: target.package })}
                     onClearData={(target) => setConfirm({ app: target, action: "clearData" })}

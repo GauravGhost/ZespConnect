@@ -1,9 +1,12 @@
 pub mod adb;
 pub mod apps;
+pub mod control;
 pub mod devices;
 pub mod install;
 pub mod mirror;
+pub mod mirror_session;
 pub mod scrcpy;
+pub mod scrcpy_server;
 pub mod toggles;
 pub mod tools;
 pub mod tracker;
