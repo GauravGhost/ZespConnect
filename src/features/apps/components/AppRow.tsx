@@ -67,8 +67,8 @@ export function AppRow({
       <Button
         variant={isOpen ? "secondary" : "ghost"}
         size="icon"
-        aria-label={isOpen ? `Close ${app.label} window` : `Open ${app.label} on the laptop`}
-        title={isOpen ? "Close window" : "Open on the laptop"}
+        aria-label={isOpen ? `Close ${app.label} window` : `Open ${app.label} in a window`}
+        title={isOpen ? "Close window" : "Open in a window"}
         disabled={busy}
         onClick={() => (isOpen ? onStop(app) : onOpen(app))}
       >
