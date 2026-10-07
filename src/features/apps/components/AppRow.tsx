@@ -95,7 +95,7 @@ export function AppRow({
           )}
           <DropdownMenuItem onSelect={() => onOpenScreen(app)}>
             <Smartphone />
-            Open on phone screen
+            Open in mirror mode
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onLaunch(app)}>
             <Play />

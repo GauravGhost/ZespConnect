@@ -14,6 +14,11 @@ use serde::Deserialize;
 use crate::error::{AppError, Result};
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
+/// Large binary downloads must not be bounded by a *total* request timeout —
+/// that aborts a big file part-way on a slow link. Bound the connection and
+/// each read instead.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+const READ_TIMEOUT: Duration = Duration::from_secs(120);
 const USER_AGENT: &str = concat!("ZespConnect/", env!("CARGO_PKG_VERSION"));
 
 /// GitHub marks the latest non-prerelease scrcpy release here.
@@ -193,9 +198,22 @@ fn platform_tools_revision(xml: &str) -> Option<String> {
 }
 
 /// Build the shared HTTP client (timeout + User-Agent, both required by GitHub).
+/// For small metadata requests only — use [`download_client`] for binaries.
 pub fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|e| AppError::Other(format!("could not start HTTP client: {e}")))
+}
+
+/// Client for large binary downloads. A total request timeout would abort a
+/// multi-megabyte archive part-way on a slow connection, so only the connect
+/// and per-read stalls are bounded.
+pub fn download_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(READ_TIMEOUT)
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| AppError::Other(format!("could not start HTTP client: {e}")))

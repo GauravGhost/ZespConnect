@@ -69,7 +69,7 @@ pub async fn install<F: Fn(String) + Send>(
 
 /// Stream `url` into `dest`, reporting progress every 10%.
 async fn download<F: Fn(String) + Send>(url: &str, dest: &Path, on_line: &F) -> Result<()> {
-    let client = updates::http_client()?;
+    let client = updates::download_client()?;
     let response = client
         .get(url)
         .send()
