@@ -62,20 +62,23 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the main window keeps the app running in the tray; quit from
-            // the tray's Exit entry. A mirror window closes for real, stopping the
-            // session it is rendering.
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                } else if let Some(id) = window
-                    .label()
-                    .strip_prefix("mirror-")
-                    .and_then(|value| value.parse::<u64>().ok())
-                {
-                    services::mirror_session::stop(window.app_handle(), id);
+            match event {
+                // Keep a mirror window's client area on the video's aspect ratio, so
+                // resizing scales both dimensions together instead of adding padding.
+                tauri::WindowEvent::Resized(size) => on_mirror_resized(window, *size),
+                // Closing the main window keeps the app running in the tray; quit from
+                // the tray's Exit entry. A mirror window closes for real, stopping the
+                // session it is rendering.
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    if window.label() == "main" {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    } else if let Some(id) = mirror_id(window.label()) {
+                        platform::forget_aspect(window);
+                        services::mirror_session::stop(window.app_handle(), id);
+                    }
                 }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -107,6 +110,7 @@ pub fn run() {
             commands::mirror::list_mirrors,
             commands::mirror::open_mirror_window,
             commands::mirror::start_mirror_stream,
+            commands::mirror::fit_mirror_window,
             commands::mirror::stop_mirror_session,
             commands::mirror::mirror_touch,
             commands::mirror::list_mirror_sessions,
@@ -116,4 +120,50 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// The session id in a `mirror-<id>` window label, if the label is one.
+fn mirror_id(label: &str) -> Option<u64> {
+    label
+        .strip_prefix("mirror-")
+        .and_then(|value| value.parse::<u64>().ok())
+}
+
+/// Nudge a resized mirror window back onto its video's aspect ratio, keeping the
+/// width the user dragged and letting the height follow.
+#[cfg(not(windows))]
+fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, height: u32, id: u64) {
+    let Some(aspect) = window.app_handle().state::<AppState>().aspect(id) else {
+        return;
+    };
+    // A maximized or fullscreen window is not the user dragging an edge.
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return;
+    }
+
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let logical_width = width as f64 / scale;
+    let logical_height = height as f64 / scale;
+    let (width, height) = services::mirror_window::lock_size(logical_width, aspect);
+
+    if (width - logical_width).abs() > 2.0 || (height - logical_height).abs() > 2.0 {
+        let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    }
+}
+
+/// On Windows the aspect ratio is enforced by the native `WM_SIZING` hook (see
+/// `platform::watch_aspect`), so the rectangle is already correct here.
+#[cfg(windows)]
+fn on_mirror_resized<R: tauri::Runtime>(
+    _window: &tauri::Window<R>,
+    _size: tauri::PhysicalSize<u32>,
+) {
+}
+
+/// Elsewhere there is no resize hook, so correct the size after the fact.
+#[cfg(not(windows))]
+fn on_mirror_resized<R: tauri::Runtime>(window: &tauri::Window<R>, size: tauri::PhysicalSize<u32>) {
+    if let Some(id) = mirror_id(window.label()) {
+        enforce_aspect(window, size.width, size.height, id);
+    }
 }

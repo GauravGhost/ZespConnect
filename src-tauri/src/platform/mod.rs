@@ -1,5 +1,39 @@
 //! Platform-specific process helpers.
 
+#[cfg(windows)]
+mod aspect;
+
+/// Lock a mirror window's resizes to the video's aspect ratio through the
+/// platform's own resize hook (Windows `WM_SIZING`), so the dragged edge tracks
+/// the cursor. A no-op elsewhere, where the caller corrects the size afterwards.
+#[cfg(windows)]
+pub fn watch_aspect<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>, aspect: f64) {
+    let (Ok(inner), Ok(outer)) = (window.inner_size(), window.outer_size()) else {
+        return;
+    };
+    let frame = crate::services::mirror_window::Frame {
+        width: outer.width.saturating_sub(inner.width) as i32,
+        height: outer.height.saturating_sub(inner.height) as i32,
+    };
+    if let Ok(hwnd) = window.hwnd() {
+        aspect::watch(hwnd.0 as isize, aspect, frame);
+    }
+}
+
+#[cfg(not(windows))]
+pub fn watch_aspect<R: tauri::Runtime>(_window: &tauri::WebviewWindow<R>, _aspect: f64) {}
+
+/// Stop locking a window as it closes, releasing the hook and its aspect.
+#[cfg(windows)]
+pub fn forget_aspect<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    if let Ok(hwnd) = window.hwnd() {
+        aspect::forget(hwnd.0 as isize);
+    }
+}
+
+#[cfg(not(windows))]
+pub fn forget_aspect<R: tauri::Runtime>(_window: &tauri::Window<R>) {}
+
 /// Hide the console window a spawned process would otherwise flash on Windows.
 /// A no-op everywhere else.
 #[cfg(windows)]

@@ -2,15 +2,19 @@
 //! `services::mirror_session`).
 
 use tauri::ipc::{Channel, Response};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, LogicalSize, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 
 use crate::error::{AppError, Result};
 use crate::models::{
     MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec, TouchAction,
 };
+use crate::platform;
 use crate::services::control;
 use crate::services::mirror::{self, AppDisplay};
 use crate::services::mirror_session;
+use crate::services::mirror_window;
 use crate::state::AppState;
 use crate::util::validation::{validate_package, validate_serial};
 
@@ -119,12 +123,56 @@ pub async fn open_mirror_window(
     };
     WebviewWindowBuilder::new(&app, window_label(id), WebviewUrl::App("index.html".into()))
         .title(format!("Zesp Connect — {title}"))
-        .inner_size(420.0, 820.0)
-        .min_inner_size(260.0, 320.0)
+        .inner_size(
+            mirror_window::DEFAULT_LONG_SIDE * 0.5,
+            mirror_window::DEFAULT_LONG_SIDE,
+        )
+        .min_inner_size(mirror_window::MIN_SIDE, mirror_window::MIN_SIDE)
+        .maximizable(false)
         .build()
         .map_err(|error| AppError::Other(error.to_string()))?;
 
     Ok(id)
+}
+
+/// Fit a session's window to its video's aspect ratio once the first frame reveals
+/// the device's dimensions, and remember the ratio so later resizes stay locked to
+/// it. The client area then matches the frame exactly, so the canvas fills the
+/// window instead of being letterboxed with padding.
+#[tauri::command]
+pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle) -> Result<()> {
+    if width == 0 || height == 0 {
+        return Err(AppError::Invalid("Invalid video size".into()));
+    }
+
+    let window = app
+        .get_webview_window(&window_label(id))
+        .ok_or_else(|| AppError::Invalid("Unknown mirror window".into()))?;
+
+    let aspect = width as f64 / height as f64;
+    let long_side = window_long_side(&window);
+    app.state::<AppState>().set_aspect(id, aspect);
+    // On Windows this locks the ratio through the native resize hook so the
+    // dragged edge tracks the cursor; elsewhere it is a no-op and the window's
+    // resize handler corrects the size instead.
+    platform::watch_aspect(&window, aspect);
+
+    let (width, height) = mirror_window::fit_size(width, height, long_side);
+    window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|error| AppError::Other(error.to_string()))?;
+
+    Ok(())
+}
+
+/// The longer side of a window's client area in logical pixels, used to keep a
+/// window's footprint steady when its aspect ratio changes on rotation.
+fn window_long_side(window: &WebviewWindow) -> f64 {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let Ok(size) = window.inner_size() else {
+        return mirror_window::DEFAULT_LONG_SIDE;
+    };
+    (size.width as f64 / scale).max(size.height as f64 / scale)
 }
 
 /// Stream a previously opened session's video into the calling window.

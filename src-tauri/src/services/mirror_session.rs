@@ -24,6 +24,7 @@ use crate::services::{adb, apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
 use crate::util::{self, process, validation};
 
+const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
 /// How long to wait for the server to connect back before giving up.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
@@ -221,6 +222,10 @@ pub async fn start(
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
     app.state::<AppState>()
         .set_session(info.clone(), stop_tx, control_channel.clone());
+
+    // Tell every window the session is live so the app list can flip its button to
+    // "close"; the registration above is the moment it becomes open.
+    let _ = app.emit(EVENT_SESSION_STARTED, &info);
 
     let handle = app.clone();
     let task_info = info.clone();

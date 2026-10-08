@@ -47,6 +47,8 @@ export function useOpenWindows() {
         });
     };
 
+    subscribe(events.mirrorStarted(() => invalidateWindows(queryClient)));
+    subscribe(events.mirrorSessionStarted(() => invalidateWindows(queryClient)));
     subscribe(events.mirrorExited(() => invalidateWindows(queryClient)));
     subscribe(events.mirrorSessionExited(() => invalidateWindows(queryClient)));
 

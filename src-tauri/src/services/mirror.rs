@@ -14,6 +14,7 @@ use crate::services::{adb, scrcpy};
 use crate::state::AppState;
 use crate::util::{self, process};
 
+const EVENT_MIRROR_STARTED: &str = "mirror:started";
 const EVENT_MIRROR_EXITED: &str = "mirror:exited";
 /// scrcpy aborts almost immediately when the device is unreachable or the serial
 /// is ambiguous; give it a moment before trusting the window is up.
@@ -200,6 +201,10 @@ async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorPro
 
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
     app.state::<AppState>().set_mirror(info.clone(), stop_tx);
+
+    // Notify observers the window is up (also covers mirrors opened from the
+    // fallback path, which has no mutation of its own to refresh the list).
+    let _ = app.emit(EVENT_MIRROR_STARTED, &info);
 
     // Watch until the window closes (or we ask it to), then clean up and notify.
     let handle = app.clone();

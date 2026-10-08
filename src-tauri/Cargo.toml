@@ -48,6 +48,15 @@ zip = "2"
 tar = "0.4"
 flate2 = "1"
 
+# Aspect-ratio locking for mirror windows uses the native WM_SIZING hook, which
+# tao does not expose.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1

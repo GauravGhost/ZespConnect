@@ -5,7 +5,9 @@ import type { Device, InstallDone, InstallProgress, MirrorProcess, MirrorSession
 /** Typed map of the backend events emitted via `AppHandle::emit`. */
 export interface BackendEvents {
   "devices:changed": Device[];
+  "mirror:started": MirrorProcess;
   "mirror:exited": MirrorProcess;
+  "mirror:session:started": MirrorSession;
   "mirror:session:exited": MirrorSession;
   "install:progress": { serial: string; package: string; progress: number; message: string };
   "tools:install:progress": InstallProgress;
@@ -23,7 +25,11 @@ export function onBackendEvent<K extends keyof BackendEvents>(
 
 export const events = {
   devicesChanged: (handler: EventCallback<Device[]>) => onBackendEvent("devices:changed", handler),
+  mirrorStarted: (handler: EventCallback<MirrorProcess>) =>
+    onBackendEvent("mirror:started", handler),
   mirrorExited: (handler: EventCallback<MirrorProcess>) => onBackendEvent("mirror:exited", handler),
+  mirrorSessionStarted: (handler: EventCallback<MirrorSession>) =>
+    onBackendEvent("mirror:session:started", handler),
   mirrorSessionExited: (handler: EventCallback<MirrorSession>) =>
     onBackendEvent("mirror:session:exited", handler),
   installProgress: (handler: EventCallback<BackendEvents["install:progress"]>) =>

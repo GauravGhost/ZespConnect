@@ -78,6 +78,9 @@ export const ipc = {
     /** Stream a session's video into the calling window over an IPC channel. */
     startStream: (id: number, channel: Channel<ArrayBuffer>) =>
       invoke<MirrorSession>("start_mirror_stream", { id, channel }),
+    /** Fit the session's window to the video's aspect ratio once its first frame arrives. */
+    fitWindow: (id: number, width: number, height: number) =>
+      invoke<void>("fit_mirror_window", { id, width, height }),
     stopSession: (id: number) => invoke<void>("stop_mirror_session", { id }),
     /** Forward a pointer action; coordinates are in the video's pixel space. */
     touch: (

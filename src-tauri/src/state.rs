@@ -30,6 +30,7 @@ pub struct AppState {
     mirrors: RwLock<HashMap<u32, MirrorHandle>>,
     sessions: RwLock<HashMap<u64, SessionHandle>>,
     pending_sessions: RwLock<HashMap<u64, MirrorSessionSpec>>,
+    aspects: RwLock<HashMap<u64, f64>>,
     next_session: AtomicU64,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
@@ -48,6 +49,7 @@ impl AppState {
             mirrors: RwLock::new(HashMap::new()),
             sessions: RwLock::new(HashMap::new()),
             pending_sessions: RwLock::new(HashMap::new()),
+            aspects: RwLock::new(HashMap::new()),
             next_session: AtomicU64::new(1),
             app_data_dir,
             tracker: RwLock::new(None),
@@ -162,6 +164,22 @@ impl AppState {
             .and_then(|mut guard| guard.remove(&id))
     }
 
+    /// Remember a session's video aspect ratio (`width / height`) so its window can
+    /// keep that shape on every resize.
+    pub fn set_aspect(&self, id: u64, aspect: f64) {
+        if let Ok(mut guard) = self.aspects.write() {
+            guard.insert(id, aspect);
+        }
+    }
+
+    /// A session's video aspect ratio, once its first frame has revealed it.
+    pub fn aspect(&self, id: u64) -> Option<f64> {
+        self.aspects
+            .read()
+            .ok()
+            .and_then(|guard| guard.get(&id).copied())
+    }
+
     /// The in-app mirror sessions currently running.
     pub fn list_sessions(&self) -> Vec<MirrorSession> {
         self.sessions
@@ -203,6 +221,9 @@ impl AppState {
             guard.remove(&id);
         }
         if let Ok(mut guard) = self.pending_sessions.write() {
+            guard.remove(&id);
+        }
+        if let Ok(mut guard) = self.aspects.write() {
             guard.remove(&id);
         }
     }
