@@ -270,8 +270,13 @@ pub async fn start(
             initial,
         )
         .await;
+        // Read before `remove_session` forgets it.
+        let phone_screen_on = handle.state::<AppState>().phone_screen_on(id);
         let _ = child.kill().await;
         teardown(&adb_bin, &task_serial, &socket, &remote).await;
+        if kind == MirrorKind::Desktop {
+            finish_desktop(&adb_bin, &task_serial, phone_screen_on).await;
+        }
         handle.state::<AppState>().remove_session(id);
         let _ = std::fs::remove_file(&log_path);
         let _ = handle.emit(EVENT_SESSION_EXITED, &task_info);
@@ -317,14 +322,26 @@ async fn watch_lock(
     }
 }
 
+/// Leave the phone as the user had it when a desktop session ends: if they turned
+/// its screen on to use it alongside the desktop it stays on and unlocked; if it
+/// was dark it is put to sleep, so it locks like a phone set aside.
+async fn finish_desktop(adb_bin: &str, serial: &str, phone_screen_on: bool) {
+    if !phone_screen_on {
+        scrcpy::sleep_phone(adb_bin, serial).await;
+    }
+}
+
 /// Close one session (its supervisor also tears the server down).
 pub fn stop(app: &AppHandle, id: u64) {
     let state = app.state::<AppState>();
     if let Some(handle) = state.take_session(id) {
+        // The supervisor clears the rest of the session's state once it has torn
+        // down; clearing it here would lose the phone-screen choice it reads then.
         let _ = handle.stop.send(());
+    } else {
+        // Drop a spec that never became a session (window closed before starting).
+        state.remove_session(id);
     }
-    // Also drop a spec that never became a session (window closed before starting).
-    state.remove_session(id);
 }
 
 /// Close every session.

@@ -154,13 +154,14 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
         if opts.kind == MirrorKind::Desktop {
             // Desktop mode *is* the decorations (launcher, taskbar, wallpaper).
             // Typing comes from the computer, so keep the phone's keyboard away,
-            // keep the phone awake for the session (restored by cleanup), and put
-            // it back to sleep when the desktop closes.
+            // and keep the phone awake for the session (restored by cleanup).
+            // Whether the phone sleeps when the desktop closes depends on the
+            // phone-screen toggle at that moment, so the session decides it
+            // (see `mirror_session::finish_desktop`), not `power_off_on_close`.
             args.push("display_ime_policy=hide".to_string());
             args.push(format!(
                 "screen_off_timeout={DESKTOP_SCREEN_OFF_TIMEOUT_MS}"
             ));
-            args.push("power_off_on_close=true".to_string());
         } else if scrcpy::vd_decorations_option_supported(Some(version)) {
             // Without the launcher, wallpaper and taskbar on the virtual display,
             // only the app is shown and a cold start draws even while the phone
@@ -264,7 +265,7 @@ mod tests {
         assert!(args.contains(&"new_display=2560x1664/320".to_string()));
         assert!(!args.iter().any(|a| a.starts_with("vd_system_decorations")));
         assert!(args.contains(&"display_ime_policy=hide".to_string()));
-        assert!(args.contains(&"power_off_on_close=true".to_string()));
+        assert!(!args.iter().any(|a| a.starts_with("power_off_on_close")));
         assert!(args.iter().any(|a| a.starts_with("screen_off_timeout=")));
     }
 

@@ -218,6 +218,15 @@ pub async fn keyguard_showing(adb_path: &str, serial: &str) -> Option<bool> {
     parse_keyguard(&output.stdout)
 }
 
+/// Put the phone to sleep (locking it) after a desktop session. The short delay
+/// lets scrcpy's cleanup restore the display power first, so it cannot switch the
+/// panel back on behind the sleep. A no-op when the phone is already asleep.
+const SLEEP_COMMAND: &str = "sleep 0.5; input keyevent KEYCODE_SLEEP";
+
+pub async fn sleep_phone(adb_path: &str, serial: &str) {
+    let _ = adb::shell(adb_path, serial, SLEEP_COMMAND, API_TIMEOUT).await;
+}
+
 /// Build the argv for a desktop-mode window when it cannot be rendered in-app:
 /// a decorated virtual display of `display` (`WxH/dpi`), with the phone's own
 /// screen turned off and put back to sleep on close.
