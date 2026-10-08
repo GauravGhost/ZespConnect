@@ -23,6 +23,22 @@ pub const MIN_SIDE: f64 = 240.0;
 /// footprint a freshly opened mirror starts at.
 pub const DEFAULT_LONG_SIDE: f64 = 820.0;
 
+/// Margin, in logical pixels, below the video so it does not run into the
+/// window's bottom edge (the sides already have one). The viewer pads its canvas
+/// by the same amount (`MirrorViewer`), so the sizing below works on the video
+/// area and [`pad`]/[`unpad`] convert to and from the client area.
+pub const BOTTOM_INSET: f64 = 10.0;
+
+/// The client size that holds a video area of `(width, height)`.
+pub fn pad((width, height): (f64, f64)) -> (f64, f64) {
+    (width, height + BOTTOM_INSET)
+}
+
+/// The video area inside a client size of `(width, height)`.
+pub fn unpad((width, height): (f64, f64)) -> (f64, f64) {
+    (width, (height - BOTTOM_INSET).max(1.0))
+}
+
 /// Upper bound on the longer side kept across a rotation, so a window the user
 /// stretched very wide cannot produce an absurd size on the next turn.
 pub const MAX_LONG_SIDE: f64 = 2000.0;
@@ -221,6 +237,13 @@ mod tests {
         // width 100 on a 2:1 landscape would put the height under the minimum, so
         // both sides scale up to satisfy it.
         assert_eq!(lock_size(100.0, 2.0), (480.0, 240.0));
+    }
+
+    #[test]
+    fn pads_and_unpads_only_the_bottom() {
+        assert_eq!(pad((100.0, 200.0)), (100.0, 210.0));
+        assert_eq!(unpad(pad((100.0, 200.0))), (100.0, 200.0));
+        assert_eq!(unpad((4.0, 4.0)), (4.0, 1.0));
     }
 
     #[test]

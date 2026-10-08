@@ -162,7 +162,9 @@ fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, heig
     let scale = window.scale_factor().unwrap_or(1.0);
     let logical_width = width as f64 / scale;
     let logical_height = height as f64 / scale;
-    let (width, height) = services::mirror_window::lock_size(logical_width, aspect);
+    let (video_width, _) = services::mirror_window::unpad((logical_width, logical_height));
+    let (width, height) =
+        services::mirror_window::pad(services::mirror_window::lock_size(video_width, aspect));
 
     if (width - logical_width).abs() > 2.0 || (height - logical_height).abs() > 2.0 {
         let _ = window.set_size(tauri::LogicalSize::new(width, height));

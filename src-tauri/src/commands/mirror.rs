@@ -137,8 +137,8 @@ pub async fn open_mirror_window(
 
 /// Fit a session's window to its video's aspect ratio once the first frame reveals
 /// the device's dimensions, and remember the ratio so later resizes stay locked to
-/// it. The client area then matches the frame exactly, so the canvas fills the
-/// window instead of being letterboxed with padding.
+/// it. The video area then matches the frame exactly, so the canvas fills the
+/// window (above `mirror_window::BOTTOM_INSET`) instead of being letterboxed.
 #[tauri::command]
 pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle) -> Result<()> {
     if width == 0 || height == 0 {
@@ -157,7 +157,7 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     // resize handler corrects the size instead.
     platform::watch_aspect(&window, aspect);
 
-    let (width, height) = mirror_window::fit_size(width, height, long_side);
+    let (width, height) = mirror_window::pad(mirror_window::fit_size(width, height, long_side));
     window
         .set_size(LogicalSize::new(width, height))
         .map_err(|error| AppError::Other(error.to_string()))?;
@@ -165,14 +165,16 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     Ok(())
 }
 
-/// The longer side of a window's client area in logical pixels, used to keep a
+/// The longer side of a window's video area in logical pixels, used to keep a
 /// window's footprint steady when its aspect ratio changes on rotation.
 fn window_long_side(window: &WebviewWindow) -> f64 {
     let scale = window.scale_factor().unwrap_or(1.0);
     let Ok(size) = window.inner_size() else {
         return mirror_window::DEFAULT_LONG_SIDE;
     };
-    (size.width as f64 / scale).max(size.height as f64 / scale)
+    let (width, height) =
+        mirror_window::unpad((size.width as f64 / scale, size.height as f64 / scale));
+    width.max(height)
 }
 
 /// Stream a previously opened session's video into the calling window.

@@ -214,10 +214,13 @@ export function MirrorViewer() {
   };
 
   return (
-    <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-neutral-950">
+    // The 10px bottom padding keeps the video off the window's bottom edge; the
+    // window is sized to include it (keep in sync with `mirror_window::BOTTOM_INSET`).
+    // The rounded bottom corners echo a phone's screen.
+    <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-neutral-950 pb-3.5">
       <canvas
         ref={canvasRef}
-        className="max-h-full max-w-full touch-none"
+        className="max-h-full max-w-full touch-none rounded-[12px]"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}

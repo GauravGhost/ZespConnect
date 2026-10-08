@@ -310,7 +310,15 @@ mod tests {
 
     #[test]
     fn omits_flex_display_on_older_scrcpy() {
-        let args = app_window_args("SERIAL", "com.example.app", "title", true, false, false, 1024);
+        let args = app_window_args(
+            "SERIAL",
+            "com.example.app",
+            "title",
+            true,
+            false,
+            false,
+            1024,
+        );
 
         assert!(args.contains(&"--new-display".to_string()));
         assert!(!args.contains(&"--flex-display".to_string()));
@@ -322,7 +330,15 @@ mod tests {
 
     #[test]
     fn builds_main_display_app_args() {
-        let args = app_window_args("SERIAL", "com.example.app", "title", false, false, true, 800);
+        let args = app_window_args(
+            "SERIAL",
+            "com.example.app",
+            "title",
+            false,
+            false,
+            true,
+            800,
+        );
 
         assert!(args.contains(&"--start-app=com.example.app".to_string()));
         assert!(!args.contains(&"--new-display".to_string()));

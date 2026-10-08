@@ -233,7 +233,9 @@ mod tests {
 
         // scrcpy 3.0 rejects the option as unknown.
         let legacy = options_args("3.0", "s", &opts);
-        assert!(!legacy.iter().any(|a| a.starts_with("vd_system_decorations")));
+        assert!(!legacy
+            .iter()
+            .any(|a| a.starts_with("vd_system_decorations")));
     }
 
     #[test]

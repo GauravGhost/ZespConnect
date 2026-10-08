@@ -11,9 +11,12 @@ pub fn watch_aspect<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>, aspect:
     let (Ok(inner), Ok(outer)) = (window.inner_size(), window.outer_size()) else {
         return;
     };
+    // The hook works on the video area, so the viewer's bottom inset counts as frame.
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let inset = (crate::services::mirror_window::BOTTOM_INSET * scale).round() as i32;
     let frame = crate::services::mirror_window::Frame {
         width: outer.width.saturating_sub(inner.width) as i32,
-        height: outer.height.saturating_sub(inner.height) as i32,
+        height: outer.height.saturating_sub(inner.height) as i32 + inset,
     };
     if let Ok(hwnd) = window.hwnd() {
         aspect::watch(hwnd.0 as isize, aspect, frame);
