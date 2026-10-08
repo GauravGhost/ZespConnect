@@ -19,7 +19,7 @@ use tokio::process::Child;
 use tokio::sync::mpsc;
 
 use crate::error::{AppError, Result};
-use crate::models::{MirrorKind, MirrorSession, MirrorSessionSpec};
+use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
 use crate::services::{adb, apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
 use crate::util::{self, process, validation};
@@ -28,10 +28,13 @@ const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
 const EVENT_SESSION_LOCKED: &str = "mirror:session:locked";
 /// How often a desktop session checks the lock screen: quickly while locked so
-/// the desktop appears right after unlocking, slowly while unlocked to notice
-/// the phone being locked again.
+/// the desktop appears right after unlocking, and often enough while unlocked to
+/// notice the phone being locked again or the launcher losing focus before a key
+/// waiting on it times out (Android allows 5s).
 const LOCKED_POLL: Duration = Duration::from_secs(1);
-const UNLOCKED_POLL: Duration = Duration::from_secs(3);
+const UNLOCKED_POLL: Duration = Duration::from_secs(2);
+/// Android's HOME keycode, which puts the desktop launcher back in front.
+const KEYCODE_HOME: u32 = 3;
 
 /// `mirror:session:locked` — whether a desktop session's phone is locked.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -292,6 +295,11 @@ pub async fn start(
 /// the phone away, so it is never woken back up). Once unlocked, the phone's own
 /// screen goes dark unless the user turned it on from the window, and a fresh key
 /// frame is requested so the desktop appears at once.
+///
+/// While unlocked it also presses HOME when the desktop launcher has lost input
+/// focus on two checks in a row (a brief gap is normal mid-transition): that is
+/// what the user would do to get the desktop answering clicks again, and it
+/// dismisses the "not responding" dialog if Android already raised one.
 async fn watch_lock(
     app: AppHandle,
     id: u64,
@@ -300,17 +308,28 @@ async fn watch_lock(
     control: ControlChannel,
 ) {
     let mut locked: Option<bool> = None;
+    let mut unfocused = false;
     while app.state::<AppState>().session_control(id).is_some() {
-        if let Some(now) = scrcpy::keyguard_showing(&adb_bin, &serial).await {
-            if locked != Some(now) {
-                if !now {
-                    if !app.state::<AppState>().phone_screen_on(id) {
-                        let _ = control.send(control::set_display_power(false));
+        if let Some(probe) = scrcpy::desktop_probe(&adb_bin, &serial).await {
+            if let Some(now) = probe.locked {
+                if locked != Some(now) {
+                    if !now {
+                        if !app.state::<AppState>().phone_screen_on(id) {
+                            let _ = control.send(control::set_display_power(false));
+                        }
+                        let _ = control.send(control::reset_video());
                     }
-                    let _ = control.send(control::reset_video());
+                    locked = Some(now);
+                    let _ = app.emit(EVENT_SESSION_LOCKED, LockState { id, locked: now });
                 }
-                locked = Some(now);
-                let _ = app.emit(EVENT_SESSION_LOCKED, LockState { id, locked: now });
+            }
+            let stuck = probe.launcher_unfocused && locked == Some(false);
+            if stuck && unfocused {
+                let _ = control.send(control::inject_keycode(KeyAction::Down, KEYCODE_HOME, 0, 0));
+                let _ = control.send(control::inject_keycode(KeyAction::Up, KEYCODE_HOME, 0, 0));
+                unfocused = false;
+            } else {
+                unfocused = stuck;
             }
         }
         let wait = if locked == Some(true) {

@@ -196,26 +196,56 @@ pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<()> {
     }
 }
 
-/// Reads whether the lock screen is up (`KeyguardController.mKeyguardShowing`).
-const KEYGUARD_COMMAND: &str =
-    "dumpsys activity activities | grep -m1 -o 'mKeyguardShowing=[a-z]*'";
+/// Probes a desktop session's phone, one line per finding:
+/// - whether the lock screen is up (`KeyguardController.mKeyguardShowing`);
+/// - `launcherUnfocused` when a secondary-display launcher is the focused app but
+///   has no focused window (or only an ANR dialog over it). Launcher3 can drop its
+///   focus when the taskbar's all-apps/recents panel closes, and the next key then
+///   times out into an "Application Not Responding" dialog that blocks the desktop.
+const DESKTOP_PROBE_COMMAND: &str = "dumpsys activity activities | grep -m1 -o 'mKeyguardShowing=[a-z]*'; \
+dumpsys input | awk '\
+/^Input Dispatcher State at time of last ANR/{exit} \
+/^  FocusedApplications:/{s=1;next} \
+/^  FocusedWindows:/{s=2;next} \
+/^  [A-Za-z]/{s=0} \
+s==1&&/SecondaryDisplayLauncher/{split($1,p,\"=\");sub(\",\",\"\",p[2]);app[p[2]]=1} \
+s==2&&!/Application Not Responding/{split($1,p,\"=\");sub(\",\",\"\",p[2]);win[p[2]]=1} \
+END{for(d in app)if(!(d in win)){print \"launcherUnfocused\";exit}}'";
 
-/// Parse [`KEYGUARD_COMMAND`]'s output.
-fn parse_keyguard(output: &str) -> Option<bool> {
-    match output.trim().strip_prefix("mKeyguardShowing=")? {
-        "true" => Some(true),
-        "false" => Some(false),
-        _ => None,
-    }
+/// What [`desktop_probe`] found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DesktopProbe {
+    /// Whether the lock screen is showing, when it could be read. While it is,
+    /// Android keeps the desktop (launcher, taskbar, app windows) hidden and only
+    /// the wallpaper draws.
+    pub locked: Option<bool>,
+    /// The desktop launcher has lost input focus (see [`DESKTOP_PROBE_COMMAND`]).
+    pub launcher_unfocused: bool,
 }
 
-/// Whether the phone's lock screen is showing. While it is, Android keeps the
-/// desktop (launcher, taskbar, app windows) hidden and only the wallpaper draws.
-pub async fn keyguard_showing(adb_path: &str, serial: &str) -> Option<bool> {
-    let output = adb::shell(adb_path, serial, KEYGUARD_COMMAND, API_TIMEOUT)
+/// Parse [`DESKTOP_PROBE_COMMAND`]'s output.
+fn parse_desktop_probe(output: &str) -> DesktopProbe {
+    let mut probe = DesktopProbe {
+        locked: None,
+        launcher_unfocused: false,
+    };
+    for line in output.lines().map(str::trim) {
+        match line.strip_prefix("mKeyguardShowing=") {
+            Some("true") => probe.locked = Some(true),
+            Some("false") => probe.locked = Some(false),
+            Some(_) => {}
+            None => probe.launcher_unfocused |= line == "launcherUnfocused",
+        }
+    }
+    probe
+}
+
+/// Check a desktop session's phone; `None` when adb could not be reached.
+pub async fn desktop_probe(adb_path: &str, serial: &str) -> Option<DesktopProbe> {
+    let output = adb::shell(adb_path, serial, DESKTOP_PROBE_COMMAND, API_TIMEOUT)
         .await
         .ok()?;
-    parse_keyguard(&output.stdout)
+    Some(parse_desktop_probe(&output.stdout))
 }
 
 /// Put the phone to sleep (locking it) after a desktop session. The short delay
@@ -398,11 +428,17 @@ mod tests {
     }
 
     #[test]
-    fn parses_the_keyguard_state() {
-        assert_eq!(parse_keyguard("mKeyguardShowing=true\n"), Some(true));
-        assert_eq!(parse_keyguard("mKeyguardShowing=false"), Some(false));
-        assert_eq!(parse_keyguard(""), None);
-        assert_eq!(parse_keyguard("mKeyguardShowing=maybe"), None);
+    fn parses_the_desktop_probe() {
+        let probe = parse_desktop_probe("mKeyguardShowing=true\n");
+        assert_eq!(probe.locked, Some(true));
+        assert!(!probe.launcher_unfocused);
+
+        let probe = parse_desktop_probe("mKeyguardShowing=false\nlauncherUnfocused\n");
+        assert_eq!(probe.locked, Some(false));
+        assert!(probe.launcher_unfocused);
+
+        assert_eq!(parse_desktop_probe("").locked, None);
+        assert_eq!(parse_desktop_probe("mKeyguardShowing=maybe").locked, None);
     }
 
     #[test]
