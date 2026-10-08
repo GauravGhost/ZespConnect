@@ -108,6 +108,7 @@ pub fn run() {
             commands::mirror::open_mirror_window,
             commands::mirror::start_mirror_stream,
             commands::mirror::stop_mirror_session,
+            commands::mirror::mirror_touch,
             commands::mirror::list_mirror_sessions,
             commands::mirror::mirror_session_fallback,
             commands::wireless::get_qr_payload,

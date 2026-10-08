@@ -86,13 +86,15 @@ fn encode_message(config: bool, key: bool, pts: u64, payload: &[u8]) -> Vec<u8> 
 }
 
 /// Write-only handle to a session's control socket. Messages are queued to a
-/// dedicated writer task so callers never touch the socket.
-struct ControlChannel {
+/// dedicated writer task so callers never touch the socket. Cloning the handle
+/// keeps messages ordered: they all funnel through the one writer task.
+#[derive(Clone)]
+pub struct ControlChannel {
     sender: mpsc::UnboundedSender<Vec<u8>>,
 }
 
 impl ControlChannel {
-    fn send(&self, message: Vec<u8>) -> Result<()> {
+    pub fn send(&self, message: Vec<u8>) -> Result<()> {
         self.sender
             .send(message)
             .map_err(|_| AppError::Other("The mirror session has ended".into()))
@@ -217,7 +219,8 @@ pub async fn start(
     };
 
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
-    app.state::<AppState>().set_session(info.clone(), stop_tx);
+    app.state::<AppState>()
+        .set_session(info.clone(), stop_tx, control_channel.clone());
 
     let handle = app.clone();
     let task_info = info.clone();

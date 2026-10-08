@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
 use crate::models::{Device, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolStatus};
+use crate::services::mirror_session::ControlChannel;
 use crate::util;
 
 /// A tracked scrcpy window plus the channel that asks its watcher to stop it.
@@ -13,10 +14,11 @@ pub struct MirrorHandle {
 }
 
 /// A tracked in-app mirror session plus the channel that asks its supervisor to
-/// stop it.
+/// stop it and the one that injects input into the device.
 pub struct SessionHandle {
     pub info: MirrorSession,
     pub stop: tokio::sync::oneshot::Sender<()>,
+    pub control: ControlChannel,
 }
 
 /// Shared, process-wide state. Guards are only ever held for short,
@@ -168,11 +170,31 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    /// Register a running session and its stop channel.
-    pub fn set_session(&self, info: MirrorSession, stop: tokio::sync::oneshot::Sender<()>) {
+    /// Register a running session, its stop channel, and its control channel.
+    pub fn set_session(
+        &self,
+        info: MirrorSession,
+        stop: tokio::sync::oneshot::Sender<()>,
+        control: ControlChannel,
+    ) {
         if let Ok(mut guard) = self.sessions.write() {
-            guard.insert(info.id, SessionHandle { info, stop });
+            guard.insert(
+                info.id,
+                SessionHandle {
+                    info,
+                    stop,
+                    control,
+                },
+            );
         }
+    }
+
+    /// A handle that injects input into a running session, if it is still alive.
+    pub fn session_control(&self, id: u64) -> Option<ControlChannel> {
+        self.sessions
+            .read()
+            .ok()
+            .and_then(|guard| guard.get(&id).map(|handle| handle.control.clone()))
     }
 
     /// Drop a session's record (used by its supervisor once it ends).

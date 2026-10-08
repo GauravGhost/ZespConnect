@@ -14,6 +14,15 @@ pub enum MirrorKind {
     ScreenApp,
 }
 
+/// A pointer action on a mirrored screen, mirroring the `TouchAction` TS type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TouchAction {
+    Down,
+    Move,
+    Up,
+}
+
 /// A running scrcpy window tracked in `AppState`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorProcess {

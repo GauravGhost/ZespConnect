@@ -99,6 +99,9 @@ export interface AppListResult {
 
 export type MirrorKind = "mirror" | "camera" | "app" | "screen-app";
 
+/** A pointer action forwarded to a mirrored device. */
+export type TouchAction = "down" | "move" | "up";
+
 export interface MirrorOptions {
   resolution: number | null;
   fps: number | null;

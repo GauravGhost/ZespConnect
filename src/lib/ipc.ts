@@ -18,6 +18,7 @@ import type {
   ShellResult,
   ToolKind,
   ToolStatus,
+  TouchAction,
 } from "@/types";
 
 /**
@@ -78,6 +79,15 @@ export const ipc = {
     startStream: (id: number, channel: Channel<ArrayBuffer>) =>
       invoke<MirrorSession>("start_mirror_stream", { id, channel }),
     stopSession: (id: number) => invoke<void>("stop_mirror_session", { id }),
+    /** Forward a pointer action; coordinates are in the video's pixel space. */
+    touch: (
+      id: number,
+      action: TouchAction,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ) => invoke<void>("mirror_touch", { id, action, x, y, width, height }),
     listSessions: () => invoke<MirrorSession[]>("list_mirror_sessions"),
     /** Reopen a session as an external window when in-app rendering is unavailable. */
     fallback: (id: number) => invoke<void>("mirror_session_fallback", { id }),

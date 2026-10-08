@@ -108,8 +108,12 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
         format!("{}=false", meta_option(version)),
         format!("max_size={}", opts.max_size),
         "clipboard_autosync=false".to_string(),
-        "cleanup=false".to_string(),
     ];
+
+    // scrcpy applies `stay_awake` only from its CleanUp thread, which runs only
+    // when `cleanup=true`; with cleanup disabled the device screen still times
+    // out and the mirror goes black. Our own teardown drops the pushed server.
+    args.push(format!("cleanup={}", opts.stay_awake));
 
     if let Some(fps) = opts.max_fps {
         args.push(format!("max_fps={fps}"));
@@ -232,6 +236,19 @@ mod tests {
     fn always_enables_the_control_socket() {
         let args = options_args("4.0", "s", &options(MirrorKind::Mirror));
         assert!(args.contains(&"control=true".to_string()));
+    }
+
+    #[test]
+    fn enables_cleanup_so_stay_awake_takes_effect() {
+        let mut awake = options(MirrorKind::Mirror);
+        awake.stay_awake = true;
+        let args = options_args("4.0", "s", &awake);
+        assert!(args.contains(&"cleanup=true".to_string()));
+        assert!(args.contains(&"stay_awake=true".to_string()));
+
+        let asleep = options_args("4.0", "s", &options(MirrorKind::Mirror));
+        assert!(asleep.contains(&"cleanup=false".to_string()));
+        assert!(!asleep.iter().any(|a| a.starts_with("stay_awake")));
     }
 
     #[test]

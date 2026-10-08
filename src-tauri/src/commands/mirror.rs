@@ -5,7 +5,10 @@ use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::error::{AppError, Result};
-use crate::models::{MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec};
+use crate::models::{
+    MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec, TouchAction,
+};
+use crate::services::control;
 use crate::services::mirror::{self, AppDisplay};
 use crate::services::mirror_session;
 use crate::state::AppState;
@@ -136,6 +139,24 @@ pub async fn start_mirror_stream(
         .take_pending_session(id)
         .ok_or_else(|| AppError::Invalid("Unknown mirror session".into()))?;
     mirror_session::start(&app, id, spec, channel).await
+}
+
+/// Inject a pointer action into a running session. `x`/`y` and `width`/`height`
+/// share the video's coordinate space, so the server can map them to the device.
+#[tauri::command]
+pub async fn mirror_touch(
+    id: u64,
+    action: TouchAction,
+    x: u32,
+    y: u32,
+    width: u16,
+    height: u16,
+    state: State<'_, AppState>,
+) -> Result<()> {
+    let channel = state
+        .session_control(id)
+        .ok_or_else(|| AppError::Invalid("Unknown mirror session".into()))?;
+    channel.send(control::inject_touch(action, x, y, width, height))
 }
 
 /// Close one in-app session and its window.
