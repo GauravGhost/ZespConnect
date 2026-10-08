@@ -50,6 +50,8 @@ pub async fn start_app(
     };
     // `--flex-display` only exists in scrcpy 4.0+; omit it on older releases.
     let flex = use_virtual && scrcpy::flex_display_supported(tools.scrcpy.version.as_deref());
+    let no_decorations =
+        use_virtual && scrcpy::vd_decorations_option_supported(tools.scrcpy.version.as_deref());
     let kind = if use_virtual {
         MirrorKind::App
     } else {
@@ -68,6 +70,7 @@ pub async fn start_app(
         &title,
         use_virtual,
         flex,
+        no_decorations,
         scrcpy::DEFAULT_MAX_SIZE,
     );
 

@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, Result};
 use crate::models::MirrorKind;
-use crate::services::updates;
+use crate::services::{scrcpy, updates};
 
 /// scrcpy 4.0 renamed `send_codec_meta` to `send_stream_meta`.
 const STREAM_META_MIN_VERSION: &str = "4.0";
@@ -144,6 +144,12 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
         // `new_display` takes a size spec, or an empty value to reuse the main
         // display's size — it is not a boolean.
         args.push("new_display=".to_string());
+        // Without the launcher, wallpaper and taskbar on the virtual display,
+        // only the app is shown and a cold start draws even while the phone
+        // sleeps (see `scrcpy::VD_DECORATIONS_MIN_VERSION`).
+        if scrcpy::vd_decorations_option_supported(Some(version)) {
+            args.push("vd_system_decorations=false".to_string());
+        }
     }
 
     if opts.stay_awake {
@@ -223,6 +229,11 @@ mod tests {
         // A boolean here makes scrcpy's Options.parse throw.
         assert!(args.contains(&"new_display=".to_string()));
         assert!(!args.contains(&"new_display=true".to_string()));
+        assert!(args.contains(&"vd_system_decorations=false".to_string()));
+
+        // scrcpy 3.0 rejects the option as unknown.
+        let legacy = options_args("3.0", "s", &opts);
+        assert!(!legacy.iter().any(|a| a.starts_with("vd_system_decorations")));
     }
 
     #[test]
@@ -230,6 +241,7 @@ mod tests {
         let args = options_args("4.0", "s", &options(MirrorKind::ScreenApp));
 
         assert!(!args.iter().any(|a| a.starts_with("new_display")));
+        assert!(!args.iter().any(|a| a.starts_with("vd_system_decorations")));
     }
 
     #[test]

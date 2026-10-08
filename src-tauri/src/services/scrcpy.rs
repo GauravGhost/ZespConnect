@@ -37,6 +37,13 @@ const MIN_VIRTUAL_DISPLAY_API: u32 = 29;
 /// with "unrecognized option", so it must only be sent when supported.
 const FLEX_DISPLAY_MIN_VERSION: &str = "4.0";
 
+/// scrcpy added `--no-vd-system-decorations` (server: `vd_system_decorations`)
+/// in 3.1. A decorated virtual display gets the launcher, wallpaper, status bar
+/// and — in Android 16+ desktop mode — a taskbar. On Android 17 an app
+/// cold-started on it while the phone is asleep never draws, leaving only the
+/// wallpaper, so app windows always turn the decorations off when supported.
+const VD_DECORATIONS_MIN_VERSION: &str = "3.1";
+
 pub fn scrcpy_path(tools: &ToolStatus) -> Result<String> {
     tools.scrcpy.path.clone().ok_or(AppError::ScrcpyMissing)
 }
@@ -72,6 +79,14 @@ pub fn flex_display_supported(version: Option<&str>) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether the installed scrcpy can turn off virtual display decorations.
+/// An unknown version is treated as unsupported, so we err toward omitting it.
+pub fn vd_decorations_option_supported(version: Option<&str>) -> bool {
+    version
+        .map(|version| updates::compare(version, VD_DECORATIONS_MIN_VERSION).is_ge())
+        .unwrap_or(false)
+}
+
 /// Build the argv for an app window. With a virtual display the app gets its own
 /// resizable window; otherwise the main display is mirrored with the app in front.
 ///
@@ -83,6 +98,7 @@ pub fn app_window_args(
     window_title: &str,
     use_virtual_display: bool,
     flex_display: bool,
+    no_decorations: bool,
     max_size: u32,
 ) -> Vec<String> {
     let mut args = vec![
@@ -95,6 +111,9 @@ pub fn app_window_args(
 
     if use_virtual_display {
         args.push("--new-display".to_string());
+        if no_decorations {
+            args.push("--no-vd-system-decorations".to_string());
+        }
         if flex_display {
             args.push("--flex-display".to_string());
         } else {
@@ -261,11 +280,20 @@ mod tests {
     }
 
     #[test]
+    fn vd_decorations_option_needs_scrcpy_3_1() {
+        assert!(vd_decorations_option_supported(Some("3.1")));
+        assert!(vd_decorations_option_supported(Some("5.0")));
+        assert!(!vd_decorations_option_supported(Some("3.0")));
+        assert!(!vd_decorations_option_supported(None));
+    }
+
+    #[test]
     fn builds_virtual_display_app_args() {
         let args = app_window_args(
             "SERIAL",
             "com.example.app",
             "Zesp Connect — Example",
+            true,
             true,
             true,
             1024,
@@ -274,6 +302,7 @@ mod tests {
         assert!(args.contains(&"--start-app=com.example.app".to_string()));
         assert!(args.contains(&"--new-display".to_string()));
         assert!(args.contains(&"--flex-display".to_string()));
+        assert!(args.contains(&"--no-vd-system-decorations".to_string()));
         assert!(!args.contains(&"-m".to_string()));
         // scrcpy 4.x rejects `--adb`; the path travels in the ADB env var instead.
         assert!(!args.contains(&"--adb".to_string()));
@@ -281,10 +310,11 @@ mod tests {
 
     #[test]
     fn omits_flex_display_on_older_scrcpy() {
-        let args = app_window_args("SERIAL", "com.example.app", "title", true, false, 1024);
+        let args = app_window_args("SERIAL", "com.example.app", "title", true, false, false, 1024);
 
         assert!(args.contains(&"--new-display".to_string()));
         assert!(!args.contains(&"--flex-display".to_string()));
+        assert!(!args.contains(&"--no-vd-system-decorations".to_string()));
 
         let size_index = args.iter().position(|a| a == "-m").expect("-m");
         assert_eq!(args[size_index + 1], "1024");
@@ -292,10 +322,12 @@ mod tests {
 
     #[test]
     fn builds_main_display_app_args() {
-        let args = app_window_args("SERIAL", "com.example.app", "title", false, false, 800);
+        let args = app_window_args("SERIAL", "com.example.app", "title", false, false, true, 800);
 
         assert!(args.contains(&"--start-app=com.example.app".to_string()));
         assert!(!args.contains(&"--new-display".to_string()));
+        // Decorations only apply to a virtual display.
+        assert!(!args.contains(&"--no-vd-system-decorations".to_string()));
 
         let size_index = args.iter().position(|a| a == "-m").expect("-m");
         assert_eq!(args[size_index + 1], "800");
