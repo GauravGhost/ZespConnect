@@ -106,6 +106,7 @@ export const ipc = {
     qrPayload: () => invoke<QrPayload>("get_qr_payload"),
     qrPair: (payload: string, timeout?: number) =>
       invoke<string>("pair_wireless_qr", { payload, timeout }),
+    cancelQr: () => invoke<void>("cancel_wireless_qr"),
     pairCode: (addr: string, code: string) => invoke<string>("pair_wireless_code", { addr, code }),
     connect: (addr: string) => invoke<string>("connect_wireless", { addr }),
     disconnect: (addr: string) => invoke<void>("disconnect_wireless", { addr }),

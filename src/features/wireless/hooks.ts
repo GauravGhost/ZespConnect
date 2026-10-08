@@ -42,7 +42,11 @@ export function usePairQr() {
       toast.success(`Connected to ${address}`);
       queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
-    onError: (error) => toast.error(errorMessage(error)),
+    onError: (error) => {
+      // Superseded or hidden on purpose — not worth a toast.
+      if (errorMessage(error) === "Pairing cancelled") return;
+      toast.error(errorMessage(error));
+    },
   });
 }
 

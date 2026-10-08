@@ -136,6 +136,7 @@ export function WirelessPanel() {
   }, [pairQr]);
 
   function hideQr() {
+    if (pairQr.isPending) void ipc.wireless.cancelQr().catch(() => {});
     pairQr.reset();
     setQr(null);
   }

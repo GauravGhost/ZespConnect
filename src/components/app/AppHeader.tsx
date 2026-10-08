@@ -7,6 +7,7 @@ import { navItem } from "@/app/navigation";
 import { useAppStore } from "@/app/store";
 import { ThemeModeToggle } from "@/components/app/ThemeModeToggle";
 import { DeviceSwitcher } from "@/features/devices";
+import { QrPairDialog } from "@/features/wireless";
 import { useActiveDevice } from "@/features/devices/hooks";
 import { useInstallLog } from "@/hooks/useInstallLog";
 import { useToolsStatus } from "@/hooks/useTools";
@@ -54,6 +55,7 @@ export function AppHeader() {
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        <QrPairDialog />
         <ThemeModeToggle />
         <Tooltip>
           <TooltipTrigger asChild>

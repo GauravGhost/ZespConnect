@@ -36,6 +36,7 @@ pub struct AppState {
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
     logcats: RwLock<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
     pairing: AtomicBool,
+    pairing_cancel: RwLock<Option<tokio::sync::oneshot::Sender<()>>>,
     selected: RwLock<Option<String>>,
 }
 
@@ -56,6 +57,7 @@ impl AppState {
             tracker: RwLock::new(None),
             logcats: RwLock::new(HashMap::new()),
             pairing: AtomicBool::new(false),
+            pairing_cancel: RwLock::new(None),
             selected: RwLock::new(selected),
         }
     }
@@ -336,6 +338,27 @@ impl AppState {
             .map_err(|_| {
                 crate::error::AppError::Other("A pairing session is already in progress".into())
             })
+    }
+
+    /// Register a cancel channel for a new QR pairing session, cancelling the
+    /// previous session (if any) so the new one can take over the slot.
+    pub fn arm_pairing_cancel(&self) -> tokio::sync::oneshot::Receiver<()> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        if let Ok(mut guard) = self.pairing_cancel.write() {
+            if let Some(previous) = guard.replace(tx) {
+                let _ = previous.send(());
+            }
+        }
+        rx
+    }
+
+    /// Cancel the running QR pairing session, if any.
+    pub fn cancel_pairing(&self) {
+        if let Ok(mut guard) = self.pairing_cancel.write() {
+            if let Some(tx) = guard.take() {
+                let _ = tx.send(());
+            }
+        }
     }
 }
 

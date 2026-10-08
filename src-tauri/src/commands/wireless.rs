@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, State};
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::models::{MdnsDevice, QrPayload};
 use crate::services::{adb, tracker, wireless};
 use crate::state::AppState;
@@ -25,17 +25,39 @@ pub async fn pair_wireless_qr(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String> {
+    // A newer QR session supersedes an older one (e.g. the popup was reopened).
+    let mut cancel = state.arm_pairing_cancel();
+
     // One session at a time — they would otherwise fight over the adb server.
-    let _guard = state.begin_pairing()?;
+    // Give a just-cancelled session a moment to release the slot.
+    let mut attempts = 0;
+    let _guard = loop {
+        match state.begin_pairing() {
+            Ok(guard) => break guard,
+            Err(error) if attempts >= 20 => return Err(error),
+            Err(_) => {
+                attempts += 1;
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    };
 
     let adb_path = adb::adb_path(&state.tools())?;
     let secs = timeout.unwrap_or(180).clamp(30, 300);
-    let address =
-        wireless::pair_and_connect(&adb_path, &payload, Duration::from_secs(secs)).await?;
+    let address = tokio::select! {
+        result = wireless::pair_and_connect(&adb_path, &payload, Duration::from_secs(secs)) => result?,
+        _ = &mut cancel => return Err(AppError::Other("Pairing cancelled".into())),
+    };
 
     // Reuse the tracker's refresh so the new device reaches the UI immediately.
     tracker::refresh(&app).await;
     Ok(address)
+}
+
+/// Stop waiting for a QR scan started by [`pair_wireless_qr`].
+#[tauri::command]
+pub fn cancel_wireless_qr(state: State<'_, AppState>) {
+    state.cancel_pairing();
 }
 
 /// Pair using an explicit `host:port` and the code shown on the phone.

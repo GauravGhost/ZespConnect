@@ -117,6 +117,7 @@ pub fn run() {
             commands::mirror::mirror_session_fallback,
             commands::wireless::get_qr_payload,
             commands::wireless::pair_wireless_qr,
+            commands::wireless::cancel_wireless_qr,
             commands::wireless::pair_wireless_code,
             commands::wireless::connect_wireless,
             commands::wireless::disconnect_wireless,

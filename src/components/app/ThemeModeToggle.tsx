@@ -1,34 +1,20 @@
-import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
 import { useAppStore } from "@/app/store";
-import type { ThemeMode } from "@/app/theme/types";
+import { useResolvedTheme } from "@/app/theme/useResolvedTheme";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const ORDER: ThemeMode[] = ["system", "light", "dark"];
-
-const LABEL: Record<ThemeMode, string> = {
-  light: "Light",
-  dark: "Dark",
-  system: "System",
-};
-
-const ICON: Record<ThemeMode, LucideIcon> = {
-  light: Sun,
-  dark: Moon,
-  system: Monitor,
-};
-
-/** Cycles the app color mode: System -> Light -> Dark. */
+/**
+ * Flips between Light and Dark. "System" stays available in Settings; when it
+ * is active, the button shows the resolved mode and switches to the opposite.
+ */
 export function ThemeModeToggle() {
-  const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
-  const Icon = ICON[themeMode];
-
-  const cycle = () => {
-    const next = ORDER[(ORDER.indexOf(themeMode) + 1) % ORDER.length];
-    setThemeMode(next);
-  };
+  const resolved = useResolvedTheme();
+  const next = resolved === "dark" ? "light" : "dark";
+  const Icon = resolved === "dark" ? Moon : Sun;
+  const label = `Switch to ${next} mode`;
 
   return (
     <Tooltip>
@@ -37,13 +23,13 @@ export function ThemeModeToggle() {
           variant="ghost"
           size="icon"
           className="size-9"
-          aria-label={`Theme: ${LABEL[themeMode]}`}
-          onClick={cycle}
+          aria-label={label}
+          onClick={() => setThemeMode(next)}
         >
           <Icon />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Theme: {LABEL[themeMode]}</TooltipContent>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 }
