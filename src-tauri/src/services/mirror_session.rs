@@ -36,11 +36,14 @@ const UNLOCKED_POLL: Duration = Duration::from_secs(2);
 /// Android's HOME keycode, which puts the desktop launcher back in front.
 const KEYCODE_HOME: u32 = 3;
 
-/// `mirror:session:locked` — whether a desktop session's phone is locked.
+/// `mirror:session:locked` — whether a desktop session's phone is locked, and
+/// whether its own screen is on (the title-bar toggle).
 #[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LockState {
     id: u64,
     locked: bool,
+    phone_screen: bool,
 }
 /// How long to wait for the server to connect back before giving up.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
@@ -159,10 +162,13 @@ pub async fn start(
     let (options, kind, virtual_display) = session_options(&adb_bin, &spec).await?;
 
     // Desktop mode: refuse unsupported phones, and wake the phone so apps opened
-    // on the desktop draw (its own screen is switched off once streaming).
-    if kind == MirrorKind::Desktop {
-        scrcpy::prepare_desktop(&adb_bin, &spec.serial).await?;
-    }
+    // on the desktop draw. Its own screen is switched off once streaming, unless
+    // the user was using the phone (see `watch_lock`).
+    let screen_was_on = if kind == MirrorKind::Desktop {
+        scrcpy::prepare_desktop(&adb_bin, &spec.serial).await?
+    } else {
+        false
+    };
 
     // On a virtual display the app is launched over the control socket. Where
     // that is unsafe (Android 12–13), foreground the app and mirror the main
@@ -238,8 +244,11 @@ pub async fn start(
         package: spec.package.clone(),
         label: Some(label),
         started: unix_now(),
+        phone_screen: screen_was_on,
     };
 
+    // Seed the toggle before `watch_lock`, which confirms it on its first check.
+    app.state::<AppState>().set_phone_screen(id, screen_was_on);
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
     app.state::<AppState>()
         .set_session(info.clone(), stop_tx, control_channel.clone());
@@ -296,6 +305,11 @@ pub async fn start(
 /// screen goes dark unless the user turned it on from the window, and a fresh key
 /// frame is requested so the desktop appears at once.
 ///
+/// A session opened while the phone was in use (screen on *and* unlocked) starts
+/// with the toggle on, so the phone is not switched off under the user. A screen
+/// that was only lit on the lock screen does not count: the first check clears
+/// the seeded toggle then. Everything after follows the toggle as usual.
+///
 /// While unlocked it also presses HOME when the desktop launcher has lost input
 /// focus on two checks in a row (a brief gap is normal mid-transition): that is
 /// what the user would do to get the desktop answering clicks again, and it
@@ -313,6 +327,9 @@ async fn watch_lock(
         if let Some(probe) = scrcpy::desktop_probe(&adb_bin, &serial).await {
             if let Some(now) = probe.locked {
                 if locked != Some(now) {
+                    if locked.is_none() && now {
+                        app.state::<AppState>().set_phone_screen(id, false);
+                    }
                     if !now {
                         if !app.state::<AppState>().phone_screen_on(id) {
                             let _ = control.send(control::set_display_power(false));
@@ -320,7 +337,15 @@ async fn watch_lock(
                         let _ = control.send(control::reset_video());
                     }
                     locked = Some(now);
-                    let _ = app.emit(EVENT_SESSION_LOCKED, LockState { id, locked: now });
+                    let phone_screen = app.state::<AppState>().phone_screen_on(id);
+                    let _ = app.emit(
+                        EVENT_SESSION_LOCKED,
+                        LockState {
+                            id,
+                            locked: now,
+                            phone_screen,
+                        },
+                    );
                 }
             }
             let stuck = probe.launcher_unfocused && locked == Some(false);

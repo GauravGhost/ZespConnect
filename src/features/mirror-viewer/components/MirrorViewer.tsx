@@ -173,6 +173,7 @@ export function MirrorViewer() {
         if (disposed) return;
         desktopRef.current = session.kind === "desktop";
         setDesktop(desktopRef.current);
+        setPhoneScreen(session.phoneScreen);
       })
       .catch(async (failure) => {
         if (disposed) return;
@@ -194,7 +195,9 @@ export function MirrorViewer() {
 
     events
       .mirrorSessionLocked(({ payload }) => {
-        if (payload.id === id && !disposed) setLocked(payload.locked);
+        if (payload.id !== id || disposed) return;
+        setLocked(payload.locked);
+        setPhoneScreen(payload.phoneScreen);
       })
       .then((unlisten) => {
         if (disposed) unlisten();

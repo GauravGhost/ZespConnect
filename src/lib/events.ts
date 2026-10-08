@@ -10,7 +10,7 @@ export interface BackendEvents {
   "mirror:session:started": MirrorSession;
   "mirror:session:exited": MirrorSession;
   /** A desktop session's phone was locked or unlocked (the desktop only shows unlocked). */
-  "mirror:session:locked": { id: number; locked: boolean };
+  "mirror:session:locked": { id: number; locked: boolean; phoneScreen: boolean };
   "install:progress": { serial: string; package: string; progress: number; message: string };
   "tools:install:progress": InstallProgress;
   "tools:install:done": InstallDone;

@@ -147,13 +147,15 @@ const BASE_DENSITY: f64 = 160.0;
 pub const DESKTOP_BIT_RATE: u32 = 16;
 
 /// Wake the phone (a no-op when it is awake) if it supports desktop mode, in
-/// the same round trip as the check. Prints `<sdk> <freeform>` first.
+/// the same round trip as the check. Prints `<sdk> <freeform> <wakefulness>`
+/// first, the wakefulness read before waking (`Awake` when the screen was on).
 ///
 /// A virtual display started while the phone sleeps never draws apps that are
 /// launched cold, which on a desktop leaves only the wallpaper.
 const DESKTOP_PREPARE_COMMAND: &str = "sdk=$(getprop ro.build.version.sdk); \
 ff=$(pm has-feature android.software.freeform_window_management); \
-echo \"$sdk $ff\"; \
+w=$(dumpsys power 2>/dev/null | grep -m1 -o 'mWakefulness=[A-Za-z]*'); \
+echo \"$sdk $ff ${w#mWakefulness=}\"; \
 [ \"$sdk\" -ge 36 ] && [ \"$ff\" = true ] && input keyevent KEYCODE_WAKEUP";
 
 /// The `WxH/dpi` virtual display matching a computer screen of `width`×`height`
@@ -174,13 +176,20 @@ pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
 }
 
 /// Check that `serial` can run Android's desktop mode and wake it for the
-/// session. Fails with a readable reason when it cannot.
-pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<()> {
+/// session. Returns whether the phone's screen was already on before the wake.
+/// Fails with a readable reason when desktop mode cannot run.
+pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<bool> {
     let output = adb::shell(adb_path, serial, DESKTOP_PREPARE_COMMAND, API_TIMEOUT).await?;
-    let first = output.stdout.lines().next().unwrap_or_default().to_string();
+    parse_desktop_prepare(&output.stdout)
+}
+
+/// Parse [`DESKTOP_PREPARE_COMMAND`]'s first line.
+fn parse_desktop_prepare(output: &str) -> Result<bool> {
+    let first = output.lines().next().unwrap_or_default();
     let mut parts = first.split_whitespace();
     let api = parts.next().and_then(|value| value.parse::<u32>().ok());
     let freeform = parts.next() == Some("true");
+    let screen_on = parts.next() == Some("Awake");
 
     match api {
         Some(api) if api < MIN_DESKTOP_API => Err(AppError::Other(
@@ -189,7 +198,7 @@ pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<()> {
         Some(_) if !freeform => Err(AppError::Other(
             "This phone does not support desktop windows".into(),
         )),
-        Some(_) => Ok(()),
+        Some(_) => Ok(screen_on),
         None => Err(AppError::Other(
             "Could not read the phone's Android version".into(),
         )),
@@ -425,6 +434,16 @@ mod tests {
         assert!(flex_display_supported(Some("5.0")));
         assert!(!flex_display_supported(Some("3.3.3")));
         assert!(!flex_display_supported(None));
+    }
+
+    #[test]
+    fn desktop_prepare_reports_whether_the_screen_was_on() {
+        assert!(parse_desktop_prepare("36 true Awake\n").unwrap());
+        assert!(!parse_desktop_prepare("36 true Asleep").unwrap());
+        assert!(!parse_desktop_prepare("36 true").unwrap());
+        assert!(parse_desktop_prepare("35 true Awake").is_err());
+        assert!(parse_desktop_prepare("36 false Awake").is_err());
+        assert!(parse_desktop_prepare("").is_err());
     }
 
     #[test]

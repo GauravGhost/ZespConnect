@@ -57,6 +57,10 @@ pub struct MirrorSession {
     pub package: Option<String>,
     pub label: Option<String>,
     pub started: u64,
+    /// Desktop mode: whether the phone's own screen starts on (the title-bar
+    /// toggle) because the phone was in use when the session opened.
+    #[serde(default, rename = "phoneScreen")]
+    pub phone_screen: bool,
 }
 
 /// Everything needed to start one in-app mirror session. Kept in `AppState`

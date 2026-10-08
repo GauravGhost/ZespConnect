@@ -139,6 +139,8 @@ export interface MirrorSession {
   package: string | null;
   label: string | null;
   started: number;
+  /** Desktop mode: whether the phone's own screen is on (the title-bar toggle). */
+  phoneScreen: boolean;
 }
 
 export type QuickToggleKey =
