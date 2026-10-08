@@ -14,6 +14,8 @@
 //! subtracted to work in client space. Where there is no such hook the caller
 //! falls back to correcting the size afterwards with [`lock_size`].
 
+use crate::models::MirrorKind;
+
 /// Smallest client-area side a mirror window may shrink to. The window's minimum
 /// size is set to this in both dimensions so the OS never clamps a resize in a way
 /// that would fight the aspect ratio.
@@ -27,16 +29,31 @@ pub const DEFAULT_LONG_SIDE: f64 = 820.0;
 /// window's bottom edge (the sides already have one). The viewer pads its canvas
 /// by the same amount (`MirrorViewer`), so the sizing below works on the video
 /// area and [`pad`]/[`unpad`] convert to and from the client area.
-pub const BOTTOM_INSET: f64 = 10.0;
+pub const BOTTOM_INSET: f64 = 14.0;
+
+/// Height, in logical pixels, of a desktop window's own title bar (the window
+/// title and the phone-screen toggle, `DesktopTitleBar`). On macOS it replaces
+/// the native title bar, so it matches its 28px.
+pub const DESKTOP_BAR: f64 = 28.0;
+
+/// The vertical space a window of `kind` reserves beside its video: a desktop's
+/// title bar above it, or a phone-shaped window's [`BOTTOM_INSET`] below it.
+pub fn vertical_inset(kind: Option<MirrorKind>) -> f64 {
+    if kind == Some(MirrorKind::Desktop) {
+        DESKTOP_BAR
+    } else {
+        BOTTOM_INSET
+    }
+}
 
 /// The client size that holds a video area of `(width, height)`.
-pub fn pad((width, height): (f64, f64)) -> (f64, f64) {
-    (width, height + BOTTOM_INSET)
+pub fn pad((width, height): (f64, f64), inset: f64) -> (f64, f64) {
+    (width, height + inset)
 }
 
 /// The video area inside a client size of `(width, height)`.
-pub fn unpad((width, height): (f64, f64)) -> (f64, f64) {
-    (width, (height - BOTTOM_INSET).max(1.0))
+pub fn unpad((width, height): (f64, f64), inset: f64) -> (f64, f64) {
+    (width, (height - inset).max(1.0))
 }
 
 /// Upper bound on the longer side kept across a rotation, so a window the user
@@ -241,9 +258,16 @@ mod tests {
 
     #[test]
     fn pads_and_unpads_only_the_bottom() {
-        assert_eq!(pad((100.0, 200.0)), (100.0, 210.0));
-        assert_eq!(unpad(pad((100.0, 200.0))), (100.0, 200.0));
-        assert_eq!(unpad((4.0, 4.0)), (4.0, 1.0));
+        assert_eq!(pad((100.0, 200.0), 10.0), (100.0, 210.0));
+        assert_eq!(unpad(pad((100.0, 200.0), 10.0), 10.0), (100.0, 200.0));
+        assert_eq!(unpad((4.0, 4.0), 10.0), (4.0, 1.0));
+    }
+
+    #[test]
+    fn a_desktop_reserves_its_title_bar() {
+        assert_eq!(vertical_inset(Some(MirrorKind::Desktop)), DESKTOP_BAR);
+        assert_eq!(vertical_inset(Some(MirrorKind::App)), BOTTOM_INSET);
+        assert_eq!(vertical_inset(None), BOTTOM_INSET);
     }
 
     #[test]

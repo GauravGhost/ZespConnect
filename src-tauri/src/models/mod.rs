@@ -15,7 +15,8 @@ pub use controls::{DeviceInfo, QuickState, RebootMode};
 pub use device::{Device, DeviceState, DeviceTransport};
 pub use files::FileEntry;
 pub use mirror::{
-    MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec, TouchAction,
+    KeyAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec,
+    TouchAction,
 };
 pub use tools::{
     InstallDone, InstallProgress, ToolInfo, ToolKind, ToolSource, ToolStatus, UpdateInfo,

@@ -105,6 +105,7 @@ pub fn run() {
             commands::mirror::start_camera,
             commands::mirror::start_app_window,
             commands::mirror::start_app_on_screen,
+            commands::mirror::start_desktop,
             commands::mirror::stop_mirror,
             commands::mirror::stop_all_mirrors,
             commands::mirror::list_mirrors,
@@ -113,6 +114,11 @@ pub fn run() {
             commands::mirror::fit_mirror_window,
             commands::mirror::stop_mirror_session,
             commands::mirror::mirror_touch,
+            commands::mirror::mirror_scroll,
+            commands::mirror::mirror_key,
+            commands::mirror::mirror_text,
+            commands::mirror::mirror_reset_video,
+            commands::mirror::mirror_phone_screen,
             commands::mirror::list_mirror_sessions,
             commands::mirror::mirror_session_fallback,
             commands::wireless::get_qr_payload,
@@ -162,9 +168,14 @@ fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, heig
     let scale = window.scale_factor().unwrap_or(1.0);
     let logical_width = width as f64 / scale;
     let logical_height = height as f64 / scale;
-    let (video_width, _) = services::mirror_window::unpad((logical_width, logical_height));
-    let (width, height) =
-        services::mirror_window::pad(services::mirror_window::lock_size(video_width, aspect));
+    let inset = services::mirror_window::vertical_inset(
+        window.app_handle().state::<AppState>().session_kind(id),
+    );
+    let (video_width, _) = services::mirror_window::unpad((logical_width, logical_height), inset);
+    let (width, height) = services::mirror_window::pad(
+        services::mirror_window::lock_size(video_width, aspect),
+        inset,
+    );
 
     if (width - logical_width).abs() > 2.0 || (height - logical_height).abs() > 2.0 {
         let _ = window.set_size(tauri::LogicalSize::new(width, height));

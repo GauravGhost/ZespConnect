@@ -25,6 +25,7 @@ const KIND_LABEL: Record<MirrorKind, string> = {
   camera: "Camera",
   app: "App window",
   "screen-app": "App on screen",
+  desktop: "Desktop mode",
 };
 
 const MODES = [

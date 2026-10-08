@@ -97,10 +97,13 @@ export interface AppListResult {
   stale: boolean;
 }
 
-export type MirrorKind = "mirror" | "camera" | "app" | "screen-app";
+export type MirrorKind = "mirror" | "camera" | "app" | "screen-app" | "desktop";
 
-/** A pointer action forwarded to a mirrored device. */
-export type TouchAction = "down" | "move" | "up";
+/** A pointer action forwarded to a mirrored device ("hover": desktop mode only). */
+export type TouchAction = "down" | "move" | "up" | "hover";
+
+/** A key press or release forwarded to a mirrored device. */
+export type KeyAction = "down" | "up";
 
 export interface MirrorOptions {
   resolution: number | null;

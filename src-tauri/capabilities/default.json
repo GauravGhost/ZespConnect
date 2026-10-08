@@ -3,5 +3,12 @@
   "identifier": "default",
   "description": "Capability for the main window and the in-app mirror windows",
   "windows": ["main", "mirror-*"],
-  "permissions": ["core:default", "opener:default", "dialog:default", "clipboard-manager:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "opener:default",
+    "dialog:default",
+    "clipboard-manager:default"
+  ]
 }

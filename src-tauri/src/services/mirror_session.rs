@@ -26,6 +26,19 @@ use crate::util::{self, process, validation};
 
 const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
+const EVENT_SESSION_LOCKED: &str = "mirror:session:locked";
+/// How often a desktop session checks the lock screen: quickly while locked so
+/// the desktop appears right after unlocking, slowly while unlocked to notice
+/// the phone being locked again.
+const LOCKED_POLL: Duration = Duration::from_secs(1);
+const UNLOCKED_POLL: Duration = Duration::from_secs(3);
+
+/// `mirror:session:locked` — whether a desktop session's phone is locked.
+#[derive(Debug, Clone, serde::Serialize)]
+struct LockState {
+    id: u64,
+    locked: bool,
+}
 /// How long to wait for the server to connect back before giving up.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
 /// How often to look for a connection while also watching for a dead server.
@@ -140,7 +153,13 @@ pub async fn start(
     let socket = scrcpy_server::socket_name(&scid);
     let remote = scrcpy_server::remote_jar(&scid);
 
-    let (options, kind, virtual_display) = session_options(&adb_bin, &spec).await;
+    let (options, kind, virtual_display) = session_options(&adb_bin, &spec).await?;
+
+    // Desktop mode: refuse unsupported phones, and wake the phone so apps opened
+    // on the desktop draw (its own screen is switched off once streaming).
+    if kind == MirrorKind::Desktop {
+        scrcpy::prepare_desktop(&adb_bin, &spec.serial).await?;
+    }
 
     // On a virtual display the app is launched over the control socket. Where
     // that is unsafe (Android 12–13), foreground the app and mirror the main
@@ -151,14 +170,13 @@ pub async fn start(
         }
     }
 
-    let start_app = if virtual_display {
-        spec.package
-            .as_deref()
-            .map(control::start_app)
-            .transpose()?
-    } else {
-        None
-    };
+    // Control messages sent as soon as the session is up.
+    let mut initial: Vec<Vec<u8>> = Vec::new();
+    if virtual_display {
+        if let Some(package) = spec.package.as_deref() {
+            initial.push(control::start_app(package)?);
+        }
+    }
 
     let listener = TcpListener::bind(("127.0.0.1", 0))
         .await
@@ -227,6 +245,18 @@ pub async fn start(
     // "close"; the registration above is the moment it becomes open.
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
 
+    // Desktop mode only shows once the phone is unlocked; watch the lock screen
+    // and switch the phone's own screen to match (see `watch_lock`).
+    if kind == MirrorKind::Desktop {
+        tauri::async_runtime::spawn(watch_lock(
+            app.clone(),
+            id,
+            adb_bin.clone(),
+            spec.serial.clone(),
+            control_channel.clone(),
+        ));
+    }
+
     let handle = app.clone();
     let task_info = info.clone();
     let task_serial = spec.serial.clone();
@@ -237,7 +267,7 @@ pub async fn start(
             &mut child,
             stop_rx,
             control_channel,
-            start_app,
+            initial,
         )
         .await;
         let _ = child.kill().await;
@@ -248,6 +278,43 @@ pub async fn start(
     });
 
     Ok(info)
+}
+
+/// Follow a desktop session's lock screen until the session ends.
+///
+/// Android hides the desktop while the phone is locked, so: while locked the
+/// window asks the user to unlock (locking with the power button is how they put
+/// the phone away, so it is never woken back up). Once unlocked, the phone's own
+/// screen goes dark unless the user turned it on from the window, and a fresh key
+/// frame is requested so the desktop appears at once.
+async fn watch_lock(
+    app: AppHandle,
+    id: u64,
+    adb_bin: String,
+    serial: String,
+    control: ControlChannel,
+) {
+    let mut locked: Option<bool> = None;
+    while app.state::<AppState>().session_control(id).is_some() {
+        if let Some(now) = scrcpy::keyguard_showing(&adb_bin, &serial).await {
+            if locked != Some(now) {
+                if !now {
+                    if !app.state::<AppState>().phone_screen_on(id) {
+                        let _ = control.send(control::set_display_power(false));
+                    }
+                    let _ = control.send(control::reset_video());
+                }
+                locked = Some(now);
+                let _ = app.emit(EVENT_SESSION_LOCKED, LockState { id, locked: now });
+            }
+        }
+        let wait = if locked == Some(true) {
+            LOCKED_POLL
+        } else {
+            UNLOCKED_POLL
+        };
+        tokio::time::sleep(wait).await;
+    }
 }
 
 /// Close one session (its supervisor also tears the server down).
@@ -273,7 +340,7 @@ pub fn stop_all(app: &AppHandle) {
 async fn session_options(
     adb_bin: &str,
     spec: &MirrorSessionSpec,
-) -> (scrcpy_server::ServerOptions, MirrorKind, bool) {
+) -> Result<(scrcpy_server::ServerOptions, MirrorKind, bool)> {
     let virtual_display = match spec.kind {
         MirrorKind::App => {
             scrcpy::virtual_display_safe(scrcpy::android_api(adb_bin, &spec.serial).await)
@@ -286,29 +353,58 @@ async fn session_options(
         spec.kind
     };
 
+    let desktop = kind == MirrorKind::Desktop;
+    let new_display = if desktop {
+        Some(
+            spec.desktop_display
+                .clone()
+                .ok_or_else(|| AppError::Invalid("Desktop mode needs a display size".into()))?,
+        )
+    } else if virtual_display {
+        Some(String::new())
+    } else {
+        None
+    };
+
     let options = scrcpy_server::ServerOptions {
         kind,
-        new_display: virtual_display,
-        max_size: spec
-            .options
-            .resolution
-            .map(|value| value.clamp(scrcpy::MIN_RESOLUTION, scrcpy::MAX_RESOLUTION))
-            .unwrap_or(scrcpy::DEFAULT_MAX_SIZE),
+        new_display,
+        // The desktop is already sized to the screen; 0 tells scrcpy not to cap it.
+        max_size: if desktop {
+            0
+        } else {
+            spec.options
+                .resolution
+                .map(|value| value.clamp(scrcpy::MIN_RESOLUTION, scrcpy::MAX_RESOLUTION))
+                .unwrap_or(scrcpy::DEFAULT_MAX_SIZE)
+        },
         max_fps: spec
             .options
             .fps
             .map(|value| value.clamp(1, scrcpy::MAX_FPS_LIMIT)),
+        // The UI always sends its phone-sized default, so a desktop raises it to
+        // its own floor to keep a large, text-heavy screen crisp.
         bit_rate: spec
             .options
             .bitrate
-            .map(|value| value.clamp(1, scrcpy::MAX_BITRATE)),
+            .map(|value| value.clamp(1, scrcpy::MAX_BITRATE))
+            .map(|value| {
+                if desktop {
+                    value.max(scrcpy::DESKTOP_BIT_RATE)
+                } else {
+                    value
+                }
+            })
+            .or(desktop.then_some(scrcpy::DESKTOP_BIT_RATE)),
         camera_facing: spec.options.camera_facing.clone(),
         camera_zoom: spec.options.camera_zoom,
         camera_torch: spec.options.camera_torch,
-        stay_awake: spec.options.stay_awake,
+        // Desktop needs scrcpy's cleanup to restore the phone's screen timeout
+        // and power it off on close, and cleanup only runs with `stay_awake`.
+        stay_awake: spec.options.stay_awake || desktop,
     };
 
-    (options, kind, virtual_display)
+    Ok((options, kind, virtual_display))
 }
 
 /// Accept the video and control connections, watching the server so a bad
@@ -359,9 +455,9 @@ async fn stream_video(
     child: &mut Child,
     mut stop: tokio::sync::oneshot::Receiver<()>,
     control_channel: ControlChannel,
-    start_app: Option<Vec<u8>>,
+    initial: Vec<Vec<u8>>,
 ) {
-    if let Some(message) = start_app {
+    for message in initial {
         let _ = control_channel.send(message);
     }
 

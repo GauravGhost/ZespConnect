@@ -130,6 +130,115 @@ pub fn app_window_args(
     args
 }
 
+/// Android 16 (API 36) brought desktop windowing to connected displays: the
+/// taskbar, desktop launcher and freeform app windows.
+pub const MIN_DESKTOP_API: u32 = 36;
+
+/// The longest side a desktop display may take. Larger (4K/5K) screens are
+/// scaled down with the density, so the desktop keeps its layout while the
+/// phone's encoder and the link stay within comfortable limits.
+const MAX_DESKTOP_SIDE: f64 = 2560.0;
+
+/// Android's baseline density: one dp is one pixel at 160 dpi.
+const BASE_DENSITY: f64 = 160.0;
+
+/// Desktop sessions stream a large, text-heavy display; default to a higher
+/// bitrate (Mbps) than a phone-sized mirror so text stays crisp.
+pub const DESKTOP_BIT_RATE: u32 = 16;
+
+/// Wake the phone (a no-op when it is awake) if it supports desktop mode, in
+/// the same round trip as the check. Prints `<sdk> <freeform>` first.
+///
+/// A virtual display started while the phone sleeps never draws apps that are
+/// launched cold, which on a desktop leaves only the wallpaper.
+const DESKTOP_PREPARE_COMMAND: &str = "sdk=$(getprop ro.build.version.sdk); \
+ff=$(pm has-feature android.software.freeform_window_management); \
+echo \"$sdk $ff\"; \
+[ \"$sdk\" -ge 36 ] && [ \"$ff\" = true ] && input keyevent KEYCODE_WAKEUP";
+
+/// The `WxH/dpi` virtual display matching a computer screen of `width`×`height`
+/// physical pixels at `scale` (its device-pixel ratio), so the desktop fills the
+/// screen in full screen and is laid out like the computer's own UI.
+pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
+    let (width, height) = (f64::from(width.max(1)), f64::from(height.max(1)));
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let shrink = (MAX_DESKTOP_SIDE / width.max(height)).min(1.0);
+    // Video encoders want dimensions aligned to 8.
+    let align = |value: f64| ((value * shrink / 8.0).floor() * 8.0).max(8.0) as u32;
+    let dpi = (BASE_DENSITY * scale * shrink).round().clamp(120.0, 640.0) as u32;
+    format!("{}x{}/{dpi}", align(width), align(height))
+}
+
+/// Check that `serial` can run Android's desktop mode and wake it for the
+/// session. Fails with a readable reason when it cannot.
+pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<()> {
+    let output = adb::shell(adb_path, serial, DESKTOP_PREPARE_COMMAND, API_TIMEOUT).await?;
+    let first = output.stdout.lines().next().unwrap_or_default().to_string();
+    let mut parts = first.split_whitespace();
+    let api = parts.next().and_then(|value| value.parse::<u32>().ok());
+    let freeform = parts.next() == Some("true");
+
+    match api {
+        Some(api) if api < MIN_DESKTOP_API => Err(AppError::Other(
+            "Desktop mode needs Android 16 or newer on the phone".into(),
+        )),
+        Some(_) if !freeform => Err(AppError::Other(
+            "This phone does not support desktop windows".into(),
+        )),
+        Some(_) => Ok(()),
+        None => Err(AppError::Other(
+            "Could not read the phone's Android version".into(),
+        )),
+    }
+}
+
+/// Reads whether the lock screen is up (`KeyguardController.mKeyguardShowing`).
+const KEYGUARD_COMMAND: &str =
+    "dumpsys activity activities | grep -m1 -o 'mKeyguardShowing=[a-z]*'";
+
+/// Parse [`KEYGUARD_COMMAND`]'s output.
+fn parse_keyguard(output: &str) -> Option<bool> {
+    match output.trim().strip_prefix("mKeyguardShowing=")? {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+/// Whether the phone's lock screen is showing. While it is, Android keeps the
+/// desktop (launcher, taskbar, app windows) hidden and only the wallpaper draws.
+pub async fn keyguard_showing(adb_path: &str, serial: &str) -> Option<bool> {
+    let output = adb::shell(adb_path, serial, KEYGUARD_COMMAND, API_TIMEOUT)
+        .await
+        .ok()?;
+    parse_keyguard(&output.stdout)
+}
+
+/// Build the argv for a desktop-mode window when it cannot be rendered in-app:
+/// a decorated virtual display of `display` (`WxH/dpi`), with the phone's own
+/// screen turned off and put back to sleep on close.
+pub fn desktop_args(serial: &str, window_title: &str, display: &str) -> Vec<String> {
+    vec![
+        "--serial".to_string(),
+        serial.to_string(),
+        "--window-title".to_string(),
+        window_title.to_string(),
+        format!("--new-display={display}"),
+        "--display-ime-policy=hide".to_string(),
+        "--turn-screen-off".to_string(),
+        "--power-off-on-close".to_string(),
+        "--stay-awake".to_string(),
+        // Forward every mouse button (right-click opens context menus).
+        "--mouse-bind=++++".to_string(),
+        format!("--video-bit-rate={DESKTOP_BIT_RATE}M"),
+        "--no-audio".to_string(),
+    ]
+}
+
 /// Whether `value` is a `#rrggbb` colour.
 fn is_hex_color(value: &str) -> bool {
     value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
@@ -277,6 +386,41 @@ mod tests {
         assert!(flex_display_supported(Some("5.0")));
         assert!(!flex_display_supported(Some("3.3.3")));
         assert!(!flex_display_supported(None));
+    }
+
+    #[test]
+    fn parses_the_keyguard_state() {
+        assert_eq!(parse_keyguard("mKeyguardShowing=true\n"), Some(true));
+        assert_eq!(parse_keyguard("mKeyguardShowing=false"), Some(false));
+        assert_eq!(parse_keyguard(""), None);
+        assert_eq!(parse_keyguard("mKeyguardShowing=maybe"), None);
+    }
+
+    #[test]
+    fn desktop_display_matches_a_retina_laptop() {
+        // A 2560x1664 panel at 2x is a 1280x832 dp desktop.
+        assert_eq!(desktop_display(2560, 1664, 2.0), "2560x1664/320");
+    }
+
+    #[test]
+    fn desktop_display_scales_big_screens_down_with_their_density() {
+        // 4K at 2x keeps a 1920x1080 dp layout in 2560x1440 pixels.
+        assert_eq!(desktop_display(3840, 2160, 2.0), "2560x1440/213");
+    }
+
+    #[test]
+    fn desktop_display_aligns_to_8_and_tolerates_bad_input() {
+        assert_eq!(desktop_display(1366, 768, 1.0), "1360x768/160");
+        assert_eq!(desktop_display(1920, 1080, f64::NAN), "1920x1080/160");
+    }
+
+    #[test]
+    fn desktop_window_keeps_decorations_and_turns_the_phone_off() {
+        let args = desktop_args("SERIAL", "title", "1920x1080/160");
+        assert!(args.contains(&"--new-display=1920x1080/160".to_string()));
+        assert!(args.contains(&"--turn-screen-off".to_string()));
+        assert!(!args.contains(&"--no-vd-system-decorations".to_string()));
+        assert!(!args.iter().any(|a| a.starts_with("--start-app")));
     }
 
     #[test]

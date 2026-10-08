@@ -21,6 +21,12 @@ const MAX_DECODE_QUEUE = 8;
 export interface DecoderHandlers {
   onFrame: (frame: VideoFrame) => void;
   onError: (error: Error) => void;
+  /**
+   * The decoder dropped frames and is waiting for a key frame. The encoder only
+   * sends one when the stream starts (or the picture changes a lot), so a still
+   * screen — a desktop at rest — would otherwise stay frozen on a stale picture.
+   */
+  onNeedKeyframe?: () => void;
 }
 
 export class H264Decoder {
@@ -91,6 +97,7 @@ export class H264Decoder {
   reset(): void {
     this.teardown();
     this.needsKeyframe = true;
+    this.handlers.onNeedKeyframe?.();
   }
 
   /** Release the decoder for good; later `push`es are ignored. */

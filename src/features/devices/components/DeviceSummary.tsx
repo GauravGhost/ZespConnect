@@ -6,6 +6,7 @@ import {
   Cable,
   Cpu,
   FolderOpen,
+  LaptopMinimal,
   Loader2,
   Monitor,
   MonitorSmartphone,
@@ -21,9 +22,11 @@ import { useAppStore } from "@/app/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useInstallApk } from "@/features/apps/hooks";
+import { useDeviceInfo } from "../hooks";
 import {
   useOpenWindows,
   useStartCamera,
+  useStartDesktop,
   useStartMirror,
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
@@ -34,11 +37,15 @@ import { DEFAULT_MIRROR_OPTIONS } from "@/lib/mirror";
 import { cn } from "@/lib/utils";
 import type { Device, MirrorKind } from "@/types";
 
+/** The first Android SDK with desktop windowing on connected displays (Android 16). */
+const MIN_DESKTOP_SDK = 36;
+
 const KIND_LABEL: Record<MirrorKind, string> = {
   mirror: "Screen",
   camera: "Camera",
   app: "App window",
   "screen-app": "App on screen",
+  desktop: "Desktop mode",
 };
 
 function Section({
@@ -224,7 +231,12 @@ export function QuickActions({ device }: { device: Device }) {
   const scrcpyReady = Boolean(tools?.scrcpy.found);
   const startMirror = useStartMirror();
   const startCamera = useStartCamera();
+  const startDesktop = useStartDesktop();
   const installApk = useInstallApk();
+  // Android 16 (API 36) brought desktop windowing to connected displays. The
+  // device list carries no SDK, so read it from the (shared, cached) device info.
+  const { data: info } = useDeviceInfo(device.state === "device" ? serial : null);
+  const desktopSupported = Number(info?.sdk || device.sdk) >= MIN_DESKTOP_SDK;
 
   async function pickApk() {
     const selected = await open({
@@ -255,6 +267,18 @@ export function QuickActions({ device }: { device: Device }) {
           busy={startCamera.isPending}
           onClick={() => startCamera.mutate({ serial, options: DEFAULT_MIRROR_OPTIONS })}
         />
+        {desktopSupported ? (
+          <ActionTile
+            icon={LaptopMinimal}
+            label="Desktop mode"
+            hint={scrcpyReady ? "Taskbar & app windows" : "Needs scrcpy"}
+            disabled={!scrcpyReady}
+            busy={startDesktop.isPending}
+            onClick={() =>
+              startDesktop.mutate({ serial, label: `${device.display_name || serial} desktop` })
+            }
+          />
+        ) : null}
         <ActionTile
           icon={Upload}
           label="Install APK"

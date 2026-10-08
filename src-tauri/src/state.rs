@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
-use crate::models::{Device, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolStatus};
+use crate::models::{
+    Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolStatus,
+};
 use crate::services::mirror_session::ControlChannel;
 use crate::util;
 
@@ -31,6 +33,8 @@ pub struct AppState {
     sessions: RwLock<HashMap<u64, SessionHandle>>,
     pending_sessions: RwLock<HashMap<u64, MirrorSessionSpec>>,
     aspects: RwLock<HashMap<u64, f64>>,
+    /// Desktop sessions whose user turned the phone's own screen on.
+    phone_screens: RwLock<HashSet<u64>>,
     next_session: AtomicU64,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
@@ -52,6 +56,7 @@ impl AppState {
             sessions: RwLock::new(HashMap::new()),
             pending_sessions: RwLock::new(HashMap::new()),
             aspects: RwLock::new(HashMap::new()),
+            phone_screens: RwLock::new(HashSet::new()),
             next_session: AtomicU64::new(1),
             app_data_dir,
             tracker: RwLock::new(None),
@@ -184,6 +189,33 @@ impl AppState {
             .and_then(|guard| guard.get(&id).copied())
     }
 
+    /// Remember whether a desktop session's user wants the phone's screen on.
+    pub fn set_phone_screen(&self, id: u64, on: bool) {
+        if let Ok(mut guard) = self.phone_screens.write() {
+            if on {
+                guard.insert(id);
+            } else {
+                guard.remove(&id);
+            }
+        }
+    }
+
+    /// Whether a desktop session's user wants the phone's screen on (off by default).
+    pub fn phone_screen_on(&self, id: u64) -> bool {
+        self.phone_screens
+            .read()
+            .map(|guard| guard.contains(&id))
+            .unwrap_or(false)
+    }
+
+    /// What a running session shows, if it is still tracked.
+    pub fn session_kind(&self, id: u64) -> Option<MirrorKind> {
+        self.sessions
+            .read()
+            .ok()
+            .and_then(|guard| guard.get(&id).map(|handle| handle.info.kind))
+    }
+
     /// The in-app mirror sessions currently running.
     pub fn list_sessions(&self) -> Vec<MirrorSession> {
         self.sessions
@@ -228,6 +260,9 @@ impl AppState {
             guard.remove(&id);
         }
         if let Ok(mut guard) = self.aspects.write() {
+            guard.remove(&id);
+        }
+        if let Ok(mut guard) = self.phone_screens.write() {
             guard.remove(&id);
         }
     }

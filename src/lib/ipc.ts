@@ -6,6 +6,7 @@ import type {
   Device,
   DeviceInfo,
   FileEntry,
+  KeyAction,
   LogLine,
   MdnsDevice,
   MirrorKind,
@@ -65,6 +66,8 @@ export const ipc = {
       invoke<MirrorProcess>("start_app_window", { serial, package: pkg, label }),
     startAppOnScreen: (serial: string, pkg: string, label: string) =>
       invoke<MirrorProcess>("start_app_on_screen", { serial, package: pkg, label }),
+    /** Android desktop mode in an external window (no in-app rendering). */
+    startDesktop: (serial: string) => invoke<MirrorProcess>("start_desktop", { serial }),
     stop: (pid: number) => invoke<void>("stop_mirror", { pid }),
     stopAll: () => invoke<void>("stop_all_mirrors"),
     list: () => invoke<MirrorProcess[]>("list_mirrors"),
@@ -85,8 +88,45 @@ export const ipc = {
       invoke<void>("fit_mirror_window", { id, width, height }),
     stopSession: (id: number) => invoke<void>("stop_mirror_session", { id }),
     /** Forward a pointer action; coordinates are in the video's pixel space. */
-    touch: (id: number, action: TouchAction, x: number, y: number, width: number, height: number) =>
-      invoke<void>("mirror_touch", { id, action, x, y, width, height }),
+    touch: (
+      id: number,
+      action: TouchAction,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      /** Desktop mode: the Android `BUTTON_*` that changed, and the ones held. */
+      mouse?: { button: number; buttons: number },
+    ) =>
+      invoke<void>("mirror_touch", {
+        id,
+        action,
+        x,
+        y,
+        width,
+        height,
+        button: mouse?.button ?? null,
+        buttons: mouse?.buttons ?? null,
+      }),
+    /** Scroll at a point; amounts are in wheel notches (positive = up / left). */
+    scroll: (
+      id: number,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      hscroll: number,
+      vscroll: number,
+    ) => invoke<void>("mirror_scroll", { id, x, y, width, height, hscroll, vscroll }),
+    /** Press or release an Android `KEYCODE_*` with a `META_*` mask. */
+    key: (id: number, action: KeyAction, keycode: number, repeat: number, metaState: number) =>
+      invoke<void>("mirror_key", { id, action, keycode, repeat, metaState }),
+    /** Ask the device for a fresh key frame so a decoder that dropped frames can resync. */
+    resetVideo: (id: number) => invoke<void>("mirror_reset_video", { id }),
+    /** Desktop mode: turn the phone's own screen on (to use it too) or off. */
+    phoneScreen: (id: number, on: boolean) => invoke<void>("mirror_phone_screen", { id, on }),
+    /** Type text (at most 300 UTF-8 bytes per call). */
+    text: (id: number, text: string) => invoke<void>("mirror_text", { id, text }),
     listSessions: () => invoke<MirrorSession[]>("list_mirror_sessions"),
     /** Reopen a session as an external window when in-app rendering is unavailable. */
     fallback: (id: number) => invoke<void>("mirror_session_fallback", { id }),

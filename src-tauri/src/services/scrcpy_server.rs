@@ -22,6 +22,11 @@ const STREAM_META_MIN_VERSION: &str = "4.0";
 /// The oldest scrcpy whose standalone-server options we target.
 pub const MIN_VERSION: &str = "3.0";
 
+/// How long the phone may idle before sleeping while a desktop session runs. A
+/// phone that falls asleep stops drawing newly launched apps, so this outlasts
+/// any session; scrcpy's cleanup restores the user's own timeout on exit.
+const DESKTOP_SCREEN_OFF_TIMEOUT_MS: u32 = 24 * 60 * 60 * 1000;
+
 /// The server artifact shipped next to the scrcpy binary.
 const SERVER_FILE: &str = "scrcpy-server";
 
@@ -77,7 +82,9 @@ pub fn server_path(scrcpy_bin: &str) -> Result<PathBuf> {
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
     pub kind: MirrorKind,
-    pub new_display: bool,
+    /// The `new_display` size spec: `""` reuses the main display's size, a
+    /// `WxH/dpi` value sizes it (desktop mode). `None` mirrors an existing display.
+    pub new_display: Option<String>,
     pub max_size: u32,
     pub max_fps: Option<u32>,
     pub bit_rate: Option<u32>,
@@ -140,14 +147,24 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
         }
     }
 
-    if opts.new_display {
+    if let Some(size) = opts.new_display.as_deref() {
         // `new_display` takes a size spec, or an empty value to reuse the main
         // display's size — it is not a boolean.
-        args.push("new_display=".to_string());
-        // Without the launcher, wallpaper and taskbar on the virtual display,
-        // only the app is shown and a cold start draws even while the phone
-        // sleeps (see `scrcpy::VD_DECORATIONS_MIN_VERSION`).
-        if scrcpy::vd_decorations_option_supported(Some(version)) {
+        args.push(format!("new_display={size}"));
+        if opts.kind == MirrorKind::Desktop {
+            // Desktop mode *is* the decorations (launcher, taskbar, wallpaper).
+            // Typing comes from the computer, so keep the phone's keyboard away,
+            // keep the phone awake for the session (restored by cleanup), and put
+            // it back to sleep when the desktop closes.
+            args.push("display_ime_policy=hide".to_string());
+            args.push(format!(
+                "screen_off_timeout={DESKTOP_SCREEN_OFF_TIMEOUT_MS}"
+            ));
+            args.push("power_off_on_close=true".to_string());
+        } else if scrcpy::vd_decorations_option_supported(Some(version)) {
+            // Without the launcher, wallpaper and taskbar on the virtual display,
+            // only the app is shown and a cold start draws even while the phone
+            // sleeps (see `scrcpy::VD_DECORATIONS_MIN_VERSION`).
             args.push("vd_system_decorations=false".to_string());
         }
     }
@@ -188,7 +205,7 @@ mod tests {
     fn options(kind: MirrorKind) -> ServerOptions {
         ServerOptions {
             kind,
-            new_display: false,
+            new_display: None,
             max_size: 1024,
             max_fps: None,
             bit_rate: None,
@@ -223,7 +240,7 @@ mod tests {
     #[test]
     fn virtual_display_uses_an_empty_size_spec() {
         let mut opts = options(MirrorKind::App);
-        opts.new_display = true;
+        opts.new_display = Some(String::new());
 
         let args = options_args("4.0", "s", &opts);
         // A boolean here makes scrcpy's Options.parse throw.
@@ -236,6 +253,19 @@ mod tests {
         assert!(!legacy
             .iter()
             .any(|a| a.starts_with("vd_system_decorations")));
+    }
+
+    #[test]
+    fn desktop_keeps_decorations_and_manages_phone_power() {
+        let mut opts = options(MirrorKind::Desktop);
+        opts.new_display = Some("2560x1664/320".to_string());
+
+        let args = options_args("5.0", "s", &opts);
+        assert!(args.contains(&"new_display=2560x1664/320".to_string()));
+        assert!(!args.iter().any(|a| a.starts_with("vd_system_decorations")));
+        assert!(args.contains(&"display_ime_policy=hide".to_string()));
+        assert!(args.contains(&"power_off_on_close=true".to_string()));
+        assert!(args.iter().any(|a| a.starts_with("screen_off_timeout=")));
     }
 
     #[test]

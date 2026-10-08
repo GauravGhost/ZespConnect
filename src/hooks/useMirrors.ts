@@ -163,6 +163,19 @@ export function useStartCamera() {
   });
 }
 
+/** Open Android's desktop mode (taskbar, launcher, app windows) sized to this screen. */
+export function useStartDesktop() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serial, label }: { serial: string; label: string }) =>
+      openMirror(serial, "desktop", null, label, DEFAULT_MIRROR_OPTIONS, () =>
+        ipc.mirror.startDesktop(serial),
+      ),
+    onSuccess: () => invalidateWindows(queryClient),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
 /** Close one open mirror. */
 export function useStopOpenWindow() {
   const queryClient = useQueryClient();

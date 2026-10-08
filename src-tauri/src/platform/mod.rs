@@ -7,13 +7,17 @@ mod aspect;
 /// platform's own resize hook (Windows `WM_SIZING`), so the dragged edge tracks
 /// the cursor. A no-op elsewhere, where the caller corrects the size afterwards.
 #[cfg(windows)]
-pub fn watch_aspect<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>, aspect: f64) {
+pub fn watch_aspect<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    aspect: f64,
+    vertical_inset: f64,
+) {
     let (Ok(inner), Ok(outer)) = (window.inner_size(), window.outer_size()) else {
         return;
     };
-    // The hook works on the video area, so the viewer's bottom inset counts as frame.
+    // The hook works on the video area, so the viewer's vertical inset counts as frame.
     let scale = window.scale_factor().unwrap_or(1.0);
-    let inset = (crate::services::mirror_window::BOTTOM_INSET * scale).round() as i32;
+    let inset = (vertical_inset * scale).round() as i32;
     let frame = crate::services::mirror_window::Frame {
         width: outer.width.saturating_sub(inner.width) as i32,
         height: outer.height.saturating_sub(inner.height) as i32 + inset,
@@ -24,7 +28,12 @@ pub fn watch_aspect<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>, aspect:
 }
 
 #[cfg(not(windows))]
-pub fn watch_aspect<R: tauri::Runtime>(_window: &tauri::WebviewWindow<R>, _aspect: f64) {}
+pub fn watch_aspect<R: tauri::Runtime>(
+    _window: &tauri::WebviewWindow<R>,
+    _aspect: f64,
+    _vertical_inset: f64,
+) {
+}
 
 /// Stop locking a window as it closes, releasing the hook and its aspect.
 #[cfg(windows)]

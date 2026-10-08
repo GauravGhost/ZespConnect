@@ -12,6 +12,9 @@ pub enum MirrorKind {
     App,
     /// The main display with an app in the foreground.
     ScreenApp,
+    /// Android's desktop mode on a decorated virtual display (taskbar, launcher,
+    /// freeform windows), sized to the computer's screen.
+    Desktop,
 }
 
 /// A pointer action on a mirrored screen, mirroring the `TouchAction` TS type.
@@ -20,6 +23,16 @@ pub enum MirrorKind {
 pub enum TouchAction {
     Down,
     Move,
+    Up,
+    /// The mouse moved with no button pressed (desktop mode only).
+    Hover,
+}
+
+/// A key press or release, mirroring the `KeyAction` TS type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KeyAction {
+    Down,
     Up,
 }
 
@@ -56,6 +69,10 @@ pub struct MirrorSessionSpec {
     pub package: Option<String>,
     pub label: String,
     pub options: MirrorOptions,
+    /// The `WxH/dpi` virtual display for a desktop session, sized to the
+    /// computer's screen when the window opens. Never sent by the UI.
+    #[serde(default)]
+    pub desktop_display: Option<String>,
 }
 
 /// Options for a screen-mirror or camera session, mirroring the `MirrorOptions`

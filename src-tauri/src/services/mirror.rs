@@ -118,6 +118,33 @@ pub async fn start_mirror(
     .await
 }
 
+/// Open Android's desktop mode (taskbar, launcher, freeform windows) on a
+/// virtual display of `display` (`WxH/dpi`) in a new window.
+pub async fn start_desktop(app: &AppHandle, serial: &str, display: &str) -> Result<MirrorProcess> {
+    let tools = app.state::<AppState>().tools();
+    let scrcpy_bin = scrcpy::scrcpy_path(&tools)?;
+    let adb_bin = adb::adb_path(&tools)?;
+    scrcpy::prepare_desktop(&adb_bin, serial).await?;
+
+    let label = format!("{} desktop", device_label(app, serial));
+    let title = format!("Zesp Connect — {label}");
+    let args = scrcpy::desktop_args(serial, &title, display);
+
+    spawn_window(
+        app,
+        WindowSpec {
+            serial,
+            kind: MirrorKind::Desktop,
+            package: None,
+            label,
+            scrcpy_bin: &scrcpy_bin,
+            adb_bin: &adb_bin,
+            args: &args,
+        },
+    )
+    .await
+}
+
 /// Stream the device camera in a new window.
 pub async fn start_camera(
     app: &AppHandle,

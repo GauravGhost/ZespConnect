@@ -9,6 +9,8 @@ export interface BackendEvents {
   "mirror:exited": MirrorProcess;
   "mirror:session:started": MirrorSession;
   "mirror:session:exited": MirrorSession;
+  /** A desktop session's phone was locked or unlocked (the desktop only shows unlocked). */
+  "mirror:session:locked": { id: number; locked: boolean };
   "install:progress": { serial: string; package: string; progress: number; message: string };
   "tools:install:progress": InstallProgress;
   "tools:install:done": InstallDone;
@@ -32,6 +34,8 @@ export const events = {
     onBackendEvent("mirror:session:started", handler),
   mirrorSessionExited: (handler: EventCallback<MirrorSession>) =>
     onBackendEvent("mirror:session:exited", handler),
+  mirrorSessionLocked: (handler: EventCallback<BackendEvents["mirror:session:locked"]>) =>
+    onBackendEvent("mirror:session:locked", handler),
   installProgress: (handler: EventCallback<BackendEvents["install:progress"]>) =>
     onBackendEvent("install:progress", handler),
   toolsInstallProgress: (handler: EventCallback<InstallProgress>) =>
