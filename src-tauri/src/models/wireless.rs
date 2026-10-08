@@ -10,3 +10,13 @@ pub struct QrPayload {
     pub password: String,
     pub created: u64,
 }
+
+/// A service instance discovered by `adb mdns services`, shaped for the UI.
+#[derive(Debug, Clone, Serialize)]
+pub struct MdnsDevice {
+    pub name: String,
+    pub service_type: String,
+    pub host: String,
+    pub port: u16,
+    pub address: String,
+}

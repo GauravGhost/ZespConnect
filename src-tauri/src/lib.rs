@@ -117,6 +117,11 @@ pub fn run() {
             commands::mirror::mirror_session_fallback,
             commands::wireless::get_qr_payload,
             commands::wireless::pair_wireless_qr,
+            commands::wireless::pair_wireless_code,
+            commands::wireless::connect_wireless,
+            commands::wireless::disconnect_wireless,
+            commands::wireless::enable_wireless_tcpip,
+            commands::wireless::list_mdns_services,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

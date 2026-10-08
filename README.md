@@ -7,12 +7,14 @@ Zesp Connect lists your devices, shows real app names (not package ids), mirrors
 screen and camera, drives quick toggles, browses files, exposes an adb console and
 handles wireless pairing — all from a single window.
 
-> Status: **M0–M4** are implemented — the architecture skeleton, tool discovery, the push-based
+> Status: **M0–M5** are implemented — the architecture skeleton, tool discovery, the push-based
 > device tracker (`adb track-devices`), device list/dedupe, the header switcher, onboarding,
-> wireless (QR) pairing, the system tray, an installed-apps manager (real names, search/filter,
-> launch, uninstall, clear data, install APK), mirroring (screen, camera, and app windows
-> with the Android 12–13 virtual-display fallback, plus a running-windows list), and quick
-> controls (toggles, brightness/volume sliders, reboot). Extracted app icons land in a later pass.
+> the system tray, an installed-apps manager (real names, search/filter, launch, uninstall, clear
+> data, install APK), mirroring (screen, camera, and app windows with the Android 12–13
+> virtual-display fallback, plus a running-windows list), quick controls (toggles,
+> brightness/volume sliders, reboot), and wireless debugging (QR + code pairing,
+> connect/disconnect, and a one-click USB→Wi-Fi handoff). Extracted app icons land in a
+> later pass.
 
 ## Requirements
 
@@ -38,6 +40,21 @@ Open **Settings** to manage both binaries:
 
 After an install or a path change the app re-scans and restarts the device tracker, so
 the new binary is used immediately.
+
+## Wireless
+
+The **Wireless** tab pairs and connects a phone over Wi-Fi from one compact screen:
+
+- **QR pairing** — pair an Android 11+ phone by scanning a QR code generated in the app.
+- **Connect** — enter an address to connect, or add the six-digit code from the phone's
+  Wireless debugging screen to pair first. Nearby pairing/connect services are discovered
+  live via `adb mdns services`.
+- **Enable over USB** — restarts a cabled phone's debugger in TCP mode, looks up its Wi-Fi IP,
+  and connects to it in one click, so you can unplug and stay connected.
+- **Connected** — see and disconnect the Wi-Fi devices currently attached.
+
+Devices that appear as both an `ip:port` and an mDNS alias (`adb-…._adb-tls-connect._tcp`) are
+merged into a single entry, keeping the alias scrcpy requires while retaining the address.
 
 ## Development
 
@@ -101,7 +118,8 @@ React UI ──(typed invoke / events via src/lib/ipc.ts)──> #[tauri::comman
 4. **M3 Mirroring** — screen, camera, app-window (with the Android 12–13 virtual-display
    fallback), running windows list. ✅
 5. **M4 Controls** — quick toggles, coalesced brightness/volume sliders, reboot. ✅
-6. **M5 Wireless** — QR + code pairing, connect/disconnect, TCP/IP, duplicate-transport merge.
+6. **M5 Wireless** — QR + code pairing, connect/disconnect, one-click USB→Wi-Fi, mdns discovery,
+   duplicate-transport merge. ✅
 7. **M6 Files, Console, Clipboard, AVDs.**
 8. **M7 Polish & release** — tray, settings, installers, signed builds.
 

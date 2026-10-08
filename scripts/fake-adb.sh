@@ -28,6 +28,13 @@ case "$sub" in
     ;;
   shell)
     case "$cmd" in
+      *"ip -f inet addr show wlan0"*)
+        printf '3: wlan0: mtu 1500 qdisc mq state UP group default\n'
+        printf '    inet 192.168.1.50/24 brd 192.168.1.255 scope global wlan0\n'
+        ;;
+      *"getprop dhcp.wlan0.ipaddress"*)
+        printf '192.168.1.50\n'
+        ;;
       *"pm list packages -f"*)
         printf 'package:/data/app/~~1a2b==/com.example.notes-xyz==/base.apk=com.example.notes\n'
         printf 'package:/data/app/~~3c4d==/com.google.android.apps.maps-xyz==/base.apk=com.google.android.apps.maps\n'
@@ -71,5 +78,23 @@ case "$sub" in
     # One empty frame (length 0000), then stay alive to keep the stream open.
     printf '0000'
     while true; do sleep 3; done
+    ;;
+  mdns)
+    printf 'List of discovered mdns services\n'
+    printf 'adb-0123456789ABCDEF-xyz123 _adb-tls-connect._tcp 192.168.1.42:5555\n'
+    printf 'studio-abcdEFghij _adb-tls-pairing._tcp 192.168.1.43:37401\n'
+    printf 'adb-0123456789ABCDEF _adb._tcp 192.168.1.42:5555\n'
+    ;;
+  pair)
+    printf 'Successfully paired to %s [guid=adb-0123456789ABCDEF-xyz123]\n' "$cmd"
+    ;;
+  connect)
+    printf 'connected to %s\n' "$cmd"
+    ;;
+  disconnect)
+    printf 'disconnected %s\n' "$cmd"
+    ;;
+  tcpip)
+    printf 'restarting in TCP mode port: %s\n' "$cmd"
     ;;
 esac

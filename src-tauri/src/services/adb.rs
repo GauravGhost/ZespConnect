@@ -121,3 +121,29 @@ pub async fn list_devices_raw(adb: &str) -> Result<ProcessOutput> {
     )
     .await
 }
+
+/// `adb connect <address>` — unscoped (there is no device serial yet).
+pub async fn connect(adb: &str, address: &str) -> Result<ProcessOutput> {
+    run(
+        adb,
+        &["connect".to_string(), address.to_string()],
+        DEFAULT_TIMEOUT,
+    )
+    .await
+}
+
+/// `adb disconnect <target>` — unscoped.
+pub async fn disconnect(adb: &str, target: &str) -> Result<ProcessOutput> {
+    run(
+        adb,
+        &["disconnect".to_string(), target.to_string()],
+        DEFAULT_TIMEOUT,
+    )
+    .await
+}
+
+/// `adb -s <serial> tcpip <port>` — restart adbd on the device in TCP mode.
+pub async fn tcpip(adb: &str, serial: &str, port: u16) -> Result<ProcessOutput> {
+    let args = vec!["tcpip".to_string(), port.to_string()];
+    run_scoped(adb, serial, &args, DEFAULT_TIMEOUT).await
+}

@@ -165,11 +165,13 @@ export interface Avd {
   running: boolean;
 }
 
-export interface PreviousDevice {
-  id: string;
+/** A service instance discovered by `adb mdns services`. */
+export interface MdnsDevice {
   name: string;
-  wireless: boolean;
-  last_seen: number;
+  service_type: string;
+  host: string;
+  port: number;
+  address: string;
 }
 
 export interface QrPayload {

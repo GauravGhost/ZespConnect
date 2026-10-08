@@ -6,6 +6,7 @@ import type {
   Device,
   DeviceInfo,
   FileEntry,
+  MdnsDevice,
   MirrorKind,
   MirrorOptions,
   MirrorProcess,
@@ -107,13 +108,16 @@ export const ipc = {
   },
 
   wireless: {
-    pair: (addr: string, code: string) => invoke<void>("pair", { addr, code }),
-    connect: (addr: string) => invoke<void>("connect", { addr }),
-    disconnect: (addr: string) => invoke<void>("disconnect", { addr }),
-    enableTcpip: (serial: string, port = 5555) => invoke<void>("enable_tcpip", { serial, port }),
     qrPayload: () => invoke<QrPayload>("get_qr_payload"),
     qrPair: (payload: string, timeout?: number) =>
       invoke<string>("pair_wireless_qr", { payload, timeout }),
+    pairCode: (addr: string, code: string) =>
+      invoke<string>("pair_wireless_code", { addr, code }),
+    connect: (addr: string) => invoke<string>("connect_wireless", { addr }),
+    disconnect: (addr: string) => invoke<void>("disconnect_wireless", { addr }),
+    enableTcpip: (serial: string, port = 5555) =>
+      invoke<string>("enable_wireless_tcpip", { serial, port }),
+    mdnsServices: () => invoke<MdnsDevice[]>("list_mdns_services"),
   },
 
   files: {

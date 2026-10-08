@@ -9,14 +9,20 @@
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::error::{AppError, Result};
-use crate::models::QrPayload;
+use crate::models::{MdnsDevice, QrPayload};
 use crate::services::adb;
-use crate::util::validation::{parse_host_port, validate_pairing_password, validate_service_name};
+use crate::util::validation::{
+    parse_host_port, validate_pairing_password, validate_serial, validate_service_name,
+};
 
 const PAIRING_SERVICE: &str = "_adb-tls-pairing._tcp";
 const CONNECT_SERVICE: &str = "_adb-tls-connect._tcp";
 
+/// The port `adb tcpip` restarts adbd on by default.
+pub const DEFAULT_TCPIP_PORT: u16 = 5555;
+
 const MDNS_TIMEOUT: Duration = Duration::from_secs(10);
+const SHELL_TIMEOUT: Duration = Duration::from_secs(15);
 const PAIR_TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long to keep looking for the (separate) TLS connect port after pairing.
@@ -111,6 +117,21 @@ pub async fn mdns_services(adb_path: &str) -> Result<Vec<MdnsService>> {
     let args = vec!["mdns".to_string(), "services".to_string()];
     let output = adb::run(adb_path, &args, MDNS_TIMEOUT).await?;
     Ok(parse_mdns(&output.stdout))
+}
+
+/// The discovered services, shaped for the UI (with a pre-joined `address`).
+pub async fn mdns_devices(adb_path: &str) -> Result<Vec<MdnsDevice>> {
+    let services = mdns_services(adb_path).await?;
+    Ok(services
+        .into_iter()
+        .map(|service| MdnsDevice {
+            address: format!("{}:{}", service.host, service.port),
+            name: service.name,
+            service_type: service.service_type,
+            host: service.host,
+            port: service.port,
+        })
+        .collect())
 }
 
 /// Poll mdns until a service matching `matches` appears or the deadline passes.
@@ -225,6 +246,122 @@ async fn device_present(adb_path: &str, host: &str) -> bool {
     }
 }
 
+/// Pair using an explicit `host:port` and the code shown on the phone's
+/// Wireless debugging screen. Returns the normalized `host:port`.
+pub async fn pair_code(adb_path: &str, address: &str, code: &str) -> Result<String> {
+    let (host, port) = parse_host_port(address)?;
+    validate_pairing_password(code)?;
+
+    adb::start_server(adb_path).await?;
+    let target = format!("{host}:{port}");
+    pair(adb_path, &target, code).await?;
+    Ok(target)
+}
+
+/// `adb connect <address>`. Returns the normalized `host:port` on success.
+pub async fn connect(adb_path: &str, address: &str) -> Result<String> {
+    let (host, port) = parse_host_port(address)?;
+    let target = format!("{host}:{port}");
+
+    let output = adb::connect(adb_path, &target).await?;
+    let text = output.text();
+    if connected(&text) {
+        Ok(target)
+    } else {
+        Err(AppError::CommandFailed(format!(
+            "Could not connect to {target}: {text}"
+        )))
+    }
+}
+
+/// `adb disconnect <target>`.
+pub async fn disconnect(adb_path: &str, target: &str) -> Result<()> {
+    validate_serial(target)?;
+    adb::disconnect(adb_path, target).await?;
+    Ok(())
+}
+
+/// Restart adbd in TCP mode on a USB-connected device, discover its Wi-Fi IP,
+/// and connect to it. Returns the connected `ip:port`.
+pub async fn enable_tcpip(adb_path: &str, serial: &str, port: u16) -> Result<String> {
+    validate_serial(serial)?;
+    if port == 0 {
+        return Err(AppError::Invalid("Invalid TCP port".into()));
+    }
+
+    let output = adb::tcpip(adb_path, serial, port).await?;
+    let text = output.text();
+    if !tcpip_enabled(&text) {
+        return Err(AppError::CommandFailed(format!(
+            "Could not enable wireless debugging on {serial}: {text}"
+        )));
+    }
+
+    let ip = wifi_ip(adb_path, serial).await?;
+    connect(adb_path, &format!("{ip}:{port}")).await
+}
+
+/// The device's Wi-Fi IPv4 address, via `ip` with a `getprop` fallback.
+async fn wifi_ip(adb_path: &str, serial: &str) -> Result<String> {
+    let output = adb::shell(
+        adb_path,
+        serial,
+        "ip -f inet addr show wlan0",
+        SHELL_TIMEOUT,
+    )
+    .await?;
+    if let Some(ip) = parse_ip(&output.stdout) {
+        return Ok(ip);
+    }
+
+    let fallback = adb::shell(
+        adb_path,
+        serial,
+        "getprop dhcp.wlan0.ipaddress",
+        SHELL_TIMEOUT,
+    )
+    .await?;
+    parse_ip(&fallback.stdout).ok_or_else(|| {
+        AppError::Other(
+            "Could not determine the phone's Wi-Fi IP. Make sure Wi-Fi is on and try again.".into(),
+        )
+    })
+}
+
+/// True when `adb connect` reported success (fresh or already connected).
+fn connected(text: &str) -> bool {
+    let lowered = text.to_lowercase();
+    lowered.contains("connected to") || lowered.contains("already connected")
+}
+
+/// True when `adb tcpip` restarted adbd in TCP mode.
+fn tcpip_enabled(text: &str) -> bool {
+    text.to_lowercase().contains("restarting in tcp mode")
+}
+
+/// Extract an IPv4 address from `ip addr` output or a bare `getprop` value.
+fn parse_ip(text: &str) -> Option<String> {
+    for line in text.lines() {
+        let mut tokens = line.split_whitespace();
+        while let Some(token) = tokens.next() {
+            if token != "inet" {
+                continue;
+            }
+            let candidate = tokens.next().and_then(|value| value.split('/').next());
+            if let Some(addr) = candidate.filter(|addr| addr.parse::<std::net::Ipv4Addr>().is_ok())
+            {
+                return Some(addr.to_string());
+            }
+        }
+    }
+
+    let trimmed = text.trim();
+    if trimmed.parse::<std::net::Ipv4Addr>().is_ok() {
+        return Some(trimmed.to_string());
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,5 +402,56 @@ adb-14141FDF600081-TnSdi9 _adb-tls-connect._tcp 192.168.86.38:33015
     #[test]
     fn ignores_junk_lines() {
         assert!(parse_mdns("List of discovered mdns services\n\nnot a service\n").is_empty());
+    }
+
+    #[test]
+    fn parses_mdns_fixture() {
+        let services = parse_mdns(include_str!("../../tests/fixtures/adb_mdns_services.txt"));
+        assert_eq!(services.len(), 3);
+        assert_eq!(services[0].service_type, CONNECT_SERVICE);
+        assert_eq!(services[0].host, "192.168.1.42");
+        assert_eq!(services[0].port, 5555);
+        assert_eq!(services[1].service_type, PAIRING_SERVICE);
+        assert_eq!(services[1].port, 37401);
+    }
+
+    #[test]
+    fn recognises_connect_output() {
+        assert!(connected(
+            include_str!("../../tests/fixtures/adb_connect.txt").trim()
+        ));
+        assert!(connected("already connected to 192.168.1.42:5555"));
+        assert!(!connected(
+            "failed to connect to 192.168.1.42:5555: Connection refused"
+        ));
+        assert!(!connected("cannot connect to 192.168.1.42:5555"));
+    }
+
+    #[test]
+    fn recognises_tcpip_output() {
+        assert!(tcpip_enabled(
+            include_str!("../../tests/fixtures/adb_tcpip.txt").trim()
+        ));
+        assert!(!tcpip_enabled("error: device 'X' not found"));
+    }
+
+    #[test]
+    fn recognises_pair_output() {
+        assert!(paired(
+            include_str!("../../tests/fixtures/adb_pair.txt").trim()
+        ));
+        assert!(!paired("failed to pair to 192.168.1.42:37401"));
+    }
+
+    #[test]
+    fn parses_wifi_ip() {
+        let wlan0 = "3: wlan0: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet 192.168.1.50/24 brd 192.168.1.255 scope global wlan0\n    inet6 fe80::1/64 scope link\n";
+        assert_eq!(parse_ip(wlan0), Some("192.168.1.50".to_string()));
+        assert_eq!(
+            parse_ip("192.168.1.50"),
+            Some("192.168.1.50".to_string()),
+            "getprop fallback returns a bare address"
+        );
+        assert_eq!(parse_ip("ipv6 only"), None);
     }
 }
