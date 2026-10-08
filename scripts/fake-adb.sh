@@ -26,6 +26,12 @@ case "$sub" in
   install | uninstall)
     printf 'Success\n'
     ;;
+  push)
+    printf '1 file pushed. 0 files skipped.\n'
+    ;;
+  pull)
+    printf '1 file pulled. 0 files skipped.\n'
+    ;;
   shell)
     case "$cmd" in
       *"ip -f inet addr show wlan0"*)
@@ -55,6 +61,22 @@ case "$sub" in
       *"monkey"*)
         printf 'Events injected: 1\n'
         ;;
+      *"ls -la"*)
+        printf 'total 48\n'
+        printf 'drwxrwx--x   4 root   sdcard_rw    4096 2024-05-01 09:12 Android\n'
+        printf 'drwxrwx--x   3 root   sdcard_rw    4096 2024-04-20 18:03 DCIM\n'
+        printf 'drwxrwx--x   2 root   sdcard_rw    4096 2024-05-03 11:45 Download\n'
+        printf -- '-rw-rw----   1 root   sdcard_rw 1048576 2024-05-02 14:22 My Notes.txt\n'
+        printf -- '-rw-rw----   1 root   sdcard_rw     512 2024-05-02 14:23 photo.png\n'
+        ;;
+      *"mkdir -p"* | *"rm -rf"*)
+        ;;
+      *"cat "*"clipboard.txt"*)
+        printf 'Hello from the device clipboard\n'
+        ;;
+      *"am broadcast"*)
+        printf 'Broadcast completed: result=0\n'
+        ;;
       *)
         printf 'MODEL:Pixel 8\n'
         printf 'VER:15\n'
@@ -73,6 +95,15 @@ case "$sub" in
         printf 'VOL:volume is 80 in range [0..150]\n'
         ;;
     esac
+    ;;
+  logcat)
+    printf '05-01 09:12:00.000  1234  1234 I ActivityManager: Start proc com.example.notes\n'
+    printf '05-01 09:12:01.100  1234  1250 D WindowManager: relayout Window{abc}\n'
+    printf '05-01 09:12:02.200  1234  1234 W System.err: something odd\n'
+    while true; do
+      sleep 2
+      printf '05-01 09:12:03.300  1234  1234 I ActivityManager: still running\n'
+    done
     ;;
   track-devices)
     # One empty frame (length 0000), then stay alive to keep the stream open.

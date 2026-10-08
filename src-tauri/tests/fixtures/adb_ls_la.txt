@@ -1,0 +1,7 @@
+total 48
+drwxrwx--x   4 root   sdcard_rw    4096 2024-05-01 09:12 Android
+drwxrwx--x   3 root   sdcard_rw    4096 2024-04-20 18:03 DCIM
+drwxrwx--x   2 root   sdcard_rw    4096 2024-05-03 11:45 Downloads
+-rw-rw----   1 root   sdcard_rw 1048576 2024-05-02 14:22 My Notes.txt
+-rw-rw----   1 root   sdcard_rw     512 2024-05-02 14:23 photo.png
+lrwxrwxrwx   1 root   root          21 2024-05-01 09:00 sdcard -> /storage/self/primary

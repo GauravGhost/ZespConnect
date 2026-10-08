@@ -80,6 +80,24 @@ pub fn parse_host_port(value: &str) -> Result<(String, u16)> {
     Ok((host.to_string(), port))
 }
 
+/// Validate a device path before it reaches `adb shell`. Requires an absolute
+/// path, forbids traversal, and rejects the filesystem root so a `rm -rf` can
+/// never be aimed at `/`.
+pub fn validate_remote_path(path: &str) -> Result<()> {
+    let invalid = !path.starts_with('/')
+        || path.len() < 2
+        || path.contains('\0')
+        || path.contains('\n')
+        || path.contains('\r');
+    if invalid {
+        return Err(AppError::Invalid(format!("Invalid path: {path}")));
+    }
+    if path.split('/').any(|segment| segment == "..") {
+        return Err(AppError::Invalid("Path traversal is not allowed".into()));
+    }
+    Ok(())
+}
+
 /// POSIX single-quote escaping, mirroring Python's `shlex.quote`.
 ///
 /// adb joins its arguments into a single remote shell line, so any value that
@@ -114,6 +132,16 @@ mod tests {
         assert!(validate_package("com.android.chrome; rm -rf /").is_err());
         assert!(validate_package("").is_err());
         assert!(validate_package("1com.foo").is_err());
+    }
+
+    #[test]
+    fn validates_remote_paths() {
+        assert!(validate_remote_path("/sdcard/Download").is_ok());
+        assert!(validate_remote_path("/sdcard").is_ok());
+        assert!(validate_remote_path("/").is_err());
+        assert!(validate_remote_path("sdcard/Download").is_err());
+        assert!(validate_remote_path("/sdcard/../etc").is_err());
+        assert!(validate_remote_path("").is_err());
     }
 
     #[test]

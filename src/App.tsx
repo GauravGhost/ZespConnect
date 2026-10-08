@@ -6,8 +6,11 @@ import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
+import { ConsolePanel } from "@/features/console";
 import { ControlsPanel } from "@/features/controls";
 import { OverviewPanel } from "@/features/devices";
+import { EmulatorsPanel } from "@/features/emulators";
+import { FilesPanel } from "@/features/files";
 import { MirrorPanel } from "@/features/mirror";
 import { DependencyCheck } from "@/features/onboarding";
 import { SettingsPanel } from "@/features/settings";
@@ -33,6 +36,9 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "mirror") return <MirrorPanel />;
   if (tab === "controls") return <ControlsPanel />;
   if (tab === "wireless") return <WirelessPanel />;
+  if (tab === "files") return <FilesPanel />;
+  if (tab === "console") return <ConsolePanel />;
+  if (tab === "emulators") return <EmulatorsPanel />;
   if (tab === "settings") return <SettingsPanel />;
   return (
     <div className="flex h-full items-center justify-center">

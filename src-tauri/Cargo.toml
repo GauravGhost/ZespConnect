@@ -47,6 +47,8 @@ futures-util = "0.3"
 zip = "2"
 tar = "0.4"
 flate2 = "1"
+# Host clipboard access for the console's clipboard panel (text only).
+arboard = { version = "3", default-features = false }
 
 # Aspect-ratio locking for mirror windows uses the native WM_SIZING hook, which
 # tao does not expose.

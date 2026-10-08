@@ -6,6 +6,7 @@ import type {
   Device,
   DeviceInfo,
   FileEntry,
+  LogLine,
   MdnsDevice,
   MirrorKind,
   MirrorOptions,
@@ -84,14 +85,8 @@ export const ipc = {
       invoke<void>("fit_mirror_window", { id, width, height }),
     stopSession: (id: number) => invoke<void>("stop_mirror_session", { id }),
     /** Forward a pointer action; coordinates are in the video's pixel space. */
-    touch: (
-      id: number,
-      action: TouchAction,
-      x: number,
-      y: number,
-      width: number,
-      height: number,
-    ) => invoke<void>("mirror_touch", { id, action, x, y, width, height }),
+    touch: (id: number, action: TouchAction, x: number, y: number, width: number, height: number) =>
+      invoke<void>("mirror_touch", { id, action, x, y, width, height }),
     listSessions: () => invoke<MirrorSession[]>("list_mirror_sessions"),
     /** Reopen a session as an external window when in-app rendering is unavailable. */
     fallback: (id: number) => invoke<void>("mirror_session_fallback", { id }),
@@ -111,8 +106,7 @@ export const ipc = {
     qrPayload: () => invoke<QrPayload>("get_qr_payload"),
     qrPair: (payload: string, timeout?: number) =>
       invoke<string>("pair_wireless_qr", { payload, timeout }),
-    pairCode: (addr: string, code: string) =>
-      invoke<string>("pair_wireless_code", { addr, code }),
+    pairCode: (addr: string, code: string) => invoke<string>("pair_wireless_code", { addr, code }),
     connect: (addr: string) => invoke<string>("connect_wireless", { addr }),
     disconnect: (addr: string) => invoke<void>("disconnect_wireless", { addr }),
     enableTcpip: (serial: string, port = 5555) =>
@@ -133,7 +127,10 @@ export const ipc = {
   console: {
     exec: (serial: string, command: string) =>
       invoke<ShellResult>("shell_exec", { serial, command }),
-    openLogcat: (serial: string) => invoke<void>("open_logcat", { serial }),
+    /** Stream `adb logcat` into the given channel until `closeLogcat`. */
+    openLogcat: (serial: string, channel: Channel<LogLine>) =>
+      invoke<void>("open_logcat", { serial, channel }),
+    closeLogcat: (serial: string) => invoke<void>("close_logcat", { serial }),
   },
 
   clipboard: {

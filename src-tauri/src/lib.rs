@@ -122,6 +122,18 @@ pub fn run() {
             commands::wireless::disconnect_wireless,
             commands::wireless::enable_wireless_tcpip,
             commands::wireless::list_mdns_services,
+            commands::files::list_dir,
+            commands::files::pull,
+            commands::files::push,
+            commands::files::mkdir,
+            commands::files::delete,
+            commands::console::shell_exec,
+            commands::console::open_logcat,
+            commands::console::close_logcat,
+            commands::clipboard::clipboard_send,
+            commands::clipboard::clipboard_read,
+            commands::avd::list_avds,
+            commands::avd::start_avd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

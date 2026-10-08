@@ -34,6 +34,7 @@ pub struct AppState {
     next_session: AtomicU64,
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
+    logcats: RwLock<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
     pairing: AtomicBool,
     selected: RwLock<Option<String>>,
 }
@@ -53,6 +54,7 @@ impl AppState {
             next_session: AtomicU64::new(1),
             app_data_dir,
             tracker: RwLock::new(None),
+            logcats: RwLock::new(HashMap::new()),
             pairing: AtomicBool::new(false),
             selected: RwLock::new(selected),
         }
@@ -304,6 +306,24 @@ impl AppState {
     pub fn set_tracker(&self, handle: tauri::async_runtime::JoinHandle<()>) {
         if let Ok(mut guard) = self.tracker.write() {
             *guard = Some(handle);
+        }
+    }
+
+    /// Track a device's logcat streamer, aborting any previous one.
+    pub fn set_logcat(&self, serial: &str, handle: tauri::async_runtime::JoinHandle<()>) {
+        if let Ok(mut guard) = self.logcats.write() {
+            if let Some(previous) = guard.insert(serial.to_string(), handle) {
+                previous.abort();
+            }
+        }
+    }
+
+    /// Stop a device's logcat streamer, if one is running.
+    pub fn stop_logcat(&self, serial: &str) {
+        if let Ok(mut guard) = self.logcats.write() {
+            if let Some(handle) = guard.remove(serial) {
+                handle.abort();
+            }
         }
     }
 

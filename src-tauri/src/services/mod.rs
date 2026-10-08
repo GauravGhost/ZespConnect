@@ -1,7 +1,11 @@
 pub mod adb;
 pub mod apps;
+pub mod avd;
+pub mod clipboard;
+pub mod console;
 pub mod control;
 pub mod devices;
+pub mod files;
 pub mod install;
 pub mod mirror;
 pub mod mirror_session;

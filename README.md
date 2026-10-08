@@ -7,14 +7,15 @@ Zesp Connect lists your devices, shows real app names (not package ids), mirrors
 screen and camera, drives quick toggles, browses files, exposes an adb console and
 handles wireless pairing — all from a single window.
 
-> Status: **M0–M5** are implemented — the architecture skeleton, tool discovery, the push-based
+> Status: **M0–M6** are implemented — the architecture skeleton, tool discovery, the push-based
 > device tracker (`adb track-devices`), device list/dedupe, the header switcher, onboarding,
 > the system tray, an installed-apps manager (real names, search/filter, launch, uninstall, clear
 > data, install APK), mirroring (screen, camera, and app windows with the Android 12–13
 > virtual-display fallback, plus a running-windows list), quick controls (toggles,
-> brightness/volume sliders, reboot), and wireless debugging (QR + code pairing,
-> connect/disconnect, and a one-click USB→Wi-Fi handoff). Extracted app icons land in a
-> later pass.
+> brightness/volume sliders, reboot), wireless debugging (QR + code pairing, connect/disconnect,
+> and a one-click USB→Wi-Fi handoff), a device file browser (upload/download, new folder, delete),
+> an adb shell console with an in-app logcat viewer and an AdbClipboard bridge, and emulator (AVD)
+> management. Extracted app icons land in a later pass.
 
 ## Requirements
 
@@ -55,6 +56,21 @@ The **Wireless** tab pairs and connects a phone over Wi-Fi from one compact scre
 
 Devices that appear as both an `ip:port` and an mDNS alias (`adb-…._adb-tls-connect._tcp`) are
 merged into a single entry, keeping the alias scrcpy requires while retaining the address.
+
+## Files, Console & Emulators
+
+- **Files** — browse the device from `/sdcard` with a breadcrumb path, **download** a file
+  (`adb pull`), **upload** host files (`adb push`), create folders and delete entries.
+- **Console** — run any `adb shell` command and see stdout, stderr and the exit code. The
+  **Logcat** tab streams the device log in-app (no external terminal) with severity colours and
+  auto-scroll. The **Clipboard** tab sends text to the device and reads it back through the free
+  [AdbClipboard](https://github.com/PRosenb/AdbClipboard) app; reads also land on your computer's
+  clipboard (via the Rust `arboard` crate).
+- **Emulators** — list the AVDs the Android SDK `emulator` knows, show which are running, and boot
+  one.
+
+Device paths are validated (absolute, no `..`, never `/`) before they reach `rm -rf`, and every
+transfer uses an adb argv array.
 
 ## Development
 
@@ -120,7 +136,9 @@ React UI ──(typed invoke / events via src/lib/ipc.ts)──> #[tauri::comman
 5. **M4 Controls** — quick toggles, coalesced brightness/volume sliders, reboot. ✅
 6. **M5 Wireless** — QR + code pairing, connect/disconnect, one-click USB→Wi-Fi, mdns discovery,
    duplicate-transport merge. ✅
-7. **M6 Files, Console, Clipboard, AVDs.**
+7. **M6 Files, Console, Clipboard, AVDs** — file browser (`ls -la` parsing, pull/push, mkdir,
+   delete), adb shell console, in-app logcat stream, clipboard bridge to the AdbClipboard helper
+   app (host clipboard through `arboard`), AVD listing/launch. ✅
 8. **M7 Polish & release** — tray, settings, installers, signed builds.
 
 ## License

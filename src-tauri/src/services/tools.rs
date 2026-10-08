@@ -190,7 +190,8 @@ fn preferred_version(name: &str, text: &str) -> Option<String> {
     }
 }
 
-fn find_in_path(name: &str) -> Option<PathBuf> {
+/// Look up an executable on `PATH` (with the platform's `.exe` suffix).
+pub fn find_in_path(name: &str) -> Option<PathBuf> {
     let exe = format!("{name}{EXE_SUFFIX}");
     let path_var = env::var_os("PATH")?;
     env::split_paths(&path_var)

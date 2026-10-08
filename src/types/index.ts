@@ -160,6 +160,14 @@ export interface ShellResult {
   code: number;
 }
 
+export type LogStream = "stdout" | "stderr";
+
+/** One line streamed from `adb logcat` into the in-app viewer. */
+export interface LogLine {
+  stream: LogStream;
+  text: string;
+}
+
 export interface Avd {
   name: string;
   running: boolean;

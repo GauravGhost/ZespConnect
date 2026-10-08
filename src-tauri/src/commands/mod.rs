@@ -1,6 +1,10 @@
 pub mod apps;
+pub mod avd;
+pub mod clipboard;
+pub mod console;
 pub mod controls;
 pub mod devices;
+pub mod files;
 pub mod mirror;
 pub mod system;
 pub mod wireless;
