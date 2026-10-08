@@ -1,20 +1,9 @@
 import { useEffect } from "react";
 
+import { TAB_IDS } from "@/app/navigation";
 import { useAppStore, type TabId } from "@/app/store";
 import { events } from "@/lib/events";
 import { ipc } from "@/lib/ipc";
-
-const TAB_IDS: TabId[] = [
-  "overview",
-  "apps",
-  "mirror",
-  "controls",
-  "wireless",
-  "files",
-  "console",
-  "emulators",
-  "settings",
-];
 
 function isTabId(value: string): value is TabId {
   return (TAB_IDS as string[]).includes(value);

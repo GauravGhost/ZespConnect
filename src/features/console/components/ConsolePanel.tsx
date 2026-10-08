@@ -26,14 +26,8 @@ export function ConsolePanel() {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="h-full min-h-0 gap-0">
-      <div className="shrink-0 space-y-3 border-b p-6 pb-4">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold">Console</h1>
-          <p className="text-muted-foreground truncate text-sm">
-            {device.display_name || device.serial}
-          </p>
-        </div>
-        <TabsList>
+      <div className="shrink-0 border-b px-4 py-2.5">
+        <TabsList className="h-10">
           <TabsTrigger value="shell">
             <Terminal />
             Shell

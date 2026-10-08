@@ -69,6 +69,7 @@ export function useDeviceInfo(serial: string | null) {
     queryKey: ["device-info", serial],
     queryFn: () => ipc.devices.info(serial as string),
     enabled: Boolean(serial),
-    refetchInterval: 5_000,
+    // Mostly battery here; the toggles poll faster via `useQuickState`.
+    refetchInterval: 20_000,
   });
 }

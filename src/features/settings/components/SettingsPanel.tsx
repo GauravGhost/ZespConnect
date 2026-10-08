@@ -57,12 +57,14 @@ export function SettingsPanel() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="mx-auto w-full max-w-5xl space-y-4 p-4">
+      <AppearanceCard />
+
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold">Settings</h1>
-          <p className="text-muted-foreground text-sm">
-            Manage the adb and scrcpy binaries Zesp Connect uses.
+          <h2 className="text-sm font-semibold">Tools</h2>
+          <p className="text-muted-foreground text-xs">
+            The adb and scrcpy binaries Zesp Connect uses.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -83,13 +85,11 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      <AppearanceCard />
-
-      <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2">
         <ToolCard
           kind="adb"
-          title="ADB (Android Debug Bridge)"
-          description="Required. Talks to your Android devices."
+          title="ADB"
+          description="Android Debug Bridge. Required to talk to your devices."
           info={tools?.adb}
           update={tools?.adb_update}
           busy={install.isPending}
@@ -99,8 +99,8 @@ export function SettingsPanel() {
         />
         <ToolCard
           kind="scrcpy"
-          title="scrcpy (Screen Copy)"
-          description="Optional. Needed for screen and camera mirroring."
+          title="scrcpy"
+          description="Screen Copy. Optional, needed for mirroring."
           info={tools?.scrcpy}
           update={tools?.scrcpy_update}
           busy={install.isPending}

@@ -13,12 +13,13 @@ export function EmulatorsPanel() {
   const start = useStartAvd();
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold">Emulators</h1>
-          <p className="text-muted-foreground text-sm">Android Virtual Devices on this computer.</p>
-        </div>
+    <div className="mx-auto w-full max-w-5xl space-y-3 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-muted-foreground text-sm">
+          {isLoading
+            ? "Looking for AVDs…"
+            : `${avds.length} virtual device${avds.length === 1 ? "" : "s"}`}
+        </p>
         <Button variant="ghost" size="sm" className="gap-2" onClick={() => refetch()}>
           <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
           Refresh
@@ -44,13 +45,13 @@ export function EmulatorsPanel() {
           description="Create an AVD in Android Studio's Device Manager, then refresh."
         />
       ) : (
-        <ul className="space-y-2">
+        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {avds.map((avd) => {
             const busy = start.isPending && start.variables === avd.name;
             return (
               <li
                 key={avd.name}
-                className="flex items-center gap-3 rounded-2xl border border-border/60 p-3"
+                className="bg-card flex items-center gap-3 rounded-[1.25rem] border border-border/60 p-3 shadow-xs"
               >
                 <span className="bg-muted/60 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
                   <Smartphone className="size-5" />

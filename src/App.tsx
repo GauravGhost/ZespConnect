@@ -2,12 +2,12 @@ import { Loader2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app/AppHeader";
 import { ComingSoon } from "@/components/app/ComingSoon";
+import { navItem } from "@/app/navigation";
 import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
 import { ConsolePanel } from "@/features/console";
-import { ControlsPanel } from "@/features/controls";
 import { OverviewPanel } from "@/features/devices";
 import { EmulatorsPanel } from "@/features/emulators";
 import { FilesPanel } from "@/features/files";
@@ -18,23 +18,10 @@ import { WirelessPanel } from "@/features/wireless";
 import { useToolsStatus } from "@/hooks/useTools";
 import { useTrayNavigation } from "@/hooks/useTray";
 
-const TAB_TITLES: Record<TabId, string> = {
-  overview: "Overview",
-  apps: "Apps",
-  mirror: "Mirror",
-  controls: "Controls",
-  wireless: "Wireless",
-  files: "Files",
-  console: "Console",
-  emulators: "Emulators",
-  settings: "Settings",
-};
-
 function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "overview") return <OverviewPanel />;
   if (tab === "apps") return <AppsPanel />;
   if (tab === "mirror") return <MirrorPanel />;
-  if (tab === "controls") return <ControlsPanel />;
   if (tab === "wireless") return <WirelessPanel />;
   if (tab === "files") return <FilesPanel />;
   if (tab === "console") return <ConsolePanel />;
@@ -42,7 +29,7 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "settings") return <SettingsPanel />;
   return (
     <div className="flex h-full items-center justify-center">
-      <ComingSoon title={TAB_TITLES[tab]} />
+      <ComingSoon title={navItem(tab).label} />
     </div>
   );
 }

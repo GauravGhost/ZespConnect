@@ -1,11 +1,11 @@
-import { Camera, Monitor, MonitorSmartphone, PlugZap, X } from "lucide-react";
+import { Camera, Loader2, Monitor, MonitorSmartphone, PlugZap, X } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveDevice } from "@/features/devices";
 import {
   useOpenWindows,
@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
 import { DEFAULT_MIRROR_OPTIONS } from "@/lib/mirror";
+import { cn } from "@/lib/utils";
 import type { MirrorKind, MirrorOptions } from "@/types";
 import { MirrorOptionsForm } from "./MirrorOptionsForm";
 
@@ -26,6 +27,11 @@ const KIND_LABEL: Record<MirrorKind, string> = {
   "screen-app": "App on screen",
 };
 
+const MODES = [
+  { id: "screen", label: "Screen", hint: "Mirror the display in a window", icon: Monitor },
+  { id: "camera", label: "Camera", hint: "Stream a device camera", icon: Camera },
+] as const;
+
 export function MirrorPanel() {
   const { device } = useActiveDevice();
   const serial = device?.serial ?? null;
@@ -34,6 +40,7 @@ export function MirrorPanel() {
 
   const [screenOptions, setScreenOptions] = useState<MirrorOptions>(DEFAULT_MIRROR_OPTIONS);
   const [cameraOptions, setCameraOptions] = useState<MirrorOptions>(DEFAULT_MIRROR_OPTIONS);
+  const [mode, setMode] = useState<"screen" | "camera">("screen");
 
   const startMirror = useStartMirror();
   const startCamera = useStartCamera();
@@ -53,16 +60,21 @@ export function MirrorPanel() {
   }
 
   const scrcpyReady = Boolean(tools?.scrcpy.found);
+  const camera = mode === "camera";
+  const options = camera ? cameraOptions : screenOptions;
+  const starting = camera ? startCamera.isPending : startMirror.isPending;
+  const summary = camera
+    ? `${options.camera_facing === "front" ? "Front" : "Back"} camera · ${options.camera_zoom ?? 1}× zoom`
+    : `${options.resolution ? `${options.resolution}p` : "Native size"} · ${options.fps ?? 60} fps · ${options.bitrate ?? 8} Mbps`;
+
+  function start() {
+    if (!serial) return;
+    if (camera) startCamera.mutate({ serial, options: cameraOptions });
+    else startMirror.mutate({ serial, options: screenOptions });
+  }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 p-5">
-      <div className="flex items-baseline gap-2">
-        <h1 className="text-base font-semibold">Mirror</h1>
-        <p className="text-muted-foreground truncate text-sm">
-          {device.display_name || device.model || device.serial}
-        </p>
-      </div>
-
+    <div className="mx-auto w-full max-w-5xl space-y-3 p-4">
       {!scrcpyReady ? (
         <Alert variant="warning">
           <AlertTitle>scrcpy is required</AlertTitle>
@@ -72,47 +84,77 @@ export function MirrorPanel() {
         </Alert>
       ) : null}
 
-      <Card className="gap-4 py-4">
-        <CardHeader className="gap-1 px-5">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Monitor className="size-4" />
-            Screen
-          </CardTitle>
-          <CardDescription>Mirror the device display in its own window.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 px-5">
-          <MirrorOptionsForm variant="screen" value={screenOptions} onChange={setScreenOptions} />
-          <Button
-            disabled={!scrcpyReady || startMirror.isPending}
-            onClick={() => serial && startMirror.mutate({ serial, options: screenOptions })}
-          >
-            <Monitor />
-            Start mirror
-          </Button>
+      <div role="radiogroup" aria-label="What to mirror" className="grid grid-cols-2 gap-3">
+        {MODES.map(({ id, label, hint, icon: Icon }) => {
+          const selected = mode === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => setMode(id)}
+              className={cn(
+                "flex items-center gap-3 rounded-[1.5rem] border p-3 text-left outline-none",
+                "transition-all duration-150 ease-emphasized active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                selected
+                  ? "bg-primary-container text-on-primary-container border-transparent shadow-sm"
+                  : "bg-card hover:bg-muted/60 border-border/60",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-11 shrink-0 items-center justify-center rounded-2xl",
+                  selected ? "bg-on-primary-container/15" : "bg-muted text-primary",
+                )}
+              >
+                <Icon className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{label}</span>
+                <span
+                  className={cn(
+                    "block truncate text-xs",
+                    selected ? "text-on-primary-container/75" : "text-muted-foreground",
+                  )}
+                >
+                  {hint}
+                </span>
+              </span>
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+                  selected ? "border-on-primary-container" : "border-muted-foreground/50",
+                )}
+              >
+                {selected ? (
+                  <span className="bg-on-primary-container size-2.5 rounded-full" />
+                ) : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <Card className="gap-0 py-0">
+        <CardContent className="p-5">
+          {camera ? (
+            <MirrorOptionsForm variant="camera" value={cameraOptions} onChange={setCameraOptions} />
+          ) : (
+            <MirrorOptionsForm variant="screen" value={screenOptions} onChange={setScreenOptions} />
+          )}
         </CardContent>
+        <div className="bg-muted/30 flex items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
+          <p className="text-muted-foreground min-w-0 truncate text-xs">{summary}</p>
+          <Button className="shrink-0" disabled={!scrcpyReady || starting} onClick={start}>
+            {starting ? <Loader2 className="animate-spin" /> : camera ? <Camera /> : <Monitor />}
+            {camera ? "Start camera" : "Start mirror"}
+          </Button>
+        </div>
       </Card>
 
-      <Card className="gap-4 py-4">
-        <CardHeader className="gap-1 px-5">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Camera className="size-4" />
-            Camera
-          </CardTitle>
-          <CardDescription>Stream the device camera in its own window.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 px-5">
-          <MirrorOptionsForm variant="camera" value={cameraOptions} onChange={setCameraOptions} />
-          <Button
-            disabled={!scrcpyReady || startCamera.isPending}
-            onClick={() => serial && startCamera.mutate({ serial, options: cameraOptions })}
-          >
-            <Camera />
-            Start camera
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="gap-4 py-4">
+      <Card className="gap-3 py-4">
         <CardHeader className="px-5">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-sm">

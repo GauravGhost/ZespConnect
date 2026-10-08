@@ -5,15 +5,7 @@ import { DEFAULT_THEME_ID } from "@/app/theme/presets";
 import type { ThemeMode } from "@/app/theme/types";
 
 export type TabId =
-  | "overview"
-  | "apps"
-  | "mirror"
-  | "controls"
-  | "wireless"
-  | "files"
-  | "console"
-  | "emulators"
-  | "settings";
+  "overview" | "apps" | "mirror" | "wireless" | "files" | "console" | "emulators" | "settings";
 
 interface AppStore {
   activeTab: TabId;
@@ -40,6 +32,13 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "zesp-connect-ui",
+      version: 1,
+      // v0 had a separate "controls" tab; its contents now live on Overview.
+      migrate: (persisted) => {
+        const state = persisted as { activeTab?: string };
+        if (state.activeTab === "controls") state.activeTab = "overview";
+        return state as AppStore;
+      },
       partialize: (state) => ({
         activeTab: state.activeTab,
         selectedSerial: state.selectedSerial,

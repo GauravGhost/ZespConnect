@@ -149,8 +149,8 @@ export function WirelessPanel() {
   const timer = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-6">
-      <div className="flex flex-col gap-4">
+    <div className="mx-auto w-full max-w-5xl p-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="gap-4 py-5">
           <CardHeader className="gap-1 px-5">
             <CardTitle className="text-base">Connect a device</CardTitle>
@@ -158,14 +158,14 @@ export function WirelessPanel() {
           </CardHeader>
           <CardContent className="px-5">
             <Tabs value={method} onValueChange={setMethod} className="gap-4">
-              <TabsList className="w-full">
+              <TabsList className="w-full [&>button]:px-2">
                 <TabsTrigger value="qr">
                   <QrCode />
-                  QR Code
+                  QR code
                 </TabsTrigger>
                 <TabsTrigger value="manual">
                   <CodeXml />
-                  Manual Code
+                  Pair code
                 </TabsTrigger>
                 <TabsTrigger value="usb">
                   <Usb />

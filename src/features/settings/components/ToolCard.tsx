@@ -58,7 +58,7 @@ export function ToolCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
 
-      <CardContent className="min-w-0 space-y-4">
+      <CardContent className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{info ? SOURCE_LABEL[info.source] : "Checking…"}</Badge>
@@ -77,7 +77,7 @@ export function ToolCard({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="mt-auto flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="gap-2" onClick={() => onLocate(kind)}>
             <FolderSearch className="size-4" />
             {found ? "Change location…" : "Locate binary…"}

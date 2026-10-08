@@ -115,29 +115,61 @@ export function FilesPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 space-y-3 border-b p-6 pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold">Files</h1>
-            <p className="text-muted-foreground truncate text-sm">
-              {device.display_name || device.serial}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+      <div className="shrink-0 border-b px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <nav
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto text-sm [scrollbar-width:none]"
+            aria-label="Breadcrumb"
+          >
+            <button
+              type="button"
+              aria-label="Go to device storage"
+              title="Device storage"
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5",
+                path === ROOT
+                  ? "bg-primary-container text-on-primary-container"
+                  : "bg-muted/60 text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setPath(ROOT)}
+            >
+              <Home className="size-3.5" />
+              <span className="font-mono text-xs">{ROOT}</span>
+            </button>
+            {crumbs.map((crumb) => (
+              <span key={crumb.path} className="flex shrink-0 items-center gap-1">
+                <ChevronRight className="text-muted-foreground size-3.5" />
+                <button
+                  type="button"
+                  onClick={() => setPath(crumb.path)}
+                  className={cn(
+                    "rounded-full px-2.5 py-1.5 font-mono text-xs",
+                    crumb.path === path
+                      ? "bg-primary-container text-on-primary-container"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {crumb.label}
+                </button>
+              </span>
+            ))}
+          </nav>
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button
               variant="ghost"
-              size="sm"
-              className="gap-2"
+              size="icon"
+              className="size-9"
+              aria-label="Refresh folder"
+              title="Refresh folder"
               disabled={isFetching}
               onClick={() => refetch()}
             >
               <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
-              Refresh
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="h-9 gap-2"
               disabled={busy}
               onClick={() => {
                 setFolderName("");
@@ -147,50 +179,15 @@ export function FilesPanel() {
               <FolderPlus className="size-4" />
               New folder
             </Button>
-            <Button variant="outline" size="sm" className="gap-2" disabled={busy} onClick={upload}>
+            <Button size="sm" className="h-9 gap-2" disabled={busy} onClick={upload}>
               <Upload className="size-4" />
               Upload
             </Button>
           </div>
         </div>
-
-        <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="Breadcrumb">
-          <button
-            type="button"
-            aria-label="Go to device storage"
-            title="Device storage"
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2 py-1",
-              path === ROOT
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => setPath(ROOT)}
-          >
-            <Home className="size-3.5" />
-            <span className="font-mono text-xs">{ROOT}</span>
-          </button>
-          {crumbs.map((crumb) => (
-            <span key={crumb.path} className="flex items-center gap-1">
-              <ChevronRight className="text-muted-foreground size-3.5" />
-              <button
-                type="button"
-                onClick={() => setPath(crumb.path)}
-                className={cn(
-                  "rounded-full px-2 py-1 font-mono text-xs",
-                  crumb.path === path
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {crumb.label}
-              </button>
-            </span>
-          ))}
-        </nav>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-6">
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-1.5">
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="text-muted-foreground size-5 animate-spin" />
@@ -210,12 +207,12 @@ export function FilesPanel() {
             />
           </div>
         ) : (
-          <ul className="divide-y">
+          <ul className="flex flex-col gap-0.5">
             {path !== ROOT ? (
               <li>
                 <button
                   type="button"
-                  className="hover:bg-accent/50 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm"
+                  className="hover:bg-accent/50 flex h-10 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm"
                   onClick={() => setPath(parentWithin(path, ROOT))}
                 >
                   <Folder className="text-muted-foreground size-4 shrink-0" />
@@ -226,7 +223,7 @@ export function FilesPanel() {
             {entries.map((entry) => (
               <li
                 key={entry.path}
-                className="hover:bg-accent/40 flex items-center gap-3 rounded-2xl px-3 py-2"
+                className="hover:bg-accent/40 flex items-center gap-3 rounded-2xl py-1 pr-1 pl-3"
               >
                 <button
                   type="button"
@@ -239,11 +236,12 @@ export function FilesPanel() {
                   ) : (
                     <FileIcon className="text-muted-foreground size-4 shrink-0" />
                   )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{entry.name}</span>
-                    <span className="text-muted-foreground font-mono text-[11px]">
-                      {entry.permissions} · {entry.date}
-                    </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
+                  <span
+                    className="text-muted-foreground hidden shrink-0 font-mono text-[11px] md:inline"
+                    title={entry.permissions}
+                  >
+                    {entry.date}
                   </span>
                   <span className="text-muted-foreground w-20 shrink-0 text-right text-xs tabular-nums">
                     {entry.is_directory ? "—" : entry.formatted_size}

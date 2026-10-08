@@ -1,4 +1,4 @@
 export { OverviewPanel } from "./components/OverviewPanel";
 export { DeviceSwitcher } from "./components/DeviceSwitcher";
-export { DeviceStatusCard } from "./components/DeviceStatusCard";
+export { DeviceHero, DeviceStats } from "./components/DeviceSummary";
 export { useActiveDevice, useDeviceInfo, useDevices } from "./hooks";

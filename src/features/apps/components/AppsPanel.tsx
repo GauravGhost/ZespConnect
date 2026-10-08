@@ -119,58 +119,62 @@ export function AppsPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 space-y-3 border-b p-6 pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold">Apps</h1>
-            <p className="text-muted-foreground truncate text-sm">
-              {device.display_name || device.serial} · {apps.length} shown
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2"
-              disabled={refreshing}
-              onClick={() => serial && refreshApps({ serial, includeSystem })}
-            >
-              <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
-              Refresh
-            </Button>
-            <Button size="sm" className="gap-2" disabled={installApk.isPending} onClick={pickApk}>
-              {installApk.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Upload className="size-4" />
-              )}
-              Install APK
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="shrink-0 space-y-2 border-b px-4 py-3">
+        <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search name or package"
-              className="pl-8"
+              className="h-9 pr-16 pl-9"
             />
+            <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs tabular-nums">
+              {apps.length}
+            </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="bg-muted flex shrink-0 items-center gap-0.5 rounded-full p-0.5">
             {FILTERS.map((option) => (
-              <Button
+              <button
                 key={option.id}
-                size="sm"
-                variant={filter === option.id ? "secondary" : "ghost"}
+                type="button"
+                aria-pressed={filter === option.id}
                 onClick={() => setFilter(option.id)}
+                className={cn(
+                  "h-8 rounded-full px-3 text-xs font-medium transition-all duration-150 ease-emphasized",
+                  filter === option.id
+                    ? "bg-primary-container text-on-primary-container shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
               >
                 {option.label}
-              </Button>
+              </button>
             ))}
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 shrink-0"
+            aria-label="Refresh app list"
+            title="Refresh app list"
+            disabled={refreshing}
+            onClick={() => serial && refreshApps({ serial, includeSystem })}
+          >
+            <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
+          </Button>
+          <Button
+            size="sm"
+            className="h-9 shrink-0 gap-2"
+            disabled={installApk.isPending}
+            onClick={pickApk}
+          >
+            {installApk.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Upload className="size-4" />
+            )}
+            Install APK
+          </Button>
         </div>
 
         {data?.stale ? (
@@ -178,7 +182,7 @@ export function AppsPanel() {
         ) : null}
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-6">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-3">
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="text-muted-foreground size-5 animate-spin" />

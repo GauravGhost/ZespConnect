@@ -36,6 +36,7 @@ export function ThemeModeToggle() {
         <Button
           variant="ghost"
           size="icon"
+          className="size-9"
           aria-label={`Theme: ${LABEL[themeMode]}`}
           onClick={cycle}
         >

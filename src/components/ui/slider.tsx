@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
  * Android 17 (Material 3 expressive) style slider: a thick rounded track with a
  * solid fill and a tall, thin pill-shaped handle. An optional `leadingIcon` sits
  * inside the track on the left, like the brightness/volume controls in the
- * Quick Settings shade.
+ * Quick Settings shade. `size="lg"` is the chunky shade variant: a tall track
+ * the icon fits inside, as on the phone's own brightness/volume bars.
  */
 function Slider({
   className,
@@ -16,8 +17,13 @@ function Slider({
   min = 0,
   max = 100,
   leadingIcon,
+  size = "default",
   ...props
-}: React.ComponentProps<typeof SliderPrimitive.Root> & { leadingIcon?: React.ReactNode }) {
+}: React.ComponentProps<typeof SliderPrimitive.Root> & {
+  leadingIcon?: React.ReactNode;
+  size?: "default" | "lg";
+}) {
+  const large = size === "lg";
   const thumbCount = Array.isArray(value)
     ? value.length
     : Array.isArray(defaultValue)
@@ -41,7 +47,9 @@ function Slider({
         data-slot="slider-track"
         className={cn(
           "bg-muted relative grow overflow-hidden rounded-full",
-          "data-[orientation=horizontal]:h-4 data-[orientation=horizontal]:w-full",
+          large
+            ? "data-[orientation=horizontal]:h-10 data-[orientation=horizontal]:w-full"
+            : "data-[orientation=horizontal]:h-4 data-[orientation=horizontal]:w-full",
           "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-4",
         )}
       >
@@ -55,7 +63,10 @@ function Slider({
         <span
           data-slot="slider-icon"
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-2 z-10 flex -translate-y-1/2 items-center justify-center [&_svg]:size-4"
+          className={cn(
+            "pointer-events-none absolute top-1/2 z-10 flex -translate-y-1/2 items-center justify-center",
+            large ? "left-3 [&_svg]:size-[18px]" : "left-2 [&_svg]:size-4",
+          )}
         >
           {leadingIcon}
         </span>
@@ -68,7 +79,9 @@ function Slider({
           className={cn(
             "bg-primary block rounded-full shadow-sm outline-none",
             "ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            "data-[orientation=horizontal]:h-9 data-[orientation=horizontal]:w-2",
+            large
+              ? "data-[orientation=horizontal]:h-12 data-[orientation=horizontal]:w-1.5"
+              : "data-[orientation=horizontal]:h-9 data-[orientation=horizontal]:w-2",
             "data-[orientation=vertical]:h-2 data-[orientation=vertical]:w-9",
             "disabled:pointer-events-none",
           )}

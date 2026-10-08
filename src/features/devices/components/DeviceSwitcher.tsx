@@ -40,9 +40,14 @@ export function DeviceSwitcher({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" disabled={devices.length === 0}>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-9 gap-2 pr-2.5 pl-3"
+          disabled={devices.length === 0}
+        >
           {device ? <StatusDot state={device.state} /> : null}
-          <span className="max-w-[22rem] truncate">
+          <span className="max-w-[16rem] truncate">
             {device ? deviceIdentity(device) : "No device"}
           </span>
           <ChevronDown className="text-muted-foreground" />

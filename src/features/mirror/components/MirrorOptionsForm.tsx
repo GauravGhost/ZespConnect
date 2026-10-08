@@ -1,9 +1,10 @@
+import { Coffee, Flashlight, Maximize, Pin, Volume2 } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { ComboboxInput, type ComboboxOption } from "@/components/ui/combobox-input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { QuickTile } from "@/components/ui/quick-tile";
+import { cn } from "@/lib/utils";
 import type { MirrorOptions } from "@/types";
 
 const toOptions = (values: number[]): ComboboxOption[] =>
@@ -66,27 +67,6 @@ function PresetNumberField({
   );
 }
 
-function ToggleField({
-  id,
-  label,
-  checked,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  checked: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <Label htmlFor={id} className="cursor-pointer font-normal">
-        {label}
-      </Label>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}
-
 export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFormProps) {
   function update<K extends keyof MirrorOptions>(key: K, next: MirrorOptions[K]) {
     onChange({ ...value, [key]: next });
@@ -94,22 +74,26 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
 
   if (variant === "camera") {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Facing</Label>
-            <div className="flex items-center gap-1">
+            <div className="bg-muted flex h-10 items-center gap-0.5 rounded-full p-1">
               {(["back", "front"] as const).map((facing) => (
-                <Button
+                <button
                   key={facing}
                   type="button"
-                  size="sm"
-                  className="flex-1"
-                  variant={value.camera_facing === facing ? "secondary" : "outline"}
+                  aria-pressed={value.camera_facing === facing}
                   onClick={() => update("camera_facing", facing)}
+                  className={cn(
+                    "h-full flex-1 rounded-full text-sm font-medium transition-all duration-150 ease-emphasized",
+                    value.camera_facing === facing
+                      ? "bg-primary-container text-on-primary-container shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
                   {facing === "back" ? "Back" : "Front"}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
@@ -123,15 +107,15 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-          <ToggleField
-            id="camera-torch"
+        <div className="grid grid-cols-2 gap-2">
+          <QuickTile
+            icon={Flashlight}
             label="Torch"
             checked={value.camera_torch}
             onChange={(next) => update("camera_torch", next)}
           />
-          <ToggleField
-            id="camera-audio"
+          <QuickTile
+            icon={Volume2}
             label="Audio"
             checked={value.audio}
             onChange={(next) => update("audio", next)}
@@ -142,7 +126,7 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
         <PresetNumberField
           id="mirror-resolution"
@@ -170,27 +154,27 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-        <ToggleField
-          id="mirror-audio"
+      <div className="grid grid-cols-4 gap-2">
+        <QuickTile
+          icon={Volume2}
           label="Audio"
           checked={value.audio}
           onChange={(next) => update("audio", next)}
         />
-        <ToggleField
-          id="mirror-borderless"
-          label="Borderless"
-          checked={value.borderless}
-          onChange={(next) => update("borderless", next)}
-        />
-        <ToggleField
-          id="mirror-stay-awake"
+        <QuickTile
+          icon={Coffee}
           label="Stay awake"
           checked={value.stay_awake}
           onChange={(next) => update("stay_awake", next)}
         />
-        <ToggleField
-          id="mirror-always-on-top"
+        <QuickTile
+          icon={Maximize}
+          label="Borderless"
+          checked={value.borderless}
+          onChange={(next) => update("borderless", next)}
+        />
+        <QuickTile
+          icon={Pin}
           label="Always on top"
           checked={value.always_on_top}
           onChange={(next) => update("always_on_top", next)}
