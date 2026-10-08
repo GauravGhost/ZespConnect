@@ -15,7 +15,26 @@ handles wireless pairing — all from a single window.
 > brightness/volume sliders, reboot), wireless debugging (QR + code pairing, connect/disconnect,
 > and a one-click USB→Wi-Fi handoff), a device file browser (upload/download, new folder, delete),
 > an adb shell console with an in-app logcat viewer and an AdbClipboard bridge, and emulator (AVD)
-> management. Extracted app icons land in a later pass.
+> management. **M7** adds cross-platform installers (MSI/NSIS, DMG, AppImage/deb) and a
+> secrets-gated signed release workflow. Extracted app icons land in a later pass.
+
+## Screenshots
+
+| Overview                                   | Apps                               |
+| ------------------------------------------ | ---------------------------------- |
+| ![Overview](docs/screenshots/overview.png) | ![Apps](docs/screenshots/apps.png) |
+
+| Mirror                                 | Controls                                   |
+| -------------------------------------- | ------------------------------------------ |
+| ![Mirror](docs/screenshots/mirror.png) | ![Controls](docs/screenshots/controls.png) |
+
+| Wireless                                   | Files                                |
+| ------------------------------------------ | ------------------------------------ |
+| ![Wireless](docs/screenshots/wireless.png) | ![Files](docs/screenshots/files.png) |
+
+| Console                                  | Emulators                                    |
+| ---------------------------------------- | -------------------------------------------- |
+| ![Console](docs/screenshots/console.png) | ![Emulators](docs/screenshots/emulators.png) |
 
 ## Requirements
 
@@ -94,6 +113,57 @@ The app can run against the bundled fake adb:
 
 That returns a canned device list and device info so the UI is fully exercisable.
 
+## Releasing
+
+Push a version tag to build and publish installers:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+`.github/workflows/release.yml` builds on macOS (Apple silicon and Intel), Windows and
+Linux, then attaches the bundles to a **draft** GitHub release:
+
+- **Windows** — `.msi` (WiX) and `.exe` (NSIS, per-user install)
+- **macOS** — `.dmg` (plus the `.app`)
+- **Linux** — `.AppImage` and `.deb`
+
+The tag drives the version: `package.json`, `src-tauri/tauri.conf.json` and
+`src-tauri/Cargo.toml` are synced to it before building. Review the draft and publish it
+when it looks right.
+
+### Code signing
+
+Builds are unsigned by default. Add these repository secrets to turn on signing — the
+workflow still succeeds without them, so you can start publishing immediately:
+
+| Secret                         | Platform | Purpose                                        |
+| ------------------------------ | -------- | ---------------------------------------------- |
+| `APPLE_CERTIFICATE`            | macOS    | Base64 of the Developer ID `.p12`              |
+| `APPLE_CERTIFICATE_PASSWORD`   | macOS    | Password for that `.p12`                       |
+| `APPLE_SIGNING_IDENTITY`       | macOS    | e.g. `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID`                     | macOS    | Apple ID used for notarisation                 |
+| `APPLE_PASSWORD`               | macOS    | App-specific password for that Apple ID        |
+| `APPLE_TEAM_ID`                | macOS    | Apple Developer team ID                        |
+| `WINDOWS_CERTIFICATE`          | Windows  | Base64 of the code-signing `.pfx`              |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Windows  | Password for that `.pfx`                       |
+
+With the Apple secrets set, the app is signed with the hardened runtime (see
+`src-tauri/Entitlements.plist`) and notarised. With the Windows secrets set, the
+certificate is imported on the runner and its thumbprint is applied to the WiX/NSIS
+bundlers. Encode a certificate with:
+
+```bash
+# macOS
+base64 -i certificate.p12 | pbcopy
+```
+
+```powershell
+# Windows
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("certificate.pfx")) | Set-Clipboard
+```
+
 ## Scripts
 
 | Command                                          | What it does                            |
@@ -139,7 +209,8 @@ React UI ──(typed invoke / events via src/lib/ipc.ts)──> #[tauri::comman
 7. **M6 Files, Console, Clipboard, AVDs** — file browser (`ls -la` parsing, pull/push, mkdir,
    delete), adb shell console, in-app logcat stream, clipboard bridge to the AdbClipboard helper
    app (host clipboard through `arboard`), AVD listing/launch. ✅
-8. **M7 Polish & release** — tray, settings, installers, signed builds.
+8. **M7 Polish & release** — tray, settings, cross-platform installers (MSI/NSIS, DMG,
+   AppImage/deb), a secrets-gated signed release workflow, README screenshots. 🚧
 
 ## License
 

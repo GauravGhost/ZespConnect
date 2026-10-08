@@ -36,6 +36,26 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "GauravGhost",
+    "homepage": "https://github.com/GauravGhost/Zesp-Connect",
+    "copyright": "Copyright © 2026 GauravGhost",
+    "category": "Utility",
+    "shortDescription": "Manage Android devices over adb and scrcpy.",
+    "longDescription": "Zesp Connect is a cross-platform desktop app that manages Android devices over adb and scrcpy: device list and info, an installed-app manager, screen and camera mirroring, quick toggles, a device file browser, an adb shell and in-app logcat console, wireless pairing, and emulator (AVD) management.",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "entitlements": "Entitlements.plist"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1"]
+      }
+    }
   }
 }
