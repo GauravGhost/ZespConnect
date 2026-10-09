@@ -21,9 +21,21 @@ pub(crate) const MAIN_WINDOW: &str = "main";
 /// Bring the main window to the front, restoring it if hidden or minimized.
 pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        platform::show_in_dock(app);
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+/// Drop the Dock icon once no window other than `closing` is visible, so the app lives only in the tray.
+fn hide_from_dock_when_idle(app: &AppHandle, closing: &str) {
+    let any_visible = app
+        .webview_windows()
+        .iter()
+        .any(|(label, window)| label != closing && window.is_visible().unwrap_or(false));
+    if !any_visible {
+        platform::hide_from_dock(app);
     }
 }
 
@@ -47,6 +59,9 @@ pub fn run() {
                 .unwrap_or_else(|_| PathBuf::from("."));
             let _ = std::fs::create_dir_all(&data_dir);
             app.manage(AppState::new(data_dir));
+
+            // The main window starts hidden, so start without a Dock icon until it is shown.
+            platform::hide_from_dock(app.handle());
 
             // Resolve tools synchronously so the first paint shows the real status.
             let status =
@@ -79,9 +94,11 @@ pub fn run() {
                     if window.label() == MAIN_WINDOW {
                         api.prevent_close();
                         let _ = window.hide();
+                        hide_from_dock_when_idle(window.app_handle(), MAIN_WINDOW);
                     } else if let Some(id) = session_window::session_id(window.label()) {
                         platform::forget_aspect(window);
                         runtime::mirror_session::stop(window.app_handle(), id);
+                        hide_from_dock_when_idle(window.app_handle(), window.label());
                     }
                 }
                 _ => {}

@@ -1,4 +1,5 @@
-//! Platform-specific helpers: process spawning flags and native mirror-window aspect locking.
+//! Platform-specific helpers: process spawning flags, native mirror-window aspect locking and
+//! macOS Dock visibility.
 
 #[cfg(windows)]
 mod aspect;
@@ -79,3 +80,21 @@ pub fn prepare(program: &str, args: &[String]) -> (String, Vec<String>) {
 
 /// Executable suffix for the current platform.
 pub const EXE_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
+
+/// Give the app a Dock icon on macOS while it has a visible window. A no-op elsewhere.
+#[cfg(target_os = "macos")]
+pub fn show_in_dock(app: &tauri::AppHandle) {
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn show_in_dock(_app: &tauri::AppHandle) {}
+
+/// Run as a menu-bar-only app on macOS, without a Dock icon. A no-op elsewhere.
+#[cfg(target_os = "macos")]
+pub fn hide_from_dock(app: &tauri::AppHandle) {
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn hide_from_dock(_app: &tauri::AppHandle) {}
