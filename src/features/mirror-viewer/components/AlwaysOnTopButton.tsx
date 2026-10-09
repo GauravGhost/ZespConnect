@@ -14,6 +14,7 @@ export function AlwaysOnTopButton({ className }: Readonly<{ className?: string }
       .then((value) => {
         if (!disposed) setPinned(value);
       })
+      // Keep the unpinned default if the window state cannot be read.
       .catch(() => undefined);
     return () => {
       disposed = true;

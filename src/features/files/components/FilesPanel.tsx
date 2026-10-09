@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { EmptyState } from "@/components/app/EmptyState";
+import { EmptyState, NoDeviceState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,13 +71,10 @@ export function FilesPanel() {
 
   if (!device) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <EmptyState
-          icon={HardDrive}
-          title="No device connected"
-          description="Connect an Android device to browse and transfer its files."
-        />
-      </div>
+      <NoDeviceState
+        icon={HardDrive}
+        description="Connect an Android device to browse and transfer its files."
+      />
     );
   }
 

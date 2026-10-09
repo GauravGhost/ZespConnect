@@ -35,7 +35,7 @@ pub async fn install<F: Fn(String) + Send>(
     download(&url, &archive, &on_line).await?;
 
     on_line("Extracting…".to_string());
-    let target = root.join(tools::managed_slot(name)).join(&version);
+    let target = root.join(tools::managed_slot(tool)).join(&version);
     if target.exists() {
         let _ = std::fs::remove_dir_all(&target);
     }

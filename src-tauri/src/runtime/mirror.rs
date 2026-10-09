@@ -1,12 +1,13 @@
 //! scrcpy app-window lifecycle: spawn, track, stop, report exit. Tauri-coupled like the
 //! other runtime coordinators; the pure argv logic is in `services::scrcpy`.
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 use crate::error::{AppError, Result};
-use crate::models::{MirrorKind, MirrorOptions, MirrorProcess};
+use crate::models::{MirrorKind, MirrorOptions, MirrorProcess, MirrorSessionSpec};
 use crate::services::{adb, mirror_window, scrcpy};
 use crate::state::AppState;
 use crate::util::{self, process};
@@ -16,6 +17,7 @@ const EVENT_MIRROR_EXITED: &str = "mirror:exited";
 /// scrcpy aborts almost immediately on an unreachable device; wait a moment before trusting the window.
 const STARTUP_GRACE: Duration = Duration::from_millis(1500);
 const LOG_TAIL_LINES: usize = 4;
+const LOG_DIR: &str = "mirror-logs";
 /// Fallback desktop size when no monitor can be read (e.g. a headless session).
 const FALLBACK_DESKTOP_WIDTH: u32 = 1920;
 const FALLBACK_DESKTOP_HEIGHT: u32 = 1080;
@@ -47,29 +49,25 @@ pub async fn start_app(
             scrcpy::virtual_display_safe(scrcpy::android_api(&adb_bin, serial).await)
         }
     };
-    // `--flex-display` only exists in scrcpy 4.0+; omit it on older releases.
-    let flex = use_virtual && scrcpy::flex_display_supported(tools.scrcpy.version.as_deref());
-    let no_decorations =
-        use_virtual && scrcpy::vd_decorations_option_supported(tools.scrcpy.version.as_deref());
+    let version = tools.scrcpy.version.as_deref();
+    let mode = scrcpy::AppWindowMode {
+        virtual_display: use_virtual,
+        // `--flex-display` only exists in scrcpy 4.0+; omit it on older releases.
+        flex_display: use_virtual && scrcpy::flex_display_supported(version),
+        no_decorations: use_virtual && scrcpy::vd_decorations_option_supported(version),
+    };
     let kind = if use_virtual {
         MirrorKind::App
     } else {
         MirrorKind::ScreenApp
     };
 
-    let label = if label.trim().is_empty() {
-        package.to_string()
-    } else {
-        label.to_string()
-    };
-    let title = format!("Zesp Connect - {label}");
+    let label = label_or(label, package);
     let args = scrcpy::app_window_args(
         serial,
         package,
-        &title,
-        use_virtual,
-        flex,
-        no_decorations,
+        &window_title(&label),
+        mode,
         scrcpy::DEFAULT_MAX_SIZE,
     );
 
@@ -98,8 +96,7 @@ pub async fn start_mirror(
     let adb_bin = adb::adb_path(&tools)?;
 
     let label = device_label(app, serial);
-    let title = format!("Zesp Connect - {label}");
-    let args = scrcpy::mirror_args(serial, &title, options);
+    let args = scrcpy::mirror_args(serial, &window_title(&label), options);
 
     spawn_window(
         app,
@@ -124,8 +121,7 @@ pub async fn start_desktop(app: &AppHandle, serial: &str, display: &str) -> Resu
     scrcpy::prepare_desktop(&adb_bin, serial).await?;
 
     let label = format!("{} desktop", device_label(app, serial));
-    let title = format!("Zesp Connect - {label}");
-    let args = scrcpy::desktop_args(serial, &title, display);
+    let args = scrcpy::desktop_args(serial, &window_title(&label), display);
 
     spawn_window(
         app,
@@ -152,8 +148,7 @@ pub async fn start_camera(
     let adb_bin = adb::adb_path(&tools)?;
 
     let label = format!("{} camera", device_label(app, serial));
-    let title = format!("Zesp Connect - {label}");
-    let args = scrcpy::camera_args(serial, &title, options);
+    let args = scrcpy::camera_args(serial, &window_title(&label), options);
 
     spawn_window(
         app,
@@ -170,10 +165,56 @@ pub async fn start_camera(
     .await
 }
 
+/// Reopen an in-app session's spec as an external scrcpy window.
+pub async fn start_fallback(app: &AppHandle, spec: &MirrorSessionSpec) -> Result<MirrorProcess> {
+    match spec.kind {
+        MirrorKind::Mirror => start_mirror(app, &spec.serial, &spec.options).await,
+        MirrorKind::Camera => start_camera(app, &spec.serial, &spec.options).await,
+        MirrorKind::App | MirrorKind::ScreenApp => {
+            let package = spec
+                .package
+                .as_deref()
+                .ok_or_else(|| AppError::Invalid("Missing package".into()))?;
+            let display = if spec.kind == MirrorKind::App {
+                AppDisplay::Window
+            } else {
+                AppDisplay::Screen
+            };
+            start_app(app, &spec.serial, package, &spec.label, display).await
+        }
+        MirrorKind::Desktop => {
+            let display = spec
+                .desktop_display
+                .clone()
+                .unwrap_or_else(|| screen_desktop_display(app));
+            start_desktop(app, &spec.serial, &display).await
+        }
+    }
+}
+
+/// The OS title of a mirror window.
+pub fn window_title(label: &str) -> String {
+    format!("Zesp Connect - {label}")
+}
+
+/// `label`, or `fallback` when it is blank.
+pub fn label_or(label: &str, fallback: &str) -> String {
+    if label.trim().is_empty() {
+        fallback.to_string()
+    } else {
+        label.to_string()
+    }
+}
+
+/// Where scrcpy and scrcpy-server logs are kept while a mirror runs.
+pub fn log_dir(app: &AppHandle) -> Result<PathBuf> {
+    util::ensure_dir(app.state::<AppState>().app_data_dir().join(LOG_DIR))
+}
+
 /// The `WxH/dpi` desktop display for the main window's screen, falling back to the primary monitor.
 pub fn screen_desktop_display(app: &AppHandle) -> String {
     let monitor = app
-        .get_webview_window("main")
+        .get_webview_window(crate::MAIN_WINDOW)
         .and_then(|window| window.current_monitor().ok().flatten())
         .or_else(|| app.primary_monitor().ok().flatten());
     match monitor {
@@ -227,8 +268,7 @@ struct WindowSpec<'a> {
 
 /// Spawn a scrcpy window, register it, and watch it until it exits; then clean up and emit `mirror:exited`.
 async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorProcess> {
-    let log_dir = util::ensure_dir(app.state::<AppState>().app_data_dir().join("mirror-logs"))?;
-    let log_path = log_dir.join(format!("{}.log", uuid::Uuid::new_v4()));
+    let log_path = log_dir(app)?.join(format!("{}.log", uuid::Uuid::new_v4()));
     // Pass our resolved adb via the ADB env var (scrcpy 4.x has no `--adb` option).
     let child_env = [("ADB", spec.adb_bin)];
     let mut child = process::spawn_captured(spec.scrcpy_bin, spec.args, &log_path, &child_env)?;
@@ -280,11 +320,10 @@ async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorPro
     Ok(info)
 }
 
-pub fn stop(app: &AppHandle, pid: u32) -> Result<()> {
+pub fn stop(app: &AppHandle, pid: u32) {
     if let Some(handle) = app.state::<AppState>().take_mirror(pid) {
         let _ = handle.stop.send(());
     }
-    Ok(())
 }
 
 pub fn stop_all(app: &AppHandle) {

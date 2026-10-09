@@ -17,7 +17,7 @@ type ToggleField =
   | "dnd"
   | "auto_rotate";
 
-const TOGGLE_FIELD: Record<QuickToggleKey, ToggleField> = {
+export const TOGGLE_FIELD: Record<QuickToggleKey, ToggleField> = {
   wifi: "wifi",
   bluetooth: "bluetooth",
   darkmode: "dark_mode",
@@ -27,6 +27,9 @@ const TOGGLE_FIELD: Record<QuickToggleKey, ToggleField> = {
   dnd: "dnd",
   rotate: "auto_rotate",
 };
+
+/** How long the device takes to apply a change before its state is worth re-reading. */
+const SETTLE_DELAY_MS = 1000;
 
 export function useQuickState(serial: string | null) {
   return useQuery({
@@ -42,7 +45,7 @@ export function useQuickState(serial: string | null) {
 function refetchSoon(queryClient: QueryClient, serial: string) {
   window.setTimeout(() => {
     queryClient.invalidateQueries({ queryKey: quickStateKey(serial) });
-  }, 1000);
+  }, SETTLE_DELAY_MS);
 }
 
 /** Optimistically apply `patch`, keeping the previous value for rollback. */

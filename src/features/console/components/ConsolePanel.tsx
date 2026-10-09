@@ -1,7 +1,7 @@
 import { Clipboard, ScrollText, Terminal } from "lucide-react";
 import { useState } from "react";
 
-import { EmptyState } from "@/components/app/EmptyState";
+import { NoDeviceState } from "@/components/app/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveDevice } from "@/hooks/useDevices";
 import { ClipboardView } from "./ClipboardView";
@@ -14,13 +14,10 @@ export function ConsolePanel() {
 
   if (!device) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <EmptyState
-          icon={Terminal}
-          title="No device connected"
-          description="Connect an Android device to run shell commands, watch logcat and share the clipboard."
-        />
-      </div>
+      <NoDeviceState
+        icon={Terminal}
+        description="Connect an Android device to run shell commands, watch logcat and share the clipboard."
+      />
     );
   }
 

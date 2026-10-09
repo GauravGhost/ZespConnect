@@ -20,7 +20,7 @@ const HELPER_PACKAGE: &str = "ch.pete.adbclipboard";
 const CLIPBOARD_FILE: &str = "/sdcard/Android/data/ch.pete.adbclipboard/files/clipboard.txt";
 
 /// The `am broadcast …` command that writes `text` to the device clipboard.
-pub fn write_command(text: &str) -> String {
+fn write_command(text: &str) -> String {
     format!(
         "am broadcast -a {HELPER_PACKAGE}.WRITE -n {HELPER_PACKAGE}/.WriteReceiver -e text {}",
         shell_quote(text)

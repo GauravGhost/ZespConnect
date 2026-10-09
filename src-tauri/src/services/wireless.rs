@@ -20,18 +20,17 @@ pub const DEFAULT_TCPIP_PORT: u16 = 5555;
 const MDNS_TIMEOUT: Duration = Duration::from_secs(10);
 const SHELL_TIMEOUT: Duration = Duration::from_secs(15);
 const PAIR_TIMEOUT: Duration = Duration::from_secs(30);
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long to keep looking for the (separate) TLS connect port after pairing.
 const CONNECT_WAIT: Duration = Duration::from_secs(30);
 const POLL_INTERVAL: Duration = Duration::from_millis(1000);
 
 /// A service instance discovered by `adb mdns services`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MdnsService {
-    pub name: String,
-    pub service_type: String,
-    pub host: String,
-    pub port: u16,
+struct MdnsService {
+    name: String,
+    service_type: String,
+    host: String,
+    port: u16,
 }
 
 /// Build a fresh QR payload (random service name + numeric password) from `Uuid::new_v4()`, not the clock.
@@ -78,7 +77,7 @@ pub fn parse_qr(payload: &str) -> Result<(String, String)> {
 }
 
 /// Parse `adb mdns services` output into validated service entries.
-pub fn parse_mdns(text: &str) -> Vec<MdnsService> {
+fn parse_mdns(text: &str) -> Vec<MdnsService> {
     text.lines()
         .filter_map(|line| {
             let mut parts = line.split_whitespace();
@@ -100,7 +99,7 @@ pub fn parse_mdns(text: &str) -> Vec<MdnsService> {
 }
 
 /// One `adb mdns services` snapshot.
-pub async fn mdns_services(adb_path: &str) -> Result<Vec<MdnsService>> {
+async fn mdns_services(adb_path: &str) -> Result<Vec<MdnsService>> {
     let args = vec!["mdns".to_string(), "services".to_string()];
     let output = adb::run(adb_path, &args, MDNS_TIMEOUT).await?;
     Ok(parse_mdns(&output.stdout))
@@ -161,19 +160,25 @@ pub async fn pair_and_connect(adb_path: &str, payload: &str, timeout: Duration) 
 
     // The TLS connect port differs from the pairing port; discover and connect.
     let connect_deadline = Instant::now() + CONNECT_WAIT;
-    if let Ok(connect) = wait_for(adb_path, connect_deadline, |service| {
+    if let Ok(service) = wait_for(adb_path, connect_deadline, |service| {
         service.service_type == CONNECT_SERVICE && service.host == pairing.host
     })
     .await
     {
-        let target = format!("{}:{}", connect.host, connect.port);
-        let args = vec!["connect".to_string(), target.clone()];
-        let _ = adb::run(adb_path, &args, CONNECT_TIMEOUT).await;
-        return Ok(target);
+        let target = format!("{}:{}", service.host, service.port);
+        let connect_error = match connect(adb_path, &target).await {
+            Ok(target) => return Ok(target),
+            Err(error) => error,
+        };
+        // Recent adb may already have auto-connected it, listed under its address or mDNS name.
+        if device_present(adb_path, &[&service.host, &service.name]).await {
+            return Ok(target);
+        }
+        return Err(connect_error);
     }
 
     // Recent adb auto-connects to paired devices; accept that if it did.
-    if device_present(adb_path, &pairing.host).await {
+    if device_present(adb_path, &[&pairing.host]).await {
         return Ok(pairing_address);
     }
 
@@ -199,12 +204,7 @@ async fn pair(adb_path: &str, address: &str, password: &str) -> Result<()> {
     // A stale adb server can fault during the TLS handshake; restart once.
     let message = output.text();
     if is_protocol_fault(&message) {
-        let _ = adb::run(
-            adb_path,
-            &["kill-server".to_string()],
-            Duration::from_secs(10),
-        )
-        .await;
+        let _ = adb::kill_server(adb_path).await;
         adb::start_server(adb_path).await?;
         let retry = adb::run(adb_path, &args, PAIR_TIMEOUT).await?;
         if paired(&retry.stdout) || paired(&retry.stderr) {
@@ -225,9 +225,13 @@ fn is_protocol_fault(message: &str) -> bool {
     lowered.contains("protocol fault") || lowered.contains("couldn't read status message")
 }
 
-async fn device_present(adb_path: &str, host: &str) -> bool {
+/// Whether `adb devices` lists a device mentioning any of `needles`.
+async fn device_present(adb_path: &str, needles: &[&str]) -> bool {
     match adb::list_devices_raw(adb_path).await {
-        Ok(output) => output.stdout.lines().any(|line| line.contains(host)),
+        Ok(output) => output
+            .stdout
+            .lines()
+            .any(|line| needles.iter().any(|needle| line.contains(needle))),
         Err(_) => false,
     }
 }

@@ -1,4 +1,4 @@
-//! Platform-specific process helpers.
+//! Platform-specific helpers: process spawning flags and native mirror-window aspect locking.
 
 #[cfg(windows)]
 mod aspect;

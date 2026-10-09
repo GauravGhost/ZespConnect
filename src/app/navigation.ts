@@ -44,7 +44,7 @@ export const SECONDARY_NAV: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings, description: "Tools and appearance" },
 ];
 
-export const NAV_ITEMS: NavItem[] = [...PRIMARY_NAV, ...SECONDARY_NAV];
+const NAV_ITEMS: NavItem[] = [...PRIMARY_NAV, ...SECONDARY_NAV];
 
 export const TAB_IDS: TabId[] = NAV_ITEMS.map((item) => item.id);
 

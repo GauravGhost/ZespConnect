@@ -7,12 +7,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+/** Below this level Android warns about the battery. */
+export const LOW_BATTERY_PERCENT = 15;
+
 /** The battery glyph Android would show for this level. */
 export function batteryIcon(level: number | null | undefined, charging: boolean): LucideIcon {
   if (charging) return BatteryCharging;
   if (typeof level !== "number" || level < 0) return BatteryMedium;
   if (level >= 80) return BatteryFull;
   if (level >= 35) return BatteryMedium;
-  if (level >= 15) return BatteryLow;
+  if (level >= LOW_BATTERY_PERCENT) return BatteryLow;
   return BatteryWarning;
 }

@@ -30,7 +30,7 @@ Built with [Tauri 2](https://tauri.app), React, TypeScript and Rust.
   binaries, or install missing tools through your system package manager.
 - **System tray.** Quick access to devices and common actions, plus an optional launch at
   startup.
-- **Theming.** Light and dark modes with several Material You–inspired colour presets.
+- **Theming.** Light and dark modes with several Material You inspired colour presets.
 
 ## Screenshots
 

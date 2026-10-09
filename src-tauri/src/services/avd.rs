@@ -90,6 +90,14 @@ fn known_locations(exe: &str) -> Vec<PathBuf> {
     ]
 }
 
+fn require_emulator(tools: &ToolStatus) -> Result<String> {
+    emulator_path(tools.adb.path.as_deref()).ok_or_else(|| {
+        AppError::Other(
+            "The Android emulator was not found. Install the Android SDK emulator.".into(),
+        )
+    })
+}
+
 /// The AVD names reported by `emulator -list-avds`, skipping banners/log lines.
 pub fn parse_list(text: &str) -> Vec<String> {
     text.lines()
@@ -112,12 +120,7 @@ fn validate_name(name: &str) -> Result<()> {
 
 /// The AVDs on this machine, flagging the ones a running emulator owns.
 pub async fn list(tools: &ToolStatus, devices: &[Device]) -> Result<Vec<Avd>> {
-    let emulator = emulator_path(tools.adb.path.as_deref()).ok_or_else(|| {
-        AppError::Other(
-            "The Android emulator was not found. Install the Android SDK emulator.".into(),
-        )
-    })?;
-
+    let emulator = require_emulator(tools)?;
     let output = process::run(&emulator, &["-list-avds".to_string()], LIST_TIMEOUT).await?;
     let running = running_names(tools, devices).await;
 
@@ -161,9 +164,7 @@ async fn running_names(tools: &ToolStatus, devices: &[Device]) -> HashSet<String
 /// Boot an AVD in the background. The emulator window is the user's to close.
 pub async fn start(tools: &ToolStatus, name: &str, log_path: &Path) -> Result<()> {
     validate_name(name)?;
-    let emulator = emulator_path(tools.adb.path.as_deref()).ok_or_else(|| {
-        AppError::Other("The Android emulator was not found in the Android SDK.".into())
-    })?;
+    let emulator = require_emulator(tools)?;
     let args = vec!["-avd".to_string(), name.to_string()];
     process::spawn_detached(&emulator, &args, log_path).map(|_| ())
 }

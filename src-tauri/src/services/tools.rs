@@ -5,12 +5,18 @@ use std::time::Duration;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::models::{ToolInfo, ToolSource, ToolStatus};
+use crate::models::{ToolInfo, ToolKind, ToolSource, ToolStatus};
 use crate::platform::EXE_SUFFIX;
 use crate::services::updates;
 use crate::util::process;
 
 const VERSION_TIMEOUT: Duration = Duration::from_secs(6);
+/// How many directory levels to search under a managed version or a winget package folder.
+const MANAGED_SEARCH_DEPTH: usize = 3;
+/// How many directory levels to search inside a freshly extracted archive.
+const ARCHIVE_SEARCH_DEPTH: usize = 4;
+/// Stop a binary search after this many matches.
+const MAX_SEARCH_MATCHES: usize = 4;
 
 static VERSION_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(\d+\.\d+(?:\.\d+)?)").expect("valid regex"));
@@ -26,8 +32,14 @@ pub async fn resolve(
     scrcpy_override: Option<&str>,
     managed_dir: &Path,
 ) -> ToolStatus {
-    let adb = resolve_tool("adb", adb_override, &["version"], managed_dir).await;
-    let scrcpy = resolve_tool("scrcpy", scrcpy_override, &["--version"], managed_dir).await;
+    let adb = resolve_tool(ToolKind::Adb, adb_override, &["version"], managed_dir).await;
+    let scrcpy = resolve_tool(
+        ToolKind::Scrcpy,
+        scrcpy_override,
+        &["--version"],
+        managed_dir,
+    )
+    .await;
     ToolStatus {
         adb,
         scrcpy,
@@ -36,61 +48,38 @@ pub async fn resolve(
 }
 
 async fn resolve_tool(
-    name: &str,
+    tool: ToolKind,
     override_path: Option<&str>,
     version_args: &[&str],
     managed_dir: &Path,
 ) -> ToolInfo {
-    // 1. User override wins.
-    if let Some(path) = override_path {
-        let candidate = PathBuf::from(path);
-        if candidate.is_file() {
-            let version = version_of(name, &candidate, version_args).await;
-            return ToolInfo {
-                found: true,
-                path: Some(path.to_string()),
-                version,
-                source: ToolSource::Override,
-            };
-        }
-    }
+    let name = tool.name();
+    let override_path = override_path
+        .map(PathBuf::from)
+        .filter(|candidate| candidate.is_file());
 
-    // 2. On PATH.
-    if let Some(path) = find_in_path(name) {
-        let version = version_of(name, &path, version_args).await;
-        return ToolInfo {
-            found: true,
-            path: Some(path.to_string_lossy().to_string()),
-            version,
-            source: ToolSource::Path,
-        };
-    }
+    let (path, source) = if let Some(path) = override_path {
+        (path, ToolSource::Override)
+    } else if let Some(path) = find_in_path(name) {
+        (path, ToolSource::Path)
+    } else if let Some(path) = known_locations(tool)
+        .into_iter()
+        .find(|path| path.is_file())
+    {
+        (path, ToolSource::Known)
+    } else if let Some(path) = managed_binary(managed_dir, tool) {
+        // A copy the app downloaded for itself (no override set).
+        (path, ToolSource::Known)
+    } else {
+        return ToolInfo::missing();
+    };
 
-    // 3. Well-known locations.
-    for path in known_locations(name) {
-        if path.is_file() {
-            let version = version_of(name, &path, version_args).await;
-            return ToolInfo {
-                found: true,
-                path: Some(path.to_string_lossy().to_string()),
-                version,
-                source: ToolSource::Known,
-            };
-        }
+    ToolInfo {
+        found: true,
+        version: version_of(tool, &path, version_args).await,
+        path: Some(path.to_string_lossy().to_string()),
+        source,
     }
-
-    // 4. A copy the app downloaded for itself (no override set).
-    if let Some(path) = managed_binary(managed_dir, name) {
-        let version = version_of(name, &path, version_args).await;
-        return ToolInfo {
-            found: true,
-            path: Some(path.to_string_lossy().to_string()),
-            version,
-            source: ToolSource::Known,
-        };
-    }
-
-    ToolInfo::missing()
 }
 
 /// `<app_data_dir>/tools` - where downloaded adb/scrcpy copies live.
@@ -99,18 +88,17 @@ pub fn managed_root(managed_dir: &Path) -> PathBuf {
 }
 
 /// The upstream package name inside the managed root: adb in `platform-tools`, scrcpy in its own directory.
-pub fn managed_slot(name: &str) -> &'static str {
-    if name == "adb" {
-        "platform-tools"
-    } else {
-        "scrcpy"
+pub fn managed_slot(tool: ToolKind) -> &'static str {
+    match tool {
+        ToolKind::Adb => "platform-tools",
+        ToolKind::Scrcpy => "scrcpy",
     }
 }
 
-/// The newest managed binary for `name`, scanning version subdirectories newest first.
-pub fn managed_binary(managed_dir: &Path, name: &str) -> Option<PathBuf> {
-    let base = managed_root(managed_dir).join(managed_slot(name));
-    let exe = format!("{name}{EXE_SUFFIX}");
+/// The newest managed binary for `tool`, scanning version subdirectories newest first.
+fn managed_binary(managed_dir: &Path, tool: ToolKind) -> Option<PathBuf> {
+    let base = managed_root(managed_dir).join(managed_slot(tool));
+    let exe = format!("{}{EXE_SUFFIX}", tool.name());
 
     let mut versions: Vec<PathBuf> = std::fs::read_dir(&base)
         .ok()?
@@ -122,7 +110,7 @@ pub fn managed_binary(managed_dir: &Path, name: &str) -> Option<PathBuf> {
 
     for dir in versions {
         let mut found = Vec::new();
-        find_named_files(&dir, &exe, 3, &mut found);
+        find_named_files(&dir, &exe, MANAGED_SEARCH_DEPTH, &mut found);
         if let Some(path) = found.into_iter().next() {
             return Some(path);
         }
@@ -145,27 +133,27 @@ pub async fn platform_tools_version(adb_path: &str) -> Option<String> {
     platform_tools_version_of(&output.text())
 }
 
-pub fn platform_tools_version_of(output: &str) -> Option<String> {
+fn platform_tools_version_of(output: &str) -> Option<String> {
     PLATFORM_TOOLS_VERSION_RE
         .captures(output)
         .map(|caps| caps[1].to_string())
 }
 
-async fn version_of(name: &str, path: &std::path::Path, args: &[&str]) -> Option<String> {
+async fn version_of(tool: ToolKind, path: &Path, args: &[&str]) -> Option<String> {
     let program = path.to_string_lossy().to_string();
     let argv: Vec<String> = args.iter().map(|a| a.to_string()).collect();
     let output = process::run(&program, &argv, VERSION_TIMEOUT).await.ok()?;
     if !output.success {
         return None;
     }
-    preferred_version(name, &output.text())
+    preferred_version(tool, &output.text())
 }
 
 /// The meaningful version from a tool's `--version` banner. adb prints its constant protocol
 /// version first and the platform-tools release second; the release is what matches upstream, so
 /// prefer it. Everything else uses the first version token.
-fn preferred_version(name: &str, text: &str) -> Option<String> {
-    if name == "adb" {
+fn preferred_version(tool: ToolKind, text: &str) -> Option<String> {
+    if tool == ToolKind::Adb {
         if let Some(version) = platform_tools_version_of(text) {
             return Some(version);
         }
@@ -191,7 +179,8 @@ pub fn find_in_path(name: &str) -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
-fn known_locations(name: &str) -> Vec<PathBuf> {
+fn known_locations(tool: ToolKind) -> Vec<PathBuf> {
+    let name = tool.name();
     let home = dirs::home_dir().unwrap_or_default();
     let local = env::var_os("LOCALAPPDATA").map(PathBuf::from);
     let program_data = env::var_os("ProgramData").map(PathBuf::from);
@@ -241,7 +230,7 @@ fn winget_package_binaries(name: &str) -> Vec<PathBuf> {
     let exe = format!("{name}{EXE_SUFFIX}");
 
     let mut found = Vec::new();
-    find_named_files(&base, &exe, 3, &mut found);
+    find_named_files(&base, &exe, MANAGED_SEARCH_DEPTH, &mut found);
     found
 }
 
@@ -249,13 +238,13 @@ fn winget_package_binaries(name: &str) -> Vec<PathBuf> {
 pub fn find_binary(root: &Path, name: &str) -> Option<PathBuf> {
     let exe = format!("{name}{EXE_SUFFIX}");
     let mut found = Vec::new();
-    find_named_files(root, &exe, 4, &mut found);
+    find_named_files(root, &exe, ARCHIVE_SEARCH_DEPTH, &mut found);
     found.into_iter().next()
 }
 
 /// Shallow recursive search for `file_name` under `dir`, bounded by `depth`.
 fn find_named_files(dir: &Path, file_name: &str, depth: usize, out: &mut Vec<PathBuf>) {
-    if depth == 0 || out.len() >= 4 {
+    if depth == 0 || out.len() >= MAX_SEARCH_MATCHES {
         return;
     }
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -272,7 +261,8 @@ fn find_named_files(dir: &Path, file_name: &str, depth: usize, out: &mut Vec<Pat
 }
 
 #[cfg(target_os = "macos")]
-fn known_locations(name: &str) -> Vec<PathBuf> {
+fn known_locations(tool: ToolKind) -> Vec<PathBuf> {
+    let name = tool.name();
     let home = dirs::home_dir().unwrap_or_default();
     let mut paths = vec![
         PathBuf::from("/opt/homebrew/bin").join(name),
@@ -288,7 +278,7 @@ fn known_locations(name: &str) -> Vec<PathBuf> {
             .join("platform-tools")
             .join(name),
     ];
-    if name == "scrcpy" {
+    if tool == ToolKind::Scrcpy {
         paths.push(PathBuf::from(
             "/Applications/scrcpy.app/Contents/MacOS/scrcpy",
         ));
@@ -297,7 +287,8 @@ fn known_locations(name: &str) -> Vec<PathBuf> {
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
-fn known_locations(name: &str) -> Vec<PathBuf> {
+fn known_locations(tool: ToolKind) -> Vec<PathBuf> {
+    let name = tool.name();
     let home = dirs::home_dir().unwrap_or_default();
     vec![
         home.join(".local").join("bin").join(name),
@@ -341,7 +332,7 @@ mod tests {
         std::fs::write(nested.join("scrcpy.exe"), b"stub").unwrap();
 
         let mut found = Vec::new();
-        find_named_files(&root, "scrcpy.exe", 3, &mut found);
+        find_named_files(&root, "scrcpy.exe", MANAGED_SEARCH_DEPTH, &mut found);
         assert_eq!(found, vec![nested.join("scrcpy.exe")]);
 
         let _ = std::fs::remove_dir_all(&root);
@@ -357,13 +348,16 @@ mod tests {
     fn adb_display_version_prefers_the_platform_tools_release() {
         let banner =
             "Android Debug Bridge version 1.0.41\nVersion 36.0.0-13206524\nInstalled as /x/adb";
-        assert_eq!(preferred_version("adb", banner).as_deref(), Some("36.0.0"));
+        assert_eq!(
+            preferred_version(ToolKind::Adb, banner).as_deref(),
+            Some("36.0.0")
+        );
     }
 
     #[test]
     fn adb_falls_back_to_the_protocol_version_when_unlisted() {
         assert_eq!(
-            preferred_version("adb", "Android Debug Bridge version 1.0.39").as_deref(),
+            preferred_version(ToolKind::Adb, "Android Debug Bridge version 1.0.39").as_deref(),
             Some("1.0.39")
         );
     }
@@ -371,7 +365,10 @@ mod tests {
     #[test]
     fn other_tools_use_the_first_version_token() {
         let banner = "scrcpy 5.0 <https://github.com/Genymobile/scrcpy>";
-        assert_eq!(preferred_version("scrcpy", banner).as_deref(), Some("5.0"));
+        assert_eq!(
+            preferred_version(ToolKind::Scrcpy, banner).as_deref(),
+            Some("5.0")
+        );
     }
 
     #[test]
@@ -385,7 +382,7 @@ mod tests {
             std::fs::write(dir.join(&exe), b"stub").unwrap();
         }
 
-        let found = managed_binary(&root, "scrcpy").unwrap();
+        let found = managed_binary(&root, ToolKind::Scrcpy).unwrap();
         assert!(found.ends_with(format!("5.0/{exe}")));
 
         let _ = std::fs::remove_dir_all(&root);

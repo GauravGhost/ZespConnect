@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { ipc } from "@/lib/ipc";
+import { errorMessage, ipc } from "@/lib/ipc";
+import { pickToolExecutable } from "@/lib/toolDialogs";
 import type { ToolKind, ToolStatus } from "@/types";
+
+import { devicesKey } from "./useDevices";
+import { useInstallLog } from "./useInstallLog";
 
 export const toolsKey = ["tools"] as const;
 
@@ -33,7 +38,7 @@ export function useInstallTool() {
     mutationFn: (tool: ToolKind) => ipc.tools.install(tool),
     onSuccess: (status: ToolStatus) => {
       queryClient.setQueryData(toolsKey, status);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: devicesKey });
     },
   });
 }
@@ -47,4 +52,27 @@ export function useCheckUpdates() {
       queryClient.setQueryData(toolsKey, status);
     },
   });
+}
+
+/** Locate, clear and install actions shared by the tool setup screens, with the installer log. */
+export function useToolActions() {
+  const setPath = useSetToolPath();
+  const install = useInstallTool();
+  const log = useInstallLog();
+
+  async function locate(kind: ToolKind) {
+    const selected = await pickToolExecutable(kind);
+    if (selected) setPath.mutate({ tool: kind, path: selected });
+  }
+
+  function clear(kind: ToolKind) {
+    setPath.mutate({ tool: kind, path: null });
+  }
+
+  function runInstall(kind: ToolKind, onSuccess?: (status: ToolStatus) => void) {
+    log.reset();
+    install.mutate(kind, { onError: (error) => toast.error(errorMessage(error)), onSuccess });
+  }
+
+  return { log, locate, clear, install: runInstall, installing: install.isPending };
 }

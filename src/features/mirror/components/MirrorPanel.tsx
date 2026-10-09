@@ -1,7 +1,7 @@
 import { Camera, Loader2, Monitor, MonitorSmartphone, PlugZap, X } from "lucide-react";
 import { useState } from "react";
 
-import { EmptyState } from "@/components/app/EmptyState";
+import { NoDeviceState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,12 @@ import {
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
-import { DEFAULT_MIRROR_OPTIONS, KIND_LABEL } from "@/lib/mirror";
+import {
+  DEFAULT_BITRATE_MBPS,
+  DEFAULT_FPS,
+  DEFAULT_MIRROR_OPTIONS,
+  KIND_LABEL,
+} from "@/lib/mirror";
 import { cn } from "@/lib/utils";
 import type { MirrorOptions } from "@/types";
 import { MirrorOptionsForm } from "./MirrorOptionsForm";
@@ -42,13 +47,10 @@ export function MirrorPanel() {
 
   if (!device) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <EmptyState
-          icon={PlugZap}
-          title="No device connected"
-          description="Connect an Android device to mirror its screen or camera."
-        />
-      </div>
+      <NoDeviceState
+        icon={PlugZap}
+        description="Connect an Android device to mirror its screen or camera."
+      />
     );
   }
 
@@ -58,7 +60,7 @@ export function MirrorPanel() {
   const starting = camera ? startCamera.isPending : startMirror.isPending;
   const summary = camera
     ? `${options.camera_facing === "front" ? "Front" : "Back"} camera · ${options.camera_zoom ?? 1}× zoom`
-    : `${options.resolution ? `${options.resolution}p` : "Native size"} · ${options.fps ?? 60} fps · ${options.bitrate ?? 8} Mbps`;
+    : `${options.resolution ? `${options.resolution}p` : "Native size"} · ${options.fps ?? DEFAULT_FPS} fps · ${options.bitrate ?? DEFAULT_BITRATE_MBPS} Mbps`;
 
   function start() {
     if (!serial) return;

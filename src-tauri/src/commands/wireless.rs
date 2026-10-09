@@ -11,6 +11,12 @@ use crate::services::{adb, wireless};
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
+const PAIRING_SLOT_ATTEMPTS: u32 = 20;
+const PAIRING_SLOT_RETRY: Duration = Duration::from_millis(100);
+const QR_TIMEOUT_DEFAULT_SECS: u64 = 180;
+const QR_TIMEOUT_MIN_SECS: u64 = 30;
+const QR_TIMEOUT_MAX_SECS: u64 = 300;
+
 /// Generate a fresh pairing QR payload to render in the UI.
 #[tauri::command]
 pub fn get_qr_payload() -> QrPayload {
@@ -35,19 +41,21 @@ pub async fn pair_wireless_qr(
     let _guard = loop {
         match state.begin_pairing() {
             Ok(guard) => break guard,
-            Err(error) if attempts >= 20 => return Err(error),
+            Err(error) if attempts >= PAIRING_SLOT_ATTEMPTS => return Err(error),
             Err(_) => {
                 attempts += 1;
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(PAIRING_SLOT_RETRY).await;
             }
         }
     };
 
     let adb_path = adb::adb_path(&state.tools())?;
-    let secs = timeout.unwrap_or(180).clamp(30, 300);
+    let secs = timeout
+        .unwrap_or(QR_TIMEOUT_DEFAULT_SECS)
+        .clamp(QR_TIMEOUT_MIN_SECS, QR_TIMEOUT_MAX_SECS);
     let address = tokio::select! {
         result = wireless::pair_and_connect(&adb_path, &payload, Duration::from_secs(secs)) => result?,
-        _ = &mut cancel => return Err(AppError::Other("Pairing cancelled".into())),
+        _ = &mut cancel => return Err(AppError::Cancelled),
     };
 
     // Reuse the tracker's refresh so the new device reaches the UI immediately.

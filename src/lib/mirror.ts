@@ -9,11 +9,15 @@ export const KIND_LABEL: Record<MirrorKind, string> = {
   desktop: "Desktop mode",
 };
 
+/** The frame rate and bitrate shown when a mirror leaves them unset. */
+export const DEFAULT_FPS = 60;
+export const DEFAULT_BITRATE_MBPS = 8;
+
 /** Baseline mirror settings used when a screen has no options form of its own. */
 export const DEFAULT_MIRROR_OPTIONS: MirrorOptions = {
   resolution: null,
   fps: null,
-  bitrate: 8,
+  bitrate: DEFAULT_BITRATE_MBPS,
   audio: true,
   borderless: false,
   stay_awake: true,

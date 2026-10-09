@@ -10,19 +10,28 @@ pub mod util;
 
 use std::path::PathBuf;
 
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 
+use crate::runtime::session_window;
 use crate::state::AppState;
+
+/// The label of the app's main window (see `tauri.conf.json`).
+pub(crate) const MAIN_WINDOW: &str = "main";
+
+/// Bring the main window to the front, restoring it if hidden or minimized.
+pub(crate) fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            show_main_window(app)
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -40,16 +49,8 @@ pub fn run() {
             app.manage(AppState::new(data_dir));
 
             // Resolve tools synchronously so the first paint shows the real status.
-            let status = {
-                let state = app.state::<AppState>();
-                let overrides = state.overrides();
-                let managed_dir = state.app_data_dir();
-                tauri::async_runtime::block_on(services::tools::resolve(
-                    overrides.get("adb").map(String::as_str),
-                    overrides.get("scrcpy").map(String::as_str),
-                    &managed_dir,
-                ))
-            };
+            let status =
+                tauri::async_runtime::block_on(runtime::tools::resolve(&app.state::<AppState>()));
             app.state::<AppState>().set_tools(status);
 
             // Start the push-based device tracker.
@@ -64,7 +65,7 @@ pub fn run() {
             // status, so it just fills in once the request returns.
             let updater = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let _ = commands::system::check_for_updates(updater).await;
+                let _ = runtime::tools::check_for_updates(&updater).await;
             });
 
             Ok(())
@@ -75,10 +76,10 @@ pub fn run() {
                 tauri::WindowEvent::Resized(size) => on_mirror_resized(window, *size),
                 // Closing main only hides it (quit via the tray); a mirror window closes for real, stopping its session.
                 tauri::WindowEvent::CloseRequested { api, .. } => {
-                    if window.label() == "main" {
+                    if window.label() == MAIN_WINDOW {
                         api.prevent_close();
                         let _ = window.hide();
-                    } else if let Some(id) = mirror_id(window.label()) {
+                    } else if let Some(id) = session_window::session_id(window.label()) {
                         platform::forget_aspect(window);
                         runtime::mirror_session::stop(window.app_handle(), id);
                     }
@@ -89,7 +90,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::system::get_tools_status,
             commands::system::set_tool_path,
-            commands::system::get_scrcpy_version,
             commands::system::install_tool,
             commands::system::check_for_updates,
             commands::devices::list_devices,
@@ -151,13 +151,6 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-/// The session id in a `mirror-<id>` window label, if the label is one.
-fn mirror_id(label: &str) -> Option<u64> {
-    label
-        .strip_prefix("mirror-")
-        .and_then(|value| value.parse::<u64>().ok())
-}
-
 /// Sub-pixel slack allowed when correcting a window to its video's aspect ratio.
 #[cfg(not(windows))]
 const RESIZE_TOLERANCE_PX: f64 = 2.0;
@@ -204,7 +197,7 @@ fn on_mirror_resized<R: tauri::Runtime>(
 /// Elsewhere there is no resize hook, so correct the size after the fact.
 #[cfg(not(windows))]
 fn on_mirror_resized<R: tauri::Runtime>(window: &tauri::Window<R>, size: tauri::PhysicalSize<u32>) {
-    if let Some(id) = mirror_id(window.label()) {
+    if let Some(id) = session_window::session_id(window.label()) {
         enforce_aspect(window, size.width, size.height, id);
     }
 }

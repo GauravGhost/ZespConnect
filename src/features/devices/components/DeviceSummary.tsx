@@ -30,9 +30,8 @@ import {
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
-import { chooseApk } from "@/lib/apkPicker";
-import { batteryIcon } from "@/lib/battery";
-import { deviceName, stateLabel, transportLabel } from "@/lib/format";
+import { batteryIcon, LOW_BATTERY_PERCENT } from "@/lib/battery";
+import { deviceName, hasBatteryLevel, stateLabel, transportLabel } from "@/lib/format";
 import { DEFAULT_MIRROR_OPTIONS, KIND_LABEL } from "@/lib/mirror";
 import { cn } from "@/lib/utils";
 import type { Device } from "@/types";
@@ -133,7 +132,6 @@ export function DeviceStats({
   androidVersion: string | null;
   sdk: string | null;
 }) {
-  const hasBattery = typeof battery === "number" && battery >= 0;
   const BatteryIcon = batteryIcon(battery, charging);
   const wifi = device.transport === "wifi";
 
@@ -142,15 +140,19 @@ export function DeviceStats({
       <StatTile
         icon={BatteryIcon}
         label="Battery"
-        value={hasBattery ? `${battery}%` : "-"}
+        value={hasBatteryLevel(battery) ? `${battery}%` : "-"}
         detail={charging ? "Charging" : "On battery"}
       >
-        {hasBattery ? (
+        {hasBatteryLevel(battery) ? (
           <span className="bg-background/80 h-1.5 overflow-hidden rounded-full">
             <span
               className={cn(
                 "block h-full rounded-full transition-all",
-                charging ? "bg-success" : battery < 15 ? "bg-destructive" : "bg-primary",
+                charging
+                  ? "bg-success"
+                  : battery < LOW_BATTERY_PERCENT
+                    ? "bg-destructive"
+                    : "bg-primary",
               )}
               style={{ width: `${battery}%` }}
             />
@@ -220,14 +222,8 @@ export function QuickActions({ device }: { device: Device }) {
   const startCamera = useStartCamera();
   const startDesktop = useStartDesktop();
   const installApk = useInstallApk();
-  // Android 16 (API 36) brought desktop windowing to connected displays.
   const { data: info } = useDeviceInfo(device.state === "device" ? serial : null);
   const desktopSupported = Number(info?.sdk || device.sdk) >= MIN_DESKTOP_SDK;
-
-  async function pickApk() {
-    const selected = await chooseApk();
-    if (selected) installApk.mutate({ serial, path: selected });
-  }
 
   return (
     <Section title="Quick actions">
@@ -255,9 +251,7 @@ export function QuickActions({ device }: { device: Device }) {
             hint={scrcpyReady ? "Taskbar & app windows" : "Needs scrcpy"}
             disabled={!scrcpyReady}
             busy={startDesktop.isPending}
-            onClick={() =>
-              startDesktop.mutate({ serial, label: `${device.display_name || serial} desktop` })
-            }
+            onClick={() => startDesktop.mutate({ serial, label: `${deviceName(device)} desktop` })}
           />
         ) : null}
         <ActionTile
@@ -265,7 +259,7 @@ export function QuickActions({ device }: { device: Device }) {
           label="Install APK"
           hint="From your computer"
           busy={installApk.isPending}
-          onClick={() => void pickApk()}
+          onClick={() => void installApk.pickAndInstall(serial)}
         />
         <ActionTile
           icon={AppWindow}

@@ -31,6 +31,9 @@ pub enum AppError {
     #[error("I/O error: {0}")]
     Io(String),
 
+    #[error("Cancelled")]
+    Cancelled,
+
     #[error("{0}")]
     Other(String),
 }
@@ -48,6 +51,7 @@ impl AppError {
             AppError::CommandFailed(_) => "command_failed",
             AppError::Parse(_) => "parse",
             AppError::Io(_) => "io",
+            AppError::Cancelled => "cancelled",
             AppError::Other(_) => "other",
         }
     }

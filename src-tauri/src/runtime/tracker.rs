@@ -1,17 +1,19 @@
 //! Background device tracker: runs `adb track-devices` and re-publishes the device list
 //! on change, retrying if the stream ends (the frontend poll is the final safety net).
 
+use std::process::Stdio;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncReadExt;
 
-use crate::platform;
 use crate::services::{adb, devices};
 use crate::state::AppState;
+use crate::util::process;
 
 const RETRY_DELAY: Duration = Duration::from_secs(2);
 const NO_ADB_DELAY: Duration = Duration::from_secs(3);
+const EVENT_DEVICES_CHANGED: &str = "devices:changed";
 
 pub fn spawn(app: AppHandle) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(run(app))
@@ -40,26 +42,15 @@ pub async fn refresh(app: &AppHandle) {
     let tools = app.state::<AppState>().tools();
     if let Ok(list) = devices::list(&tools).await {
         app.state::<AppState>().set_devices(list.clone());
-        let _ = app.emit("devices:changed", &list);
+        let _ = app.emit(EVENT_DEVICES_CHANGED, &list);
         crate::tray::sync(app);
     }
 }
 
 /// Read length-prefixed frames from `adb track-devices`; each frame means the device set changed.
 async fn track_stream(app: &AppHandle, adb_path: &str) -> crate::error::Result<()> {
-    use std::process::{Command as StdCommand, Stdio};
-
-    let (program, args) = platform::prepare(adb_path, &["track-devices".to_string()]);
-
-    let mut std_cmd = StdCommand::new(program);
-    std_cmd
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    platform::configure_command(&mut std_cmd);
-
-    let mut child = tokio::process::Command::from(std_cmd)
+    let mut child = process::base_command(adb_path, &["track-devices".to_string()])
+        .stderr(Stdio::null())
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| crate::error::AppError::CommandFailed(e.to_string()))?;

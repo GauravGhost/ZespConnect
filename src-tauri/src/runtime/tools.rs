@@ -4,7 +4,7 @@ use std::path::Path;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::models::{InstallDone, InstallProgress, ToolKind, ToolStatus, UpdateInfo};
 use crate::runtime::tracker;
 use crate::services::{install, tools, updates};
@@ -15,12 +15,9 @@ const EVENT_INSTALL_DONE: &str = "tools:install:done";
 
 pub async fn set_tool_path(
     app: &AppHandle,
-    tool: &str,
+    tool: ToolKind,
     path: Option<String>,
 ) -> Result<ToolStatus> {
-    if tool != "adb" && tool != "scrcpy" {
-        return Err(AppError::Invalid(format!("unknown tool: {tool}")));
-    }
     app.state::<AppState>().set_override(tool, path)?;
     refresh(app).await
 }
@@ -61,19 +58,24 @@ pub async fn check_for_updates(app: &AppHandle) -> Result<ToolStatus> {
     Ok(status)
 }
 
+/// Resolve both tools, honouring the user's saved path overrides.
+pub async fn resolve(state: &AppState) -> ToolStatus {
+    let overrides = state.overrides();
+    let path_for = |tool: ToolKind| overrides.get(tool.name()).map(String::as_str);
+    tools::resolve(
+        path_for(ToolKind::Adb),
+        path_for(ToolKind::Scrcpy),
+        &state.app_data_dir(),
+    )
+    .await
+}
+
 /// Re-resolve tools and restart the device tracker; the last update check is preserved.
 pub async fn refresh(app: &AppHandle) -> Result<ToolStatus> {
     let state = app.state::<AppState>();
-    let overrides = state.overrides();
-    let managed_dir = state.app_data_dir();
     let previous = state.tools();
 
-    let mut status = tools::resolve(
-        overrides.get("adb").map(String::as_str),
-        overrides.get("scrcpy").map(String::as_str),
-        &managed_dir,
-    )
-    .await;
+    let mut status = resolve(&state).await;
     status.adb_update = previous.adb_update;
     status.scrcpy_update = previous.scrcpy_update;
 
@@ -120,7 +122,7 @@ pub async fn perform_install(app: &AppHandle, tool: ToolKind) -> Result<ToolStat
 
     // Remember the downloaded binary so it wins over a system install.
     app.state::<AppState>()
-        .set_override(&tool_name, Some(binary.to_string_lossy().to_string()))?;
+        .set_override(tool, Some(binary.to_string_lossy().to_string()))?;
 
     let status = settle_after_install(app, tool, &binary).await?;
     let _ = app.emit(

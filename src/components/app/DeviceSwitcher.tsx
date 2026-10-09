@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { deviceIdentity, stateLabel } from "@/lib/format";
+import { deviceIdentity, deviceName, stateLabel } from "@/lib/format";
 import type { Device } from "@/types";
 
 function StatusDot({ state }: { state: Device["state"] }) {
@@ -67,7 +67,7 @@ export function DeviceSwitcher({
               <StatusDot state={item.state} />
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate font-medium">{item.display_name || item.model}</span>
+              <span className="truncate font-medium">{deviceName(item)}</span>
               <span className="text-muted-foreground truncate text-xs">
                 {item.serial} · {stateLabel(item.state)}
               </span>

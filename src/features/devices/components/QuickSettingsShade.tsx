@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { PhoneFrame } from "@/components/app/PhoneFrame";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,29 +39,30 @@ import { QuickTile } from "@/components/ui/quick-tile";
 import { Slider } from "@/components/ui/slider";
 import { formatClock, useClock } from "@/hooks/useClock";
 import { batteryIcon } from "@/lib/battery";
-import { deviceName } from "@/lib/format";
+import { deviceName, hasBatteryLevel } from "@/lib/format";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { Device, QuickState, QuickToggleKey, RebootMode } from "@/types";
 import {
+  TOGGLE_FIELD,
   useQuickState,
   useReboot,
   useSetBrightness,
   useSetToggle,
   useSetVolume,
-} from "@/hooks/useControls";
+} from "../hooks";
+import { PhoneFrame } from "./PhoneFrame";
 
-const TOGGLES: { key: QuickToggleKey; field: keyof QuickState; label: string; icon: LucideIcon }[] =
-  [
-    { key: "wifi", field: "wifi", label: "Wi-Fi", icon: Wifi },
-    { key: "data", field: "mobile_data", label: "Mobile data", icon: Signal },
-    { key: "bluetooth", field: "bluetooth", label: "Bluetooth", icon: Bluetooth },
-    { key: "airplane", field: "airplane_mode", label: "Airplane", icon: Plane },
-    { key: "darkmode", field: "dark_mode", label: "Dark theme", icon: Moon },
-    { key: "dnd", field: "dnd", label: "Do not disturb", icon: BellOff },
-    { key: "location", field: "location", label: "Location", icon: MapPin },
-    { key: "rotate", field: "auto_rotate", label: "Auto-rotate", icon: RotateCw },
-  ];
+const TOGGLES: { key: QuickToggleKey; label: string; icon: LucideIcon }[] = [
+  { key: "wifi", label: "Wi-Fi", icon: Wifi },
+  { key: "data", label: "Mobile data", icon: Signal },
+  { key: "bluetooth", label: "Bluetooth", icon: Bluetooth },
+  { key: "airplane", label: "Airplane", icon: Plane },
+  { key: "darkmode", label: "Dark theme", icon: Moon },
+  { key: "dnd", label: "Do not disturb", icon: BellOff },
+  { key: "location", label: "Location", icon: MapPin },
+  { key: "rotate", label: "Auto-rotate", icon: RotateCw },
+];
 
 const REBOOT_MODES: { mode: RebootMode; label: string; icon: LucideIcon }[] = [
   { mode: "normal", label: "Restart", icon: RotateCw },
@@ -137,7 +137,7 @@ function StatusIcons({ quick, device }: { quick: QuickState | undefined; device:
       {quick?.wifi ? <Wifi /> : null}
       {quick?.mobile_data && !quick.airplane_mode ? <Signal /> : null}
       <Battery className={cn(charging && "text-success")} />
-      {typeof device.battery === "number" && device.battery >= 0 ? (
+      {hasBatteryLevel(device.battery) ? (
         <span className="tabular-nums">{device.battery}%</span>
       ) : null}
     </>
@@ -222,13 +222,13 @@ export function QuickSettingsShade({ device }: { device: Device }) {
           />
 
           <div className="grid grid-cols-2 gap-2">
-            {TOGGLES.map(({ key, field, label, icon }) => (
+            {TOGGLES.map(({ key, label, icon }) => (
               <QuickTile
                 key={key}
                 layout="wide"
                 icon={icon}
                 label={label}
-                checked={Boolean(data[field])}
+                checked={data[TOGGLE_FIELD[key]]}
                 disabled={setToggle.isPending}
                 onChange={(on) => setToggle.mutate({ key, on })}
               />

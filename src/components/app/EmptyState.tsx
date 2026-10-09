@@ -36,3 +36,12 @@ export function EmptyState({
     </div>
   );
 }
+
+/** Full-panel placeholder for features that need an active device. */
+export function NoDeviceState({ icon, description }: { icon: LucideIcon; description: string }) {
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <EmptyState icon={icon} title="No device connected" description={description} />
+    </div>
+  );
+}

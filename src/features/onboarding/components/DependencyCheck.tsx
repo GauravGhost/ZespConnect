@@ -7,10 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstallLog } from "@/hooks/useInstallLog";
-import { useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
-import { errorMessage } from "@/lib/ipc";
-import { pickToolExecutable } from "@/lib/toolDialogs";
+import { useToolActions, useToolsStatus } from "@/hooks/useTools";
 import type { ToolInfo, ToolKind, UpdateInfo } from "@/types";
 
 type Os = "windows" | "macos" | "linux";
@@ -173,24 +170,8 @@ function ToolRow({
 
 export function DependencyCheck() {
   const { data: tools, isLoading, isFetching, refetch } = useToolsStatus();
-  const setToolPath = useSetToolPath();
-  const install = useInstallTool();
-  const log = useInstallLog();
+  const { log, locate, install, installing } = useToolActions();
   const os = detectOs();
-
-  async function browse(kind: ToolKind) {
-    const selected = await pickToolExecutable(kind);
-    if (selected) {
-      setToolPath.mutate({ tool: kind, path: selected });
-    }
-  }
-
-  function runInstall(kind: ToolKind) {
-    log.reset();
-    install.mutate(kind, {
-      onError: (error) => toast.error(errorMessage(error)),
-    });
-  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 p-6">
@@ -215,9 +196,9 @@ export function DependencyCheck() {
             tool={tools.adb}
             update={tools.adb_update}
             os={os}
-            busy={install.isPending}
-            onBrowse={browse}
-            onInstall={runInstall}
+            busy={installing}
+            onBrowse={locate}
+            onInstall={install}
           />
           <ToolRow
             kind="scrcpy"
@@ -225,9 +206,9 @@ export function DependencyCheck() {
             tool={tools.scrcpy}
             update={tools.scrcpy_update}
             os={os}
-            busy={install.isPending}
-            onBrowse={browse}
-            onInstall={runInstall}
+            busy={installing}
+            onBrowse={locate}
+            onInstall={install}
           />
         </>
       )}

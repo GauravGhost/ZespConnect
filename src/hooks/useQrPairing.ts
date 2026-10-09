@@ -2,9 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { errorMessage, ipc } from "@/lib/ipc";
-import { PAIR_TIMEOUT_SECS } from "@/lib/wireless";
+import { ipc, toAppError } from "@/lib/ipc";
 import type { QrPayload } from "@/types";
+
+import { devicesKey } from "./useDevices";
+
+/** Seconds a QR pairing code stays valid, matching the backend's cap. */
+const PAIR_TIMEOUT_SECS = 180;
 
 export type QrPairStatus =
   | { kind: "idle" }
@@ -45,22 +49,23 @@ export function useQrPairing(): QrPairing {
       setGenerating(false);
 
       const address = await ipc.wireless.qrPair(payload.payload, PAIR_TIMEOUT_SECS);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: devicesKey });
       if (session !== sessionRef.current) return;
       setStatus({ kind: "success", address });
       toast.success(`Connected to ${address}`);
     } catch (error) {
       if (session !== sessionRef.current) return;
       setGenerating(false);
-      const message = errorMessage(error);
+      const appError = toAppError(error);
       // We cancel the request ourselves when the user closes the pairing UI.
-      if (message === "Pairing cancelled") return;
-      setStatus({ kind: "error", message });
+      if (appError.code === "cancelled") return;
+      setStatus({ kind: "error", message: appError.message });
     }
   }, [queryClient]);
 
   const cancel = useCallback(() => {
     sessionRef.current++;
+    // Nothing to cancel if the backend already finished or never started pairing.
     void ipc.wireless.cancelQr().catch(() => {});
     setQr(null);
     setStatus({ kind: "idle" });

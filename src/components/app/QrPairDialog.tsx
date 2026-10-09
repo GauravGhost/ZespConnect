@@ -1,7 +1,8 @@
-import { CheckCircle2, Loader2, QrCode, RotateCw } from "lucide-react";
+import { Loader2, QrCode, RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 
+import { QrPairStatusMessage } from "@/components/app/QrPairStatus";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -77,31 +78,17 @@ export function QrPairDialog() {
             </div>
 
             <div className="flex min-h-10 flex-col items-center gap-1 text-center">
+              <QrPairStatusMessage status={status} />
               {status.kind === "waiting" ? (
-                <>
-                  <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <Loader2 className="size-4 animate-spin" />
-                    Waiting for your phone…
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {secondsLeft > 0 ? `Expires in ${timer}` : "Code expired"}
-                  </p>
-                </>
-              ) : null}
-              {status.kind === "success" ? (
-                <p className="text-success flex items-center gap-2 text-sm font-medium">
-                  <CheckCircle2 className="size-4" />
-                  Connected to {status.address}
+                <p className="text-muted-foreground text-xs">
+                  {secondsLeft > 0 ? `Expires in ${timer}` : "Code expired"}
                 </p>
               ) : null}
               {status.kind === "error" ? (
-                <>
-                  <p className="text-destructive text-sm">{status.message}</p>
-                  <Button variant="outline" size="sm" onClick={() => void generate()}>
-                    <RotateCw className="size-3.5" />
-                    Try again
-                  </Button>
-                </>
+                <Button variant="outline" size="sm" onClick={() => void generate()}>
+                  <RotateCw className="size-3.5" />
+                  Try again
+                </Button>
               ) : null}
             </div>
           </div>

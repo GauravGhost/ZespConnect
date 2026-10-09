@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ComboboxInput, type ComboboxOption } from "@/components/ui/combobox-input";
 import { Label } from "@/components/ui/label";
 import { QuickTile } from "@/components/ui/quick-tile";
+import { DEFAULT_BITRATE_MBPS, DEFAULT_FPS } from "@/lib/mirror";
 import { cn } from "@/lib/utils";
 import type { MirrorOptions } from "@/types";
 
@@ -139,7 +140,7 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
         <PresetNumberField
           id="mirror-fps"
           label="FPS"
-          placeholder="60"
+          placeholder={String(DEFAULT_FPS)}
           value={value.fps}
           presets={FPS_PRESETS}
           onChange={(next) => update("fps", next)}
@@ -147,7 +148,7 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
         <PresetNumberField
           id="mirror-bitrate"
           label="Bitrate (Mbps)"
-          placeholder="8"
+          placeholder={String(DEFAULT_BITRATE_MBPS)}
           value={value.bitrate}
           presets={BITRATE_PRESETS}
           onChange={(next) => update("bitrate", next)}

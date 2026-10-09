@@ -9,8 +9,9 @@ use std::time::Duration;
 use crate::error::{AppError, Result};
 use crate::models::{AppInfo, AppListResult, AppListSource, LabelSource, ToolStatus};
 use crate::services::adb;
+use crate::util;
+use crate::util::process::{self, ProcessOutput};
 use crate::util::validation::{shell_quote, validate_package};
-use crate::util::{self, process};
 
 const SCRCPY_TIMEOUT: Duration = Duration::from_secs(60);
 const PM_TIMEOUT: Duration = Duration::from_secs(30);
@@ -133,14 +134,14 @@ pub fn parse_pm_packages(text: &str) -> Vec<AppInfo> {
 }
 
 /// A package installed under a system-image path rather than `/data/app`.
-pub fn is_system_path(path: &str) -> bool {
+fn is_system_path(path: &str) -> bool {
     SYSTEM_PREFIXES
         .iter()
         .any(|prefix| path.starts_with(prefix))
 }
 
 /// Turn `com.example.my_cool-app` into a readable `My Cool App`.
-pub fn prettify(package: &str) -> String {
+fn prettify(package: &str) -> String {
     let last = package.rsplit('.').next().unwrap_or(package);
     let cleaned = last.replace(['_', '-'], " ");
 
@@ -293,13 +294,13 @@ pub async fn uninstall(tools: &ToolStatus, serial: &str, package: &str) -> Resul
 
     let args = vec!["uninstall".to_string(), package.to_string()];
     let output = adb::run_scoped(&adb_path, serial, &args, ACTION_TIMEOUT).await?;
-    if output.success && output.text().contains("Success") {
+    if succeeded(&output) {
         return Ok(());
     }
 
     let command = format!("pm uninstall --user 0 {}", shell_quote(package));
     let output = adb::shell(&adb_path, serial, &command, ACTION_TIMEOUT).await?;
-    if output.success && output.text().contains("Success") {
+    if succeeded(&output) {
         return Ok(());
     }
     Err(AppError::CommandFailed(output.text()))
@@ -309,7 +310,7 @@ pub async fn clear_data(tools: &ToolStatus, serial: &str, package: &str) -> Resu
     let adb_path = adb::adb_path(tools)?;
     let command = format!("pm clear {}", shell_quote(package));
     let output = adb::shell(&adb_path, serial, &command, ACTION_TIMEOUT).await?;
-    if !output.success || !output.text().contains("Success") {
+    if !succeeded(&output) {
         return Err(AppError::CommandFailed(output.text()));
     }
     Ok(())
@@ -322,10 +323,15 @@ pub async fn install_apk(tools: &ToolStatus, serial: &str, path: &str) -> Result
     let adb_path = adb::adb_path(tools)?;
     let args = vec!["install".to_string(), "-r".to_string(), path.to_string()];
     let output = adb::run_scoped(&adb_path, serial, &args, INSTALL_TIMEOUT).await?;
-    if !output.success || !output.text().contains("Success") {
+    if !succeeded(&output) {
         return Err(AppError::CommandFailed(output.text()));
     }
     Ok(())
+}
+
+/// The exit status alone is not trusted; a package-manager command must also print "Success".
+fn succeeded(output: &ProcessOutput) -> bool {
+    output.success && output.text().contains("Success")
 }
 
 #[cfg(test)]

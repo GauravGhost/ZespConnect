@@ -6,8 +6,20 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::error::{AppError, Result};
-use crate::models::{Device, DeviceInfo, DeviceState, DeviceTransport, QuickState, ToolStatus};
+use crate::models::{
+    Device, DeviceInfo, DeviceState, DeviceTransport, QuickState, ToolStatus,
+    DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME,
+};
 use crate::services::adb;
+
+/// Reads the music stream's volume as `volume is X in range [low..high]`; a macro so
+/// [`INFO_COMMAND`] can embed it with `concat!`.
+macro_rules! volume_get_command {
+    () => {
+        "cmd media_session volume --stream 3 --get"
+    };
+}
+pub const VOLUME_GET_COMMAND: &str = volume_get_command!();
 
 /// Single round-trip script reporting model, version, battery and every quick setting we track.
 const INFO_COMMAND: &str = concat!(
@@ -24,7 +36,9 @@ const INFO_COMMAND: &str = concat!(
     r#"echo "DND:$(cmd settings get global zen_mode 2>/dev/null)"; "#,
     r#"echo "ROT:$(settings get system accelerometer_rotation 2>/dev/null)"; "#,
     r#"echo "BRI:$(settings get system screen_brightness 2>/dev/null)"; "#,
-    r#"echo "VOL:$(cmd media_session volume --stream 3 --get 2>/dev/null)";"#,
+    r#"echo "VOL:$("#,
+    volume_get_command!(),
+    r#" 2>/dev/null)";"#,
 );
 
 static DIGITS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\d+)").expect("valid regex"));
@@ -32,8 +46,7 @@ static VOLUME_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"volume is (\d+) in range \[(\d+)\.\.(\d+)\]").expect("valid regex"));
 
 const INFO_TIMEOUT: Duration = Duration::from_secs(25);
-/// Screen-brightness ceilings: 8-bit on older releases, 12-bit since Android 12.
-const BRIGHTNESS_MAX_8BIT: i32 = 255;
+/// The 12-bit screen-brightness ceiling used since Android 12 (8-bit before).
 const BRIGHTNESS_MAX_12BIT: i32 = 4095;
 
 /// A serial that is an mDNS alias rather than a host:port address.
@@ -108,7 +121,7 @@ pub fn parse_devices(text: &str) -> Vec<Device> {
 /// Collapse the Android 11+ duplicate transports for one phone: a wireless device shows up as
 /// `ip:port` and as an mDNS alias. Keep the alias (scrcpy refuses the `ip:port` serial while it
 /// exists) and carry the address for display and reconnecting.
-pub fn dedupe(devices: Vec<Device>) -> Vec<Device> {
+fn dedupe(devices: Vec<Device>) -> Vec<Device> {
     let mut result: Vec<Device> = Vec::new();
 
     for device in devices {
@@ -120,13 +133,7 @@ pub fn dedupe(devices: Vec<Device>) -> Vec<Device> {
         });
 
         match twin_index {
-            None => {
-                let mut entry = device;
-                if !device_mdns && entry.serial.contains(':') {
-                    entry.address = Some(entry.serial.clone());
-                }
-                result.push(entry);
-            }
+            None => result.push(device),
             Some(index) => {
                 let twin = result[index].clone();
                 let (mut mdns_entry, address_entry) = if device_mdns {
@@ -198,10 +205,10 @@ pub fn parse_info(text: &str) -> DeviceInfo {
             if let Some(caps) = DIGITS_RE.captures(value) {
                 if let Ok(brightness) = caps[1].parse::<i32>() {
                     info.quick.brightness = brightness;
-                    info.quick.brightness_max = if brightness > BRIGHTNESS_MAX_8BIT {
+                    info.quick.brightness_max = if brightness > DEFAULT_BRIGHTNESS_MAX {
                         BRIGHTNESS_MAX_12BIT
                     } else {
-                        BRIGHTNESS_MAX_8BIT
+                        DEFAULT_BRIGHTNESS_MAX
                     };
                 }
             }
@@ -211,25 +218,27 @@ pub fn parse_info(text: &str) -> DeviceInfo {
             }
         } else if line.contains("powered: true") {
             info.charging = true;
-        } else if line.starts_with("VOL:") || VOLUME_RE.is_match(line) {
+        } else if let Some((current, low, high)) = parse_volume_levels(line) {
             // `cmd media_session volume --get` prints `[V] ...` lines too, so the value may be on its own line.
-            if let Some(caps) = VOLUME_RE.captures(line) {
-                let current: i32 = caps[1].parse().unwrap_or(0);
-                let low: i32 = caps[2].parse().unwrap_or(0);
-                let high: i32 = caps[3].parse().unwrap_or(0);
-                if high > low {
-                    info.quick.volume =
-                        ((current - low) as f64 / (high - low) as f64 * 100.0).round() as i32;
-                }
-            }
+            info.quick.volume =
+                ((current - low) as f64 / (high - low) as f64 * 100.0).round() as i32;
         }
     }
 
     if info.quick.volume < 0 {
-        info.quick.volume = 50;
+        info.quick.volume = DEFAULT_VOLUME;
     }
 
     info
+}
+
+/// `(current, low, high)` from a `volume is X in range [low..high]` line.
+pub fn parse_volume_levels(text: &str) -> Option<(i32, i32, i32)> {
+    let caps = VOLUME_RE.captures(text)?;
+    let current = caps[1].parse::<i32>().ok()?;
+    let low = caps[2].parse::<i32>().ok()?;
+    let high = caps[3].parse::<i32>().ok()?;
+    (high > low).then_some((current, low, high))
 }
 
 /// Fresh device list from `adb devices -l`.
@@ -315,5 +324,24 @@ mod tests {
         assert_eq!(info.quick.brightness, 1024);
         assert_eq!(info.quick.brightness_max, 4095);
         assert_eq!(info.quick.volume, 53);
+    }
+
+    #[test]
+    fn parses_volume_level_lines() {
+        assert_eq!(
+            parse_volume_levels("volume is 10 in range [0..15]"),
+            Some((10, 0, 15))
+        );
+        // The verbose `[V] ...` prefix that `media_session` emits must not matter.
+        assert_eq!(
+            parse_volume_levels("[V] volume is 17 in range [0..25]"),
+            Some((17, 0, 25))
+        );
+        assert_eq!(
+            parse_volume_levels("volume is 3 in range [1..10]"),
+            Some((3, 1, 10))
+        );
+        assert_eq!(parse_volume_levels("garbage"), None);
+        assert_eq!(parse_volume_levels("volume is 3 in range [5..5]"), None);
     }
 }

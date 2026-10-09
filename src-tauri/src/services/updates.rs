@@ -88,10 +88,7 @@ pub async fn fetch_latest() -> Latest {
 pub async fn scrcpy_download() -> Result<(String, String)> {
     let client = http_client()?;
     let release = scrcpy_release(&client).await?;
-    let version = release.tag_name.trim().trim_start_matches('v').to_string();
-    if version.is_empty() {
-        return Err(AppError::Parse("empty scrcpy tag".into()));
-    }
+    let version = release_version(&release.tag_name)?;
     let name = asset_name(std::env::consts::OS, std::env::consts::ARCH, &version).ok_or_else(
         || {
             AppError::Other(format!(
@@ -191,7 +188,7 @@ pub fn http_client() -> Result<reqwest::Client> {
         .timeout(HTTP_TIMEOUT)
         .user_agent(USER_AGENT)
         .build()
-        .map_err(|e| AppError::Other(format!("could not start HTTP client: {e}")))
+        .map_err(client_error)
 }
 
 /// Client for large downloads: only the connect and per-read stalls are bounded, not the total time.
@@ -201,7 +198,11 @@ pub fn download_client() -> Result<reqwest::Client> {
         .read_timeout(READ_TIMEOUT)
         .user_agent(USER_AGENT)
         .build()
-        .map_err(|e| AppError::Other(format!("could not start HTTP client: {e}")))
+        .map_err(client_error)
+}
+
+fn client_error(error: reqwest::Error) -> AppError {
+    AppError::Other(format!("could not start HTTP client: {error}"))
 }
 
 async fn scrcpy_release(client: &reqwest::Client) -> Result<GithubRelease> {
@@ -219,7 +220,12 @@ async fn scrcpy_release(client: &reqwest::Client) -> Result<GithubRelease> {
 
 async fn latest_scrcpy(client: &reqwest::Client) -> Result<String> {
     let release = scrcpy_release(client).await?;
-    let version = release.tag_name.trim().trim_start_matches('v');
+    release_version(&release.tag_name)
+}
+
+/// The version in a scrcpy release tag (`v3.1` -> `3.1`).
+fn release_version(tag: &str) -> Result<String> {
+    let version = tag.trim().trim_start_matches('v');
     if version.is_empty() {
         return Err(AppError::Parse("empty scrcpy tag".into()));
     }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { deviceName } from "@/lib/format";
 import type { Device } from "@/types";
 
 export interface SavedWirelessDevice {
@@ -27,7 +28,7 @@ export const useSavedWireless = create<SavedWirelessStore>()(
         set((state) => {
           const entry: SavedWirelessDevice = {
             serial: device.serial,
-            name: device.display_name || device.model || device.serial,
+            name: deviceName(device),
             address: device.address,
             lastConnected: Date.now(),
           };

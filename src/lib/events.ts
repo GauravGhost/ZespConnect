@@ -18,7 +18,7 @@ export interface BackendEvents {
   "tray:select-device": { serial: string };
 }
 
-export function onBackendEvent<K extends keyof BackendEvents>(
+function onBackendEvent<K extends keyof BackendEvents>(
   event: K,
   handler: EventCallback<BackendEvents[K]>,
 ): Promise<UnlistenFn> {

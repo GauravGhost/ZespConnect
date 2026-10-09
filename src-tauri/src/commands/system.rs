@@ -13,17 +13,12 @@ pub fn get_tools_status(state: State<'_, AppState>) -> ToolStatus {
 }
 
 #[tauri::command]
-pub fn get_scrcpy_version(state: State<'_, AppState>) -> Option<String> {
-    state.tools().scrcpy.version
-}
-
-#[tauri::command]
 pub async fn set_tool_path(
-    tool: String,
+    tool: ToolKind,
     path: Option<String>,
     app: AppHandle,
 ) -> Result<ToolStatus> {
-    tools::set_tool_path(&app, &tool, path).await
+    tools::set_tool_path(&app, tool, path).await
 }
 
 #[tauri::command]

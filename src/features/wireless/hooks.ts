@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { useDevices } from "@/hooks/useDevices";
+import { devicesKey, useDevices } from "@/hooks/useDevices";
 import { errorMessage, ipc } from "@/lib/ipc";
 
 import { useSavedWireless } from "./saved";
@@ -41,7 +41,7 @@ export function usePairCode() {
       ipc.wireless.pairCode(addr, code),
     onSuccess: (address) => {
       toast.success(`Paired with ${address}`);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: devicesKey });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -54,7 +54,7 @@ export function useConnectWireless() {
     mutationFn: (addr: string) => ipc.wireless.connect(addr),
     onSuccess: (address) => {
       toast.success(`Connected to ${address}`);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: devicesKey });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -67,7 +67,7 @@ export function useDisconnectWireless() {
     mutationFn: (addr: string) => ipc.wireless.disconnect(addr),
     onSuccess: () => {
       toast.success("Disconnected");
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: devicesKey });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -81,7 +81,7 @@ export function useEnableTcpip() {
       ipc.wireless.enableTcpip(serial, port),
     onSuccess: (address) => {
       toast.success(`Wireless debugging on - connected to ${address}`);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: devicesKey });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });

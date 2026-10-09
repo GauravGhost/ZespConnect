@@ -2,7 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Loader2, Package, RefreshCw, Search, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { EmptyState } from "@/components/app/EmptyState";
+import { EmptyState, NoDeviceState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,6 @@ import {
   useOpenWindows,
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
-import { chooseApk } from "@/lib/apkPicker";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { AppInfo } from "@/types";
@@ -81,20 +80,11 @@ export function AppsPanel() {
 
   if (!device) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <EmptyState
-          icon={Package}
-          title="No device connected"
-          description="Connect an Android device to browse and manage its installed apps."
-        />
-      </div>
+      <NoDeviceState
+        icon={Package}
+        description="Connect an Android device to browse and manage its installed apps."
+      />
     );
-  }
-
-  async function pickApk() {
-    if (!serial) return;
-    const selected = await chooseApk();
-    if (selected) installApk.mutate({ serial, path: selected });
   }
 
   function runConfirm() {
@@ -161,7 +151,7 @@ export function AppsPanel() {
             size="sm"
             className="h-9 shrink-0 gap-2"
             disabled={installApk.isPending}
-            onClick={pickApk}
+            onClick={() => serial && void installApk.pickAndInstall(serial)}
           >
             {installApk.isPending ? (
               <Loader2 className="size-4 animate-spin" />

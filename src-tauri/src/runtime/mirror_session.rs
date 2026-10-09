@@ -2,7 +2,7 @@
 //! window over an IPC channel, using a reverse adb tunnel (scrcpy's default) so the window
 //! belongs to Zesp Connect instead of being a separate scrcpy OS window.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use tauri::ipc::{Channel, Response};
@@ -14,9 +14,10 @@ use tokio::sync::mpsc;
 
 use crate::error::{AppError, Result};
 use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
+use crate::runtime::mirror;
 use crate::services::{adb, apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
-use crate::util::{self, process, validation};
+use crate::util::{process, validation};
 
 const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
@@ -139,10 +140,11 @@ pub async fn start(
 
     let server = scrcpy_server::server_path(&scrcpy_bin)?;
     let scid = scrcpy_server::scid();
-    let socket = scrcpy_server::socket_name(&scid);
+    let tunnel = scrcpy_server::tunnel_name(&scid);
     let remote = scrcpy_server::remote_jar(&scid);
 
-    let (options, kind, virtual_display) = session_options(&adb_bin, &spec).await?;
+    let (options, virtual_display) = session_options(&adb_bin, &spec).await?;
+    let kind = options.kind;
 
     // Desktop mode wakes the phone so apps draw; its screen is switched off once streaming (see `watch_lock`).
     let screen_was_on = if kind == MirrorKind::Desktop {
@@ -159,7 +161,7 @@ pub async fn start(
     }
 
     // An app only produces video once launched, and the server drops an early START_APP
-    // ("No known display id"), so it is resent below until the stream is live.
+    // ("No known display id"), so it is resent until the stream is live (see `resend_start_app`).
     let start_app = if virtual_display {
         spec.package
             .as_deref()
@@ -177,8 +179,7 @@ pub async fn start(
         .map_err(|error| AppError::Io(error.to_string()))?
         .port();
 
-    let log_dir = util::ensure_dir(app.state::<AppState>().app_data_dir().join("mirror-logs"))?;
-    let log_path = log_dir.join(format!("{scid}.log"));
+    let log_path = mirror::log_dir(app)?.join(format!("{scid}.log"));
     let args = scrcpy_server::launch_args(&spec.serial, &remote, &version, &scid, &options);
 
     adb::push(
@@ -189,14 +190,7 @@ pub async fn start(
         adb::LONG_TIMEOUT,
     )
     .await?;
-    adb::reverse(
-        &adb_bin,
-        &spec.serial,
-        &format!("localabstract:{socket}"),
-        port,
-        adb::DEFAULT_TIMEOUT,
-    )
-    .await?;
+    adb::reverse(&adb_bin, &spec.serial, &tunnel, port, adb::DEFAULT_TIMEOUT).await?;
 
     let mut child = process::spawn_captured(&adb_bin, &args, &log_path, &[])?;
 
@@ -205,7 +199,7 @@ pub async fn start(
         Ok(streams) => streams,
         Err(error) => {
             let _ = child.kill().await;
-            teardown(&adb_bin, &spec.serial, &socket, &remote).await;
+            teardown(&adb_bin, &spec.serial, &tunnel, &remote).await;
             // Keep the log: startup failures are exactly when it matters.
             return Err(error);
         }
@@ -213,17 +207,12 @@ pub async fn start(
     let (video, control_stream) = streams;
     let control_channel = spawn_control(control_stream);
 
-    let label = if spec.label.trim().is_empty() {
-        spec.serial.clone()
-    } else {
-        spec.label.clone()
-    };
     let info = MirrorSession {
         id,
         serial: spec.serial.clone(),
         kind,
         package: spec.package.clone(),
-        label: Some(label),
+        label: Some(mirror::label_or(&spec.label, &spec.serial)),
         started: crate::util::time::unix_now(),
         phone_screen: screen_was_on,
     };
@@ -237,21 +226,13 @@ pub async fn start(
     // Tell every window the session is live so the app list can flip its button to "close".
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
 
-    // Resend START_APP until the app is drawing (stream live) or the session ends.
     if let Some(message) = start_app {
-        let control = control_channel.clone();
-        let handle = app.clone();
-        tauri::async_runtime::spawn(async move {
-            for _ in 0..START_APP_ATTEMPTS {
-                if handle.state::<AppState>().is_streaming(id)
-                    || handle.state::<AppState>().session_control(id).is_none()
-                {
-                    break;
-                }
-                let _ = control.send(message.clone());
-                tokio::time::sleep(START_APP_RETRY).await;
-            }
-        });
+        tauri::async_runtime::spawn(resend_start_app(
+            app.clone(),
+            id,
+            control_channel.clone(),
+            message,
+        ));
     }
 
     // Desktop mode only shows once unlocked; watch the lock screen (see `watch_lock`).
@@ -265,24 +246,74 @@ pub async fn start(
         ));
     }
 
-    let handle = app.clone();
-    let task_info = info.clone();
-    let task_serial = spec.serial.clone();
-    tauri::async_runtime::spawn(async move {
-        stream_video(handle.clone(), id, video, channel, &mut child, stop_rx).await;
-        // Read before `remove_session` forgets it.
-        let phone_screen_on = handle.state::<AppState>().phone_screen_on(id);
-        let _ = child.kill().await;
-        teardown(&adb_bin, &task_serial, &socket, &remote).await;
-        if kind == MirrorKind::Desktop {
-            finish_desktop(&adb_bin, &task_serial, phone_screen_on).await;
-        }
-        handle.state::<AppState>().remove_session(id);
-        let _ = std::fs::remove_file(&log_path);
-        let _ = handle.emit(EVENT_SESSION_EXITED, &task_info);
-    });
+    tauri::async_runtime::spawn(supervise(
+        app.clone(),
+        info.clone(),
+        video,
+        channel,
+        child,
+        stop_rx,
+        Cleanup {
+            adb_bin,
+            tunnel,
+            remote,
+            log_path,
+        },
+    ));
 
     Ok(info)
+}
+
+/// Resend START_APP until the app is drawing (stream live) or the session ends.
+async fn resend_start_app(app: AppHandle, id: u64, control: ControlChannel, message: Vec<u8>) {
+    for _ in 0..START_APP_ATTEMPTS {
+        if app.state::<AppState>().is_streaming(id)
+            || app.state::<AppState>().session_control(id).is_none()
+        {
+            break;
+        }
+        let _ = control.send(message.clone());
+        tokio::time::sleep(START_APP_RETRY).await;
+    }
+}
+
+/// What a finished session leaves behind on the device and on disk.
+struct Cleanup {
+    adb_bin: String,
+    tunnel: String,
+    remote: String,
+    log_path: PathBuf,
+}
+
+/// Relay the video until the session ends, then tear it down, leave the phone as the user had it,
+/// and announce the exit.
+async fn supervise(
+    app: AppHandle,
+    info: MirrorSession,
+    video: TcpStream,
+    channel: Channel<Response>,
+    mut child: Child,
+    stop: tokio::sync::oneshot::Receiver<()>,
+    cleanup: Cleanup,
+) {
+    let id = info.id;
+    stream_video(app.clone(), id, video, channel, &mut child, stop).await;
+    // Read before `remove_session` forgets it.
+    let phone_screen_on = app.state::<AppState>().phone_screen_on(id);
+    let _ = child.kill().await;
+    teardown(
+        &cleanup.adb_bin,
+        &info.serial,
+        &cleanup.tunnel,
+        &cleanup.remote,
+    )
+    .await;
+    if info.kind == MirrorKind::Desktop {
+        finish_desktop(&cleanup.adb_bin, &info.serial, phone_screen_on).await;
+    }
+    app.state::<AppState>().remove_session(id);
+    let _ = std::fs::remove_file(&cleanup.log_path);
+    let _ = app.emit(EVENT_SESSION_EXITED, &info);
 }
 
 /// Follow a desktop session's lock screen until it ends. Android hides the desktop while the
@@ -301,31 +332,9 @@ async fn watch_lock(
     let mut unfocused = false;
     while app.state::<AppState>().session_control(id).is_some() {
         if let Some(probe) = scrcpy::desktop_probe(&adb_bin, &serial).await {
-            if let Some(now) = probe.locked {
-                if locked != Some(now) {
-                    if locked.is_none() && now {
-                        app.state::<AppState>().set_phone_screen(id, false);
-                    }
-                    if !now {
-                        if !app.state::<AppState>().phone_screen_on(id) {
-                            let _ = control.send(control::set_display_power(false));
-                        }
-                        // Only once capture is up: RESET_VIDEO before that throws and kills the session.
-                        if app.state::<AppState>().is_streaming(id) {
-                            let _ = control.send(control::reset_video());
-                        }
-                    }
-                    locked = Some(now);
-                    let phone_screen = app.state::<AppState>().phone_screen_on(id);
-                    let _ = app.emit(
-                        EVENT_SESSION_LOCKED,
-                        LockState {
-                            id,
-                            locked: now,
-                            phone_screen,
-                        },
-                    );
-                }
+            if let Some(now) = probe.locked.filter(|now| locked != Some(*now)) {
+                on_lock_change(&app, id, &control, locked.is_none(), now);
+                locked = Some(now);
             }
             let stuck = probe.launcher_unfocused && locked == Some(false);
             if stuck && unfocused {
@@ -343,6 +352,37 @@ async fn watch_lock(
         };
         tokio::time::sleep(wait).await;
     }
+}
+
+/// Match the phone screen to a new lock state and tell the window.
+fn on_lock_change(
+    app: &AppHandle,
+    id: u64,
+    control: &ControlChannel,
+    first_check: bool,
+    locked: bool,
+) {
+    let state = app.state::<AppState>();
+    if first_check && locked {
+        state.set_phone_screen(id, false);
+    }
+    if !locked {
+        if !state.phone_screen_on(id) {
+            let _ = control.send(control::set_display_power(false));
+        }
+        // Only once capture is up: RESET_VIDEO before that throws and kills the session.
+        if state.is_streaming(id) {
+            let _ = control.send(control::reset_video());
+        }
+    }
+    let _ = app.emit(
+        EVENT_SESSION_LOCKED,
+        LockState {
+            id,
+            locked,
+            phone_screen: state.phone_screen_on(id),
+        },
+    );
 }
 
 /// Leave the phone as the user had it: if its screen was on it stays on, otherwise it is put to sleep.
@@ -370,10 +410,11 @@ pub fn stop_all(app: &AppHandle) {
 }
 
 /// Translate the requested mirror into server options, downgrading an app window where a virtual display is unsafe.
+/// Also returns whether the session uses a virtual display.
 async fn session_options(
     adb_bin: &str,
     spec: &MirrorSessionSpec,
-) -> Result<(scrcpy_server::ServerOptions, MirrorKind, bool)> {
+) -> Result<(scrcpy_server::ServerOptions, bool)> {
     let virtual_display = match spec.kind {
         MirrorKind::App => {
             scrcpy::virtual_display_safe(scrcpy::android_api(adb_bin, &spec.serial).await)
@@ -406,20 +447,11 @@ async fn session_options(
         max_size: if desktop {
             0
         } else {
-            spec.options
-                .resolution
-                .map(|value| value.clamp(scrcpy::MIN_RESOLUTION, scrcpy::MAX_RESOLUTION))
-                .unwrap_or(scrcpy::DEFAULT_MAX_SIZE)
+            scrcpy::max_size(&spec.options).unwrap_or(scrcpy::DEFAULT_MAX_SIZE)
         },
-        max_fps: spec
-            .options
-            .fps
-            .map(|value| value.clamp(1, scrcpy::MAX_FPS_LIMIT)),
+        max_fps: scrcpy::max_fps(&spec.options),
         // The UI sends a phone-sized default; a desktop raises it to its own floor for a crisp screen.
-        bit_rate: spec
-            .options
-            .bitrate
-            .map(|value| value.clamp(1, scrcpy::MAX_BITRATE))
+        bit_rate: scrcpy::bit_rate(&spec.options)
             .map(|value| {
                 if desktop {
                     value.max(scrcpy::DESKTOP_BIT_RATE)
@@ -435,7 +467,7 @@ async fn session_options(
         stay_awake: spec.options.stay_awake || desktop,
     };
 
-    Ok((options, kind, virtual_display))
+    Ok((options, virtual_display))
 }
 
 /// Accept the video and control connections, watching the server so a bad version fails fast.
@@ -536,14 +568,8 @@ async fn stream_video(
 }
 
 /// Remove the reverse tunnel and the pushed server from the device.
-async fn teardown(adb_bin: &str, serial: &str, socket: &str, remote: &str) {
-    let _ = adb::reverse_remove(
-        adb_bin,
-        serial,
-        &format!("localabstract:{socket}"),
-        adb::DEFAULT_TIMEOUT,
-    )
-    .await;
+async fn teardown(adb_bin: &str, serial: &str, tunnel: &str, remote: &str) {
+    let _ = adb::reverse_remove(adb_bin, serial, tunnel, adb::DEFAULT_TIMEOUT).await;
     let command = format!("rm -f {}", validation::shell_quote(remote));
     let _ = adb::shell(adb_bin, serial, &command, adb::DEFAULT_TIMEOUT).await;
 }

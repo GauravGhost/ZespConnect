@@ -2,14 +2,14 @@ import type { LucideIcon } from "lucide-react";
 import { Gamepad2, PlugZap, ShieldAlert, Usb, Wifi } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { PhoneFrame } from "@/components/app/PhoneFrame";
 import { useAppStore } from "@/app/store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { QuickSettingsShade } from "@/components/app/QuickSettingsShade";
+import { useActiveDevice, useDeviceInfo } from "@/hooks/useDevices";
 import type { Device } from "@/types";
 import { DeviceHero, DeviceStats, DeviceWindows, QuickActions } from "./DeviceSummary";
-import { useActiveDevice, useDeviceInfo } from "@/hooks/useDevices";
+import { PhoneFrame } from "./PhoneFrame";
+import { QuickSettingsShade } from "./QuickSettingsShade";
 
 /** Two-column Overview: the phone on the left, details beside it. */
 function OverviewLayout({ phone, children }: { phone: ReactNode; children: ReactNode }) {

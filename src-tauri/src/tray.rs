@@ -8,9 +8,10 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::models::{Device, DeviceTransport};
+use crate::show_main_window;
 use crate::state::AppState;
 
-pub const TRAY_ID: &str = "zesp-tray";
+const TRAY_ID: &str = "zesp-tray";
 
 const EVENT_NAVIGATE: &str = "tray:navigate";
 const EVENT_SELECT_DEVICE: &str = "tray:select-device";
@@ -51,7 +52,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 ..
             } = event
             {
-                show_window(tray.app_handle());
+                show_main_window(tray.app_handle());
             }
         });
 
@@ -184,7 +185,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
 }
 
 fn navigate(app: &AppHandle, tab: &'static str) {
-    show_window(app);
+    show_main_window(app);
     let _ = app.emit(EVENT_NAVIGATE, NavigatePayload { tab });
 }
 
@@ -195,7 +196,7 @@ fn select_device(app: &AppHandle, serial: &str) {
         .set_selected_serial(Some(serial.to_string()));
     sync(app);
 
-    show_window(app);
+    show_main_window(app);
     let _ = app.emit(
         EVENT_SELECT_DEVICE,
         SelectDevicePayload {
@@ -220,12 +221,4 @@ fn toggle_autostart(app: &AppHandle) {
 
 fn is_autostart_enabled(app: &AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)
-}
-
-fn show_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
 }

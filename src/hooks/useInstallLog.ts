@@ -34,7 +34,7 @@ export function useInstallLog() {
           ...prev,
           running: true,
           tool: event.payload.tool,
-          lines: [...prev.lines.slice(-MAX_LINES), event.payload.line],
+          lines: [...prev.lines, event.payload.line].slice(-MAX_LINES),
           message: null,
           ok: null,
         }));

@@ -8,9 +8,9 @@ import { useAppStore } from "@/app/store";
 import { ThemeModeToggle } from "@/components/app/ThemeModeToggle";
 import { DeviceSwitcher } from "@/components/app/DeviceSwitcher";
 import { QrPairDialog } from "@/components/app/QrPairDialog";
-import { useActiveDevice } from "@/hooks/useDevices";
+import { devicesKey, useActiveDevice } from "@/hooks/useDevices";
 import { useInstallLog } from "@/hooks/useInstallLog";
-import { useToolsStatus } from "@/hooks/useTools";
+import { toolsKey, useToolsStatus } from "@/hooks/useTools";
 
 export function AppHeader() {
   const queryClient = useQueryClient();
@@ -65,8 +65,8 @@ export function AppHeader() {
               className="size-9"
               aria-label="Refresh"
               onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ["devices"] });
-                queryClient.invalidateQueries({ queryKey: ["tools"] });
+                queryClient.invalidateQueries({ queryKey: devicesKey });
+                queryClient.invalidateQueries({ queryKey: toolsKey });
               }}
             >
               <RefreshCw />

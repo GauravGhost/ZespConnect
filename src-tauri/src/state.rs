@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
 use crate::models::{
-    Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolStatus,
+    Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolKind, ToolStatus,
 };
 use crate::runtime::mirror_session::ControlChannel;
 use crate::util;
@@ -316,15 +316,15 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    pub fn set_override(&self, tool: &str, path: Option<String>) -> crate::error::Result<()> {
+    pub fn set_override(&self, tool: ToolKind, path: Option<String>) -> crate::error::Result<()> {
         {
             let mut guard = self
                 .tool_overrides
                 .write()
                 .map_err(|_| crate::error::AppError::Other("state poisoned".into()))?;
             match path {
-                Some(value) => guard.insert(tool.to_string(), value),
-                None => guard.remove(tool),
+                Some(value) => guard.insert(tool.name().to_string(), value),
+                None => guard.remove(tool.name()),
             };
         }
         util::write_json(&self.overrides_file(), &self.overrides())

@@ -1,13 +1,11 @@
-//! `adb shell` execution, logcat process spawning, and host-clipboard helpers
-//! for the console feature.
+//! `adb shell` execution and logcat process spawning for the console feature.
 
-use std::process::Stdio;
 use std::time::Duration;
 
 use crate::error::{AppError, Result};
 use crate::models::{ShellResult, ToolStatus};
-use crate::platform;
 use crate::services::adb;
+use crate::util::process;
 
 const SHELL_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -37,16 +35,7 @@ pub fn spawn_logcat(adb_path: &str, serial: &str) -> Result<tokio::process::Chil
         "threadtime".to_string(),
     ];
 
-    let (program, args) = platform::prepare(adb_path, &args);
-    let mut std_cmd = std::process::Command::new(program);
-    std_cmd
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    platform::configure_command(&mut std_cmd);
-
-    tokio::process::Command::from(std_cmd)
+    process::base_command(adb_path, &args)
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| AppError::CommandFailed(format!("Could not start adb logcat: {e}")))

@@ -34,8 +34,13 @@ pub fn scid() -> String {
 }
 
 /// The abstract socket the server exposes on the device.
-pub fn socket_name(scid: &str) -> String {
+fn socket_name(scid: &str) -> String {
     format!("scrcpy_{scid}")
+}
+
+/// The device side of the `adb reverse` tunnel to the server's socket.
+pub fn tunnel_name(scid: &str) -> String {
+    format!("localabstract:{}", socket_name(scid))
 }
 
 /// Whether we know how to drive this scrcpy version's server.
@@ -118,16 +123,10 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
     }
 
     if opts.kind == MirrorKind::Camera {
-        let facing = match opts.camera_facing.as_deref() {
-            Some("front") => "front",
-            _ => "back",
-        };
+        let facing = scrcpy::camera_facing(opts.camera_facing.as_deref());
         args.push("video_source=camera".to_string());
         args.push(format!("camera_facing={facing}"));
-        if let Some(zoom) = opts
-            .camera_zoom
-            .filter(|zoom| zoom.is_finite() && *zoom > 0.0)
-        {
+        if let Some(zoom) = scrcpy::camera_zoom(opts.camera_zoom) {
             args.push(format!("camera_zoom={zoom}"));
         }
         if opts.camera_torch {
@@ -348,5 +347,6 @@ mod tests {
     #[test]
     fn socket_name_is_prefixed() {
         assert_eq!(socket_name("abcd1234"), "scrcpy_abcd1234");
+        assert_eq!(tunnel_name("abcd1234"), "localabstract:scrcpy_abcd1234");
     }
 }

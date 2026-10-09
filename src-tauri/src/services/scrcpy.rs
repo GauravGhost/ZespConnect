@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use once_cell::sync::Lazy;
+
 use crate::error::{AppError, Result};
 use crate::models::{MirrorOptions, ToolStatus};
 use crate::services::{adb, updates};
@@ -9,10 +11,10 @@ use crate::services::{adb, updates};
 const API_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Bounds for the UI's numeric options; values are clamped, not rejected, to keep the UI forgiving.
-pub const MIN_RESOLUTION: u32 = 240;
-pub const MAX_RESOLUTION: u32 = 4096;
-pub const MAX_FPS_LIMIT: u32 = 240;
-pub const MAX_BITRATE: u32 = 200;
+const MIN_RESOLUTION: u32 = 240;
+const MAX_RESOLUTION: u32 = 4096;
+const MAX_FPS_LIMIT: u32 = 240;
+const MAX_BITRATE: u32 = 200;
 
 /// `--render-fit` values scrcpy understands.
 const FIT_VALUES: &[&str] = &["contain", "cover", "stretch"];
@@ -75,15 +77,24 @@ pub fn vd_decorations_option_supported(version: Option<&str>) -> bool {
         .unwrap_or(false)
 }
 
+/// How [`app_window_args`] shows the app; the last two only apply on a virtual display.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AppWindowMode {
+    /// Give the app its own virtual display rather than the main one.
+    pub virtual_display: bool,
+    /// The installed scrcpy supports `--flex-display`.
+    pub flex_display: bool,
+    /// Turn off the virtual display's system decorations.
+    pub no_decorations: bool,
+}
+
 /// Build the argv for an app window (virtual display, else main display with the app in front).
 /// The adb binary is not an argument: scrcpy 4.x takes it from the `ADB` env var (set by the caller).
 pub fn app_window_args(
     serial: &str,
     package: &str,
     window_title: &str,
-    use_virtual_display: bool,
-    flex_display: bool,
-    no_decorations: bool,
+    mode: AppWindowMode,
     max_size: u32,
 ) -> Vec<String> {
     let mut args = vec![
@@ -94,12 +105,12 @@ pub fn app_window_args(
         format!("--start-app={package}"),
     ];
 
-    if use_virtual_display {
+    if mode.virtual_display {
         args.push("--new-display".to_string());
-        if no_decorations {
+        if mode.no_decorations {
             args.push("--no-vd-system-decorations".to_string());
         }
-        if flex_display {
+        if mode.flex_display {
             args.push("--flex-display".to_string());
         } else {
             // Older scrcpy has no `--flex-display`; cap the virtual display instead.
@@ -116,7 +127,7 @@ pub fn app_window_args(
 }
 
 /// Android 16 (API 36) brought desktop windowing (taskbar, launcher, freeform windows) to connected displays.
-pub const MIN_DESKTOP_API: u32 = 36;
+const MIN_DESKTOP_API: u32 = 36;
 
 /// The longest side a desktop display may take; larger screens are scaled down with the density.
 const MAX_DESKTOP_SIDE: f64 = 2560.0;
@@ -127,14 +138,22 @@ const BASE_DENSITY: f64 = 160.0;
 /// Desktop streams a large, text-heavy display, so it defaults to a higher bitrate (Mbps) than a phone mirror.
 pub const DESKTOP_BIT_RATE: u32 = 16;
 
+/// The density range a desktop display is kept within.
+const MIN_DESKTOP_DPI: f64 = 120.0;
+const MAX_DESKTOP_DPI: f64 = 640.0;
+
 /// Wake the phone (no-op when awake) if it supports desktop mode, in the same round trip as the
 /// check. Prints `<sdk> <freeform> <wakefulness>` first; a virtual display started while the phone
 /// sleeps never draws cold-launched apps.
-const DESKTOP_PREPARE_COMMAND: &str = "sdk=$(getprop ro.build.version.sdk); \
+static DESKTOP_PREPARE_COMMAND: Lazy<String> = Lazy::new(|| {
+    format!(
+        "sdk=$(getprop ro.build.version.sdk); \
 ff=$(pm has-feature android.software.freeform_window_management); \
 w=$(dumpsys power 2>/dev/null | grep -m1 -o 'mWakefulness=[A-Za-z]*'); \
-echo \"$sdk $ff ${w#mWakefulness=}\"; \
-[ \"$sdk\" -ge 36 ] && [ \"$ff\" = true ] && input keyevent KEYCODE_WAKEUP";
+echo \"$sdk $ff ${{w#mWakefulness=}}\"; \
+[ \"$sdk\" -ge {MIN_DESKTOP_API} ] && [ \"$ff\" = true ] && input keyevent KEYCODE_WAKEUP"
+    )
+});
 
 /// The `WxH/dpi` virtual display matching a computer screen of `width`×`height` pixels at `scale`.
 pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
@@ -147,13 +166,15 @@ pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
     let shrink = (MAX_DESKTOP_SIDE / width.max(height)).min(1.0);
     // Video encoders want dimensions aligned to 8.
     let align = |value: f64| ((value * shrink / 8.0).floor() * 8.0).max(8.0) as u32;
-    let dpi = (BASE_DENSITY * scale * shrink).round().clamp(120.0, 640.0) as u32;
+    let dpi = (BASE_DENSITY * scale * shrink)
+        .round()
+        .clamp(MIN_DESKTOP_DPI, MAX_DESKTOP_DPI) as u32;
     format!("{}x{}/{dpi}", align(width), align(height))
 }
 
 /// Check that `serial` can run desktop mode and wake it; returns whether its screen was already on.
 pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<bool> {
-    let output = adb::shell(adb_path, serial, DESKTOP_PREPARE_COMMAND, API_TIMEOUT).await?;
+    let output = adb::shell(adb_path, serial, &DESKTOP_PREPARE_COMMAND, API_TIMEOUT).await?;
     parse_desktop_prepare(&output.stdout)
 }
 
@@ -258,28 +279,54 @@ fn is_hex_color(value: &str) -> bool {
     value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// `-m <size>`, clamped to a sane range.
+/// The requested `-m` size, clamped to a sane range.
+pub fn max_size(opts: &MirrorOptions) -> Option<u32> {
+    opts.resolution
+        .map(|value| value.clamp(MIN_RESOLUTION, MAX_RESOLUTION))
+}
+
+/// The requested frame rate, clamped to `1..=240`.
+pub fn max_fps(opts: &MirrorOptions) -> Option<u32> {
+    opts.fps.map(|value| value.clamp(1, MAX_FPS_LIMIT))
+}
+
+/// The requested bitrate in Mbps, clamped to `1..=200`.
+pub fn bit_rate(opts: &MirrorOptions) -> Option<u32> {
+    opts.bitrate.map(|value| value.clamp(1, MAX_BITRATE))
+}
+
+/// The camera to open: anything other than an explicit "front" is treated as the back camera.
+pub fn camera_facing(requested: Option<&str>) -> &'static str {
+    match requested {
+        Some("front") => "front",
+        _ => "back",
+    }
+}
+
+/// The requested camera zoom, if it is one scrcpy accepts.
+pub fn camera_zoom(requested: Option<f64>) -> Option<f64> {
+    requested.filter(|zoom| zoom.is_finite() && *zoom > 0.0)
+}
+
+/// `-m <size>`.
 fn push_max_size(args: &mut Vec<String>, opts: &MirrorOptions) {
-    if let Some(value) = opts
-        .resolution
-        .map(|v| v.clamp(MIN_RESOLUTION, MAX_RESOLUTION))
-    {
+    if let Some(value) = max_size(opts) {
         args.push("-m".to_string());
         args.push(value.to_string());
     }
 }
 
-/// `--max-fps <fps>`, clamped to `1..=240`.
+/// `--max-fps <fps>`.
 fn push_max_fps(args: &mut Vec<String>, opts: &MirrorOptions) {
-    if let Some(value) = opts.fps.map(|v| v.clamp(1, MAX_FPS_LIMIT)) {
+    if let Some(value) = max_fps(opts) {
         args.push("--max-fps".to_string());
         args.push(value.to_string());
     }
 }
 
-/// `-b <bitrate>M`, clamped to `1..=200`.
+/// `-b <bitrate>M`.
 fn push_bitrate(args: &mut Vec<String>, opts: &MirrorOptions) {
-    if let Some(value) = opts.bitrate.map(|v| v.clamp(1, MAX_BITRATE)) {
+    if let Some(value) = bit_rate(opts) {
         args.push("-b".to_string());
         args.push(format!("{value}M"));
     }
@@ -336,12 +383,7 @@ pub fn mirror_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Ve
 
 /// Build the argv for a camera feed of `serial`.
 pub fn camera_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Vec<String> {
-    // Anything other than an explicit "front" is treated as the back camera.
-    let facing = match opts.camera_facing.as_deref() {
-        Some("front") => "front",
-        _ => "back",
-    };
-
+    let facing = camera_facing(opts.camera_facing.as_deref());
     let mut args = vec![
         "--serial".to_string(),
         serial.to_string(),
@@ -354,10 +396,7 @@ pub fn camera_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Ve
     if opts.camera_torch {
         args.push("--camera-torch".to_string());
     }
-    if let Some(zoom) = opts
-        .camera_zoom
-        .filter(|zoom| zoom.is_finite() && *zoom > 0.0)
-    {
+    if let Some(zoom) = camera_zoom(opts.camera_zoom) {
         args.push(format!("--camera-zoom={zoom}"));
     }
 
@@ -462,13 +501,16 @@ mod tests {
 
     #[test]
     fn builds_virtual_display_app_args() {
+        let mode = AppWindowMode {
+            virtual_display: true,
+            flex_display: true,
+            no_decorations: true,
+        };
         let args = app_window_args(
             "SERIAL",
             "com.example.app",
             "Zesp Connect - Example",
-            true,
-            true,
-            true,
+            mode,
             1024,
         );
 
@@ -483,15 +525,11 @@ mod tests {
 
     #[test]
     fn omits_flex_display_on_older_scrcpy() {
-        let args = app_window_args(
-            "SERIAL",
-            "com.example.app",
-            "title",
-            true,
-            false,
-            false,
-            1024,
-        );
+        let mode = AppWindowMode {
+            virtual_display: true,
+            ..Default::default()
+        };
+        let args = app_window_args("SERIAL", "com.example.app", "title", mode, 1024);
 
         assert!(args.contains(&"--new-display".to_string()));
         assert!(!args.contains(&"--flex-display".to_string()));
@@ -503,15 +541,11 @@ mod tests {
 
     #[test]
     fn builds_main_display_app_args() {
-        let args = app_window_args(
-            "SERIAL",
-            "com.example.app",
-            "title",
-            false,
-            false,
-            true,
-            800,
-        );
+        let mode = AppWindowMode {
+            no_decorations: true,
+            ..Default::default()
+        };
+        let args = app_window_args("SERIAL", "com.example.app", "title", mode, 800);
 
         assert!(args.contains(&"--start-app=com.example.app".to_string()));
         assert!(!args.contains(&"--new-display".to_string()));

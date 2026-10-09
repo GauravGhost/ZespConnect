@@ -1,7 +1,8 @@
-//! Mirroring commands (thin wrappers over `runtime::mirror` and `runtime::mirror_session`).
+//! Mirroring commands (thin wrappers over `runtime::mirror`, `runtime::mirror_session` and
+//! `runtime::session_window`).
 
 use tauri::ipc::{Channel, Response};
-use tauri::{AppHandle, LogicalSize, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, LogicalSize, Manager, State};
 
 use crate::error::{AppError, Result};
 use crate::models::{
@@ -10,7 +11,7 @@ use crate::models::{
 };
 use crate::platform;
 use crate::runtime::mirror::{self, AppDisplay};
-use crate::runtime::mirror_session;
+use crate::runtime::{mirror_session, session_window};
 use crate::services::control::{self, Position};
 use crate::services::mirror_window;
 use crate::state::AppState;
@@ -72,7 +73,8 @@ pub async fn start_desktop(serial: String, app: AppHandle) -> Result<MirrorProce
 
 #[tauri::command]
 pub async fn stop_mirror(pid: u32, app: AppHandle) -> Result<()> {
-    mirror::stop(&app, pid)
+    mirror::stop(&app, pid);
+    Ok(())
 }
 
 #[tauri::command]
@@ -102,67 +104,17 @@ pub async fn open_mirror_window(
         validate_package(package)?;
     }
 
-    let desktop = kind == MirrorKind::Desktop;
-    let desktop_display = desktop.then(|| mirror::screen_desktop_display(&app));
-
-    let id = {
-        let state = app.state::<AppState>();
-        let id = state.next_session_id();
-        state.set_pending_session(
-            id,
-            MirrorSessionSpec {
-                serial: serial.clone(),
-                kind,
-                package,
-                label: label.clone(),
-                options,
-                desktop_display,
-            },
-        );
-        id
-    };
-
-    let title = if label.trim().is_empty() {
-        serial.clone()
-    } else {
-        label.clone()
-    };
-    // A desktop opens landscape and can go full screen; a phone-shaped window cannot.
-    let (width, height) = if desktop {
-        (
-            mirror_window::DEFAULT_LONG_SIDE * 1.5,
-            mirror_window::DEFAULT_LONG_SIDE,
-        )
-    } else {
-        (
-            mirror_window::DEFAULT_LONG_SIDE * 0.5,
-            mirror_window::DEFAULT_LONG_SIDE,
-        )
-    };
-    // `?desktop` tells the page to draw the desktop's title bar from the start.
-    let page = if desktop {
-        "index.html?desktop"
-    } else {
-        "index.html"
-    };
-    let builder = WebviewWindowBuilder::new(&app, window_label(id), WebviewUrl::App(page.into()))
-        .title(format!("Zesp Connect - {title}"))
-        .inner_size(width, height)
-        .min_inner_size(mirror_window::MIN_SIDE, mirror_window::MIN_SIDE)
-        .maximizable(desktop);
-    // Every mirror window draws its own title bar, so the native one is dropped; macOS keeps
-    // its traffic lights via an overlay. On Windows, dropping the chrome also keeps edges resizable.
-    #[cfg(target_os = "macos")]
-    let builder = builder
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true);
-    #[cfg(not(target_os = "macos"))]
-    let builder = builder.decorations(false).shadow(false);
-    builder
-        .build()
-        .map_err(|error| AppError::Other(error.to_string()))?;
-
-    Ok(id)
+    session_window::open(
+        &app,
+        MirrorSessionSpec {
+            serial,
+            kind,
+            package,
+            label,
+            options,
+            desktop_display: None,
+        },
+    )
 }
 
 /// Fit a session's window to its video's aspect ratio once the first frame reveals the device
@@ -174,7 +126,7 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     }
 
     let window = app
-        .get_webview_window(&window_label(id))
+        .get_webview_window(&session_window::label(id))
         .ok_or_else(|| AppError::Invalid("Unknown mirror window".into()))?;
 
     let aspect = width as f64 / height as f64;
@@ -299,7 +251,7 @@ fn session_channel(state: &State<'_, AppState>, id: u64) -> Result<mirror_sessio
 #[tauri::command]
 pub async fn stop_mirror_session(id: u64, app: AppHandle) -> Result<()> {
     mirror_session::stop(&app, id);
-    close_window(&app, id);
+    session_window::close(&app, id);
     Ok(())
 }
 
@@ -316,44 +268,7 @@ pub async fn mirror_session_fallback(id: u64, app: AppHandle) -> Result<()> {
         .take_pending_session(id)
         .ok_or_else(|| AppError::Invalid("Unknown mirror session".into()))?;
 
-    match spec.kind {
-        MirrorKind::Mirror => {
-            mirror::start_mirror(&app, &spec.serial, &spec.options).await?;
-        }
-        MirrorKind::Camera => {
-            mirror::start_camera(&app, &spec.serial, &spec.options).await?;
-        }
-        MirrorKind::App | MirrorKind::ScreenApp => {
-            let package = spec
-                .package
-                .clone()
-                .ok_or_else(|| AppError::Invalid("Missing package".into()))?;
-            let display = if spec.kind == MirrorKind::App {
-                AppDisplay::Window
-            } else {
-                AppDisplay::Screen
-            };
-            mirror::start_app(&app, &spec.serial, &package, &spec.label, display).await?;
-        }
-        MirrorKind::Desktop => {
-            let display = spec
-                .desktop_display
-                .clone()
-                .unwrap_or_else(|| mirror::screen_desktop_display(&app));
-            mirror::start_desktop(&app, &spec.serial, &display).await?;
-        }
-    }
-
-    close_window(&app, id);
+    mirror::start_fallback(&app, &spec).await?;
+    session_window::close(&app, id);
     Ok(())
-}
-
-fn window_label(id: u64) -> String {
-    format!("mirror-{id}")
-}
-
-fn close_window(app: &AppHandle, id: u64) {
-    if let Some(window) = app.get_webview_window(&window_label(id)) {
-        let _ = window.close();
-    }
 }

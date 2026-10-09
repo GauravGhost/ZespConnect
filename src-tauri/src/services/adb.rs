@@ -8,6 +8,9 @@ use crate::util::process::{self, ProcessOutput};
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const LONG_TIMEOUT: Duration = Duration::from_secs(300);
+/// Local adb server round trips (`start-server`, `devices`) that should answer quickly.
+const SERVER_TIMEOUT: Duration = Duration::from_secs(15);
+const KILL_SERVER_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// adb subcommands that must NOT be scoped with `-s <serial>`.
 const UNSCOPED: &[&str] = &[
@@ -107,14 +110,18 @@ pub async fn reverse_remove(
 }
 
 pub async fn start_server(adb: &str) -> Result<ProcessOutput> {
-    run(adb, &["start-server".to_string()], Duration::from_secs(15)).await
+    run(adb, &["start-server".to_string()], SERVER_TIMEOUT).await
+}
+
+pub async fn kill_server(adb: &str) -> Result<ProcessOutput> {
+    run(adb, &["kill-server".to_string()], KILL_SERVER_TIMEOUT).await
 }
 
 pub async fn list_devices_raw(adb: &str) -> Result<ProcessOutput> {
     run(
         adb,
         &["devices".to_string(), "-l".to_string()],
-        Duration::from_secs(15),
+        SERVER_TIMEOUT,
     )
     .await
 }

@@ -82,7 +82,7 @@ impl Default for ToolStatus {
     }
 }
 
-/// Streamed to the UI while a package-manager install runs.
+/// Streamed to the UI while a tool download and install runs.
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallProgress {
     pub tool: String,

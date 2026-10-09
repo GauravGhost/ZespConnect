@@ -4,7 +4,7 @@ import ReactDOM from "react-dom/client";
 
 import App from "@/App";
 import { AppProviders } from "@/app/providers";
-import { MirrorViewer } from "@/features/mirror-viewer";
+import { isMirrorWindowLabel, MirrorViewer } from "@/features/mirror-viewer";
 import "@/styles/globals.css";
 
 const rootElement = document.getElementById("root");
@@ -14,7 +14,7 @@ if (!rootElement) {
 
 // Mirror windows load the same bundle but render the viewer instead of the shell.
 // They skip StrictMode so the stream is started exactly once.
-const isMirrorWindow = getCurrentWebviewWindow().label.startsWith("mirror-");
+const isMirrorWindow = isMirrorWindowLabel(getCurrentWebviewWindow().label);
 
 ReactDOM.createRoot(rootElement).render(
   <AppProviders>

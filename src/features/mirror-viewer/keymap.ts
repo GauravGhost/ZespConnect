@@ -4,7 +4,7 @@
  * are layout-independent; printable characters go as text instead (see `isTextKey`).
  */
 
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+import { IS_MAC } from "@/lib/platform";
 
 const KEYCODES: Record<string, number> = {
   Enter: 66,

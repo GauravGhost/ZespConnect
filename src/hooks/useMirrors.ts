@@ -99,86 +99,65 @@ interface OpenAppVars {
   label: string;
 }
 
-/** Open an app in its own window on the laptop. */
-export function useOpenAppWindow() {
+/** A mutation that changes the open windows: refreshes the list on success, toasts on failure. */
+function useWindowMutation<TVars>(mutationFn: (vars: TVars) => Promise<unknown>) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ serial, pkg, label }: OpenAppVars) =>
-      openMirror(serial, "app", pkg, label, DEFAULT_MIRROR_OPTIONS, () =>
-        ipc.mirror.startAppWindow(serial, pkg, label),
-      ),
+    mutationFn,
     onSuccess: () => invalidateWindows(queryClient),
     onError: (error) => toast.error(errorMessage(error)),
   });
+}
+
+/** Open an app in its own window on the laptop. */
+export function useOpenAppWindow() {
+  return useWindowMutation(({ serial, pkg, label }: OpenAppVars) =>
+    openMirror(serial, "app", pkg, label, DEFAULT_MIRROR_OPTIONS, () =>
+      ipc.mirror.startAppWindow(serial, pkg, label),
+    ),
+  );
 }
 
 /** Mirror the main display with the app in the foreground. */
 export function useOpenAppOnScreen() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ serial, pkg, label }: OpenAppVars) =>
-      openMirror(serial, "screen-app", pkg, label, DEFAULT_MIRROR_OPTIONS, () =>
-        ipc.mirror.startAppOnScreen(serial, pkg, label),
-      ),
-    onSuccess: () => invalidateWindows(queryClient),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  return useWindowMutation(({ serial, pkg, label }: OpenAppVars) =>
+    openMirror(serial, "screen-app", pkg, label, DEFAULT_MIRROR_OPTIONS, () =>
+      ipc.mirror.startAppOnScreen(serial, pkg, label),
+    ),
+  );
 }
 
 /** Mirror the full device screen. */
 export function useStartMirror() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ serial, options }: { serial: string; options: MirrorOptions }) =>
-      openMirror(serial, "mirror", null, "", options, () => ipc.mirror.start(serial, options)),
-    onSuccess: () => invalidateWindows(queryClient),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  return useWindowMutation(({ serial, options }: { serial: string; options: MirrorOptions }) =>
+    openMirror(serial, "mirror", null, "", options, () => ipc.mirror.start(serial, options)),
+  );
 }
 
 /** Stream the device camera. */
 export function useStartCamera() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ serial, options }: { serial: string; options: MirrorOptions }) =>
-      openMirror(serial, "camera", null, "", options, () =>
-        ipc.mirror.startCamera(serial, options),
-      ),
-    onSuccess: () => invalidateWindows(queryClient),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  return useWindowMutation(({ serial, options }: { serial: string; options: MirrorOptions }) =>
+    openMirror(serial, "camera", null, "", options, () => ipc.mirror.startCamera(serial, options)),
+  );
 }
 
 /** Open Android's desktop mode (taskbar, launcher, app windows) sized to this screen. */
 export function useStartDesktop() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ serial, label }: { serial: string; label: string }) =>
-      openMirror(serial, "desktop", null, label, DEFAULT_MIRROR_OPTIONS, () =>
-        ipc.mirror.startDesktop(serial),
-      ),
-    onSuccess: () => invalidateWindows(queryClient),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  return useWindowMutation(({ serial, label }: { serial: string; label: string }) =>
+    openMirror(serial, "desktop", null, label, DEFAULT_MIRROR_OPTIONS, () =>
+      ipc.mirror.startDesktop(serial),
+    ),
+  );
 }
 
 /** Close one open mirror. */
 export function useStopOpenWindow() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (target: OpenWindow) =>
-      target.session ? ipc.mirror.stopSession(target.id) : ipc.mirror.stop(target.id),
-    onSuccess: () => invalidateWindows(queryClient),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  return useWindowMutation((target: OpenWindow) =>
+    target.session ? ipc.mirror.stopSession(target.id) : ipc.mirror.stop(target.id),
+  );
 }
 
 /** Close every open mirror. */
 export function useStopAllMirrors() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => ipc.mirror.stopAll(),
-    onSuccess: () => invalidateWindows(queryClient),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  return useWindowMutation<void>(() => ipc.mirror.stopAll());
 }

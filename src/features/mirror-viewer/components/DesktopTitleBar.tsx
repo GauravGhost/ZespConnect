@@ -1,12 +1,10 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Smartphone } from "lucide-react";
-import { useEffect, useState } from "react";
 
+import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { useWindowFlag, useWindowTitle } from "../hooks";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
 import { WindowControls } from "./WindowControls";
-
-const IS_MAC = /Mac/.test(navigator.platform);
 
 export function DesktopTitleBar({
   phoneScreen,
@@ -15,35 +13,8 @@ export function DesktopTitleBar({
   phoneScreen: boolean;
   onTogglePhoneScreen: () => void;
 }>) {
-  const [title, setTitle] = useState("");
-  const [fullscreen, setFullscreen] = useState(false);
-
-  useEffect(() => {
-    const window = getCurrentWindow();
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-
-    void window.title().then((value) => {
-      if (!disposed) setTitle(value);
-    });
-    const sync = () =>
-      void window.isFullscreen().then((value) => {
-        if (!disposed) setFullscreen(value);
-      });
-    sync();
-    window
-      .onResized(sync)
-      .then((fn) => {
-        if (disposed) fn();
-        else unlisten = fn;
-      })
-      .catch(() => undefined);
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
+  const title = useWindowTitle();
+  const fullscreen = useWindowFlag("isFullscreen");
 
   return (
     <div

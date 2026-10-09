@@ -4,41 +4,22 @@ import { toast } from "sonner";
 import { InstallerLogOutput } from "@/components/app/InstallerLogOutput";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useInstallLog } from "@/hooks/useInstallLog";
-import { useCheckUpdates, useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
+import { useCheckUpdates, useToolActions, useToolsStatus } from "@/hooks/useTools";
 import { errorMessage } from "@/lib/ipc";
-import { pickToolExecutable } from "@/lib/toolDialogs";
 import type { ToolKind } from "@/types";
 import { AppearanceCard } from "./AppearanceCard";
 import { ToolCard } from "./ToolCard";
 
 export function SettingsPanel() {
   const { data: tools, refetch, isFetching } = useToolsStatus();
-  const setPath = useSetToolPath();
-  const install = useInstallTool();
+  const { log, locate, clear, install, installing } = useToolActions();
   const checkUpdates = useCheckUpdates();
-  const log = useInstallLog();
-
-  async function locate(kind: ToolKind) {
-    const selected = await pickToolExecutable(kind);
-    if (selected) {
-      setPath.mutate({ tool: kind, path: selected });
-    }
-  }
-
-  function clear(kind: ToolKind) {
-    setPath.mutate({ tool: kind, path: null });
-  }
 
   function runInstall(kind: ToolKind) {
-    log.reset();
-    install.mutate(kind, {
-      onError: (error) => toast.error(errorMessage(error)),
-      onSuccess: (status) => {
-        const found = kind === "adb" ? status.adb.found : status.scrcpy.found;
-        if (found) toast.success(`${kind} is ready`);
-        else toast.warning(`Installed, but ${kind} was not found - set its path manually`);
-      },
+    install(kind, (status) => {
+      const found = kind === "adb" ? status.adb.found : status.scrcpy.found;
+      if (found) toast.success(`${kind} is ready`);
+      else toast.warning(`Installed, but ${kind} was not found - set its path manually`);
     });
   }
 
@@ -89,7 +70,7 @@ export function SettingsPanel() {
           description="Android Debug Bridge. Required to talk to your devices."
           info={tools?.adb}
           update={tools?.adb_update}
-          busy={install.isPending}
+          busy={installing}
           onLocate={locate}
           onClear={clear}
           onInstall={runInstall}
@@ -100,7 +81,7 @@ export function SettingsPanel() {
           description="Screen Copy. Optional, needed for mirroring."
           info={tools?.scrcpy}
           update={tools?.scrcpy_update}
-          busy={install.isPending}
+          busy={installing}
           onLocate={locate}
           onClear={clear}
           onInstall={runInstall}

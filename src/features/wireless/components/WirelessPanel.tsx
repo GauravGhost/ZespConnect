@@ -1,26 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  CheckCircle2,
   Clock,
   CodeXml,
-  Copy,
-  KeyRound,
   Loader2,
   MoreVertical,
   Plug,
   QrCode,
   RefreshCw,
-  RotateCw,
-  Unplug,
   Usb,
-  Wifi,
   X,
 } from "lucide-react";
-import { useCallback, useState } from "react";
-import QRCode from "react-qr-code";
-import { toast } from "sonner";
+import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -30,14 +21,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDevices } from "@/hooks/useDevices";
+import { devicesKey, useDevices } from "@/hooks/useDevices";
 import { useQrPairing } from "@/hooks/useQrPairing";
-import { deviceName, stateLabel, timeAgo } from "@/lib/format";
+import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { MdnsDevice } from "@/types";
 
 import {
   mdnsKey,
@@ -49,9 +37,10 @@ import {
   useRememberSavedDevices,
 } from "../hooks";
 import { useSavedWireless, type SavedWirelessDevice } from "../saved";
-
-const PAIRING_SERVICE = "_adb-tls-pairing._tcp";
-const CONNECT_SERVICE = "_adb-tls-connect._tcp";
+import { PairCodeTab } from "./PairCodeTab";
+import { QrPairTab } from "./QrPairTab";
+import { UsbTab } from "./UsbTab";
+import { WirelessDeviceRow } from "./WirelessDeviceRow";
 
 export function WirelessPanel() {
   const queryClient = useQueryClient();
@@ -65,7 +54,7 @@ export function WirelessPanel() {
   const [addr, setAddr] = useState("");
   const [code, setCode] = useState("");
 
-  const { qr, status, generating, secondsLeft, timer, generate, cancel } = useQrPairing();
+  const pairing = useQrPairing();
   const pairCode = usePairCode();
   const connect = useConnectWireless();
   const disconnect = useDisconnectWireless();
@@ -73,38 +62,12 @@ export function WirelessPanel() {
 
   const usb = devices.filter((device) => device.transport === "usb");
   const wireless = devices.filter((device) => device.transport === "wifi");
-  const discovered = services.filter(
-    (service) =>
-      service.service_type === CONNECT_SERVICE || service.service_type === PAIRING_SERVICE,
-  );
 
-  const pending = pairCode.isPending || connect.isPending;
-  const codeValid = code.trim() === "" || /^\d{6,16}$/.test(code.trim());
-  const canSubmit = addr.trim().length > 0 && codeValid && !pending;
   const isConnected = (value: string) =>
     devices.some((device) => device.serial === value || device.address === value);
 
-  const copy = useCallback(async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(`${label} copied`);
-    } catch {
-      toast.error("Could not copy to clipboard");
-    }
-  }, []);
-
-  function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const target = addr.trim();
-    const secret = code.trim();
-    if (!target || !codeValid) return;
-    // Address + code pairs first; a bare address just connects.
-    if (secret) pairCode.mutate({ addr: target, code: secret });
-    else connect.mutate(target);
-  }
-
   function refresh() {
-    queryClient.invalidateQueries({ queryKey: ["devices"] });
+    queryClient.invalidateQueries({ queryKey: devicesKey });
     queryClient.invalidateQueries({ queryKey: mdnsKey });
   }
 
@@ -134,182 +97,24 @@ export function WirelessPanel() {
               </TabsList>
 
               <TabsContent value="qr">
-                {qr ? (
-                  <div className="@container flex min-h-[248px] items-center">
-                    <div className="flex w-full flex-col items-center gap-5 @sm:flex-row @sm:items-start">
-                      <div className="shrink-0 rounded-2xl bg-white p-3 shadow-sm">
-                        <QRCode value={qr.payload} size={168} bgColor="#ffffff" fgColor="#000000" />
-                      </div>
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold">Scan to connect</p>
-                          <p className="text-muted-foreground text-xs">
-                            Open your phone's Wireless debugging screen and scan this QR code.
-                          </p>
-                        </div>
-
-                        {status.kind === "waiting" ? (
-                          <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                            <Loader2 className="size-4 animate-spin" />
-                            Waiting for your phone…
-                          </p>
-                        ) : null}
-                        {status.kind === "success" ? (
-                          <p className="text-success flex items-center gap-2 text-sm">
-                            <CheckCircle2 className="size-4" />
-                            Connected to {status.address}
-                          </p>
-                        ) : null}
-                        {status.kind === "error" ? (
-                          <p className="text-destructive text-sm">{status.message}</p>
-                        ) : null}
-
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={generate}
-                            disabled={generating}
-                          >
-                            <RotateCw className={cn("size-3.5", generating && "animate-spin")} />
-                            Refresh
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={cancel}>
-                            Hide
-                          </Button>
-                        </div>
-                        <p className="text-muted-foreground text-xs">
-                          {secondsLeft > 0
-                            ? `QR code expires in ${timer}`
-                            : "QR code expired - refresh to generate a new one."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex min-h-[248px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-6 py-10 text-center">
-                    <QrCode className="text-muted-foreground size-7" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Pair with a QR code</p>
-                      <p className="text-muted-foreground text-xs">
-                        We'll generate the code only when you're ready to scan.
-                      </p>
-                    </div>
-                    <Button size="sm" onClick={generate} disabled={generating}>
-                      {generating ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <QrCode className="size-4" />
-                      )}
-                      Show QR code
-                    </Button>
-                  </div>
-                )}
+                <QrPairTab pairing={pairing} />
               </TabsContent>
 
               <TabsContent value="manual" className="space-y-3">
-                <form className="space-y-3" onSubmit={submit}>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="wireless-addr" className="text-muted-foreground text-xs">
-                      Address
-                    </Label>
-                    <Input
-                      id="wireless-addr"
-                      value={addr}
-                      onChange={(event) => setAddr(event.target.value)}
-                      placeholder="192.168.1.42:5555"
-                      className="h-9 font-mono"
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="wireless-code" className="text-muted-foreground text-xs">
-                      Pairing code <span className="font-normal">(optional)</span>
-                    </Label>
-                    <Input
-                      id="wireless-code"
-                      value={code}
-                      onChange={(event) =>
-                        setCode(event.target.value.replace(/\D/g, "").slice(0, 16))
-                      }
-                      placeholder="6-digit code"
-                      inputMode="numeric"
-                      className="h-9 font-mono"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <Button type="submit" size="sm" className="w-full" disabled={!canSubmit}>
-                    {pending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : code.trim() ? (
-                      <KeyRound className="size-4" />
-                    ) : (
-                      <Plug className="size-4" />
-                    )}
-                    {code.trim() ? "Pair & connect" : "Connect"}
-                  </Button>
-                </form>
-                <p className="text-muted-foreground text-xs">
-                  Enter the phone's address to connect, or add its code to pair first.
-                </p>
-
-                {discovered.length > 0 ? (
-                  <div className="pt-1">
-                    <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
-                      Discovered
-                    </p>
-                    <ul className="divide-y divide-border/60">
-                      {discovered.map((service) => (
-                        <ServiceRow
-                          key={`${service.name}-${service.address}`}
-                          service={service}
-                          connected={isConnected(service.address)}
-                          onUse={(value) => setAddr(value)}
-                          onConnect={(value) => connect.mutate(value)}
-                          connecting={connect.isPending && connect.variables === service.address}
-                        />
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                <PairCodeTab
+                  addr={addr}
+                  onAddrChange={setAddr}
+                  code={code}
+                  onCodeChange={setCode}
+                  services={services}
+                  isConnected={isConnected}
+                  pairCode={pairCode}
+                  connect={connect}
+                />
               </TabsContent>
 
               <TabsContent value="usb">
-                {usb.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    Connect a phone over USB to switch it to Wi-Fi.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border/60">
-                    {usb.map((device) => {
-                      const busy = enable.isPending && enable.variables?.serial === device.serial;
-                      return (
-                        <li key={device.serial} className="flex items-center gap-3 py-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{deviceName(device)}</p>
-                            <p className="text-muted-foreground truncate font-mono text-[11px]">
-                              {device.serial}
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => enable.mutate({ serial: device.serial })}
-                          >
-                            {busy ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : (
-                              <Wifi className="size-3.5" />
-                            )}
-                            Enable wireless
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                <UsbTab devices={usb} enable={enable} />
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -339,110 +144,13 @@ export function WirelessPanel() {
               <ul className="space-y-3">
                 {wireless.map((device) => {
                   const target = device.address ?? device.serial;
-                  const busy = disconnect.isPending && disconnect.variables === target;
                   return (
-                    <li
+                    <WirelessDeviceRow
                       key={device.serial}
-                      className="border-success/40 bg-success/5 rounded-2xl border p-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold">{deviceName(device)}</p>
-                            <Badge variant={device.connected ? "success" : "warning"}>
-                              {stateLabel(device.state)}
-                            </Badge>
-                          </div>
-                          <p className="text-muted-foreground mt-1 truncate font-mono text-[11px]">
-                            {device.serial}
-                          </p>
-                          {device.address ? (
-                            <p className="text-muted-foreground truncate font-mono text-[11px]">
-                              {device.address}
-                            </p>
-                          ) : null}
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 shrink-0"
-                              aria-label="Device actions"
-                            >
-                              <MoreVertical className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() => {
-                                void copy(device.serial, "Code");
-                              }}
-                            >
-                              <Copy />
-                              Copy code
-                            </DropdownMenuItem>
-                            {device.address ? (
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  void copy(device.address as string, "Address");
-                                }}
-                              >
-                                <Copy />
-                                Copy address
-                              </DropdownMenuItem>
-                            ) : null}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              disabled={busy}
-                              onSelect={() => disconnect.mutate(target)}
-                            >
-                              <Unplug />
-                              Disconnect
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!device.address}
-                          onClick={() => {
-                            if (device.address) void copy(device.address, "Address");
-                          }}
-                        >
-                          <Copy className="size-3.5" />
-                          Copy address
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            void copy(device.serial, "Code");
-                          }}
-                        >
-                          <CodeXml className="size-3.5" />
-                          Copy code
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={busy}
-                          onClick={() => disconnect.mutate(target)}
-                        >
-                          {busy ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Unplug className="size-3.5" />
-                          )}
-                          Disconnect
-                        </Button>
-                      </div>
-                    </li>
+                      device={device}
+                      busy={disconnect.isPending && disconnect.variables === target}
+                      onDisconnect={() => disconnect.mutate(target)}
+                    />
                   );
                 })}
               </ul>
@@ -482,49 +190,6 @@ export function WirelessPanel() {
         </Card>
       </div>
     </div>
-  );
-}
-
-function ServiceRow({
-  service,
-  connected,
-  connecting,
-  onUse,
-  onConnect,
-}: {
-  service: MdnsDevice;
-  connected: boolean;
-  connecting: boolean;
-  onUse: (address: string) => void;
-  onConnect: (address: string) => void;
-}) {
-  const pairing = service.service_type === PAIRING_SERVICE;
-  return (
-    <li className="flex items-center gap-3 py-2">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium">{service.name}</p>
-        <p className="text-muted-foreground truncate font-mono text-[11px]">{service.address}</p>
-      </div>
-      {pairing ? (
-        <Button variant="ghost" size="sm" onClick={() => onUse(service.address)}>
-          Use address
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={connected || connecting}
-          onClick={() => onConnect(service.address)}
-        >
-          {connecting ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Plug className="size-3.5" />
-          )}
-          {connected ? "Connected" : "Connect"}
-        </Button>
-      )}
-    </li>
   );
 }
 

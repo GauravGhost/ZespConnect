@@ -142,7 +142,6 @@ export type QuickToggleKey =
   "wifi" | "bluetooth" | "darkmode" | "airplane" | "data" | "location" | "dnd" | "rotate";
 
 export type RebootMode = "normal" | "bootloader" | "recovery";
-export type RingerMode = "normal" | "vibrate" | "silent";
 
 export interface FileEntry {
   name: string;

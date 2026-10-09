@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { devicesKey } from "@/hooks/useDevices";
 import { errorMessage, ipc } from "@/lib/ipc";
 
 export const avdsKey = ["avds"] as const;
+
+/** Roughly how long a booting emulator takes to show up as a device. */
+const BOOT_REFRESH_DELAY_MS = 5_000;
 
 /** The Android Virtual Devices available locally. */
 export function useAvds() {
@@ -19,8 +23,8 @@ export function useStartAvd() {
       toast.success(`Starting ${name}…`);
       window.setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: avdsKey });
-        queryClient.invalidateQueries({ queryKey: ["devices"] });
-      }, 5_000);
+        queryClient.invalidateQueries({ queryKey: devicesKey });
+      }, BOOT_REFRESH_DELAY_MS);
     },
     onError: (error) => toast.error(errorMessage(error)),
   });

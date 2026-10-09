@@ -9,13 +9,16 @@ export function deviceName(device: Device): string {
   return device.display_name || device.model || device.serial;
 }
 
+/** Whether a reported battery level is real (the backend sends -1 or null when unknown). */
+export function hasBatteryLevel(level: number | null | undefined): level is number {
+  return typeof level === "number" && level >= 0;
+}
+
 /** "Pixel 8 · Android 15 · 82% · Wi-Fi" - the header identity line. */
 export function deviceIdentity(device: Device): string {
   const parts: string[] = [deviceName(device)];
   if (device.android_version) parts.push(`Android ${device.android_version}`);
-  if (typeof device.battery === "number" && device.battery >= 0) {
-    parts.push(`${device.battery}%`);
-  }
+  if (hasBatteryLevel(device.battery)) parts.push(`${device.battery}%`);
   parts.push(transportLabel(device));
   return parts.join(" · ");
 }

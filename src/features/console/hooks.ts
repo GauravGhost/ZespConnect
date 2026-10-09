@@ -68,6 +68,7 @@ export function useLogcat(serial: string | null): LogcatController {
     setLines([]);
     buffer.current = [];
     return () => {
+      // Closing a stream that already ended (or never opened) is not worth reporting.
       if (serial) void ipc.console.closeLogcat(serial).catch(() => undefined);
     };
   }, [serial]);

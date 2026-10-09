@@ -1,27 +1,11 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useState } from "react";
-
+import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { useWindowTitle } from "../hooks";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
 import { WindowControls } from "./WindowControls";
 
-const IS_MAC = /Mac/.test(navigator.platform);
-
 export function MirrorTitleBar() {
-  const [title, setTitle] = useState("");
-
-  useEffect(() => {
-    let disposed = false;
-    void getCurrentWindow()
-      .title()
-      .then((value) => {
-        if (!disposed) setTitle(value);
-      })
-      .catch(() => undefined);
-    return () => {
-      disposed = true;
-    };
-  }, []);
+  const title = useWindowTitle();
 
   return (
     <div

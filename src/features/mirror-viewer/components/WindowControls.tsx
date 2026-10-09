@@ -1,38 +1,15 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { useWindowFlag } from "../hooks";
 
 const BUTTON =
   "flex size-5 items-center justify-center rounded-full text-neutral-300 transition-colors";
 
 /** Minimize, maximize and close buttons for self-drawn windows; hidden where native controls exist. */
 export function WindowControls({ maximizable = false }: Readonly<{ maximizable?: boolean }>) {
-  const [maximized, setMaximized] = useState(false);
-
-  useEffect(() => {
-    if (!maximizable) return;
-    const window = getCurrentWindow();
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    const sync = () =>
-      void window.isMaximized().then((value) => {
-        if (!disposed) setMaximized(value);
-      });
-    sync();
-    window
-      .onResized(sync)
-      .then((fn) => {
-        if (disposed) fn();
-        else unlisten = fn;
-      })
-      .catch(() => undefined);
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [maximizable]);
+  const maximized = useWindowFlag("isMaximized", maximizable);
 
   const window = getCurrentWindow();
   return (
