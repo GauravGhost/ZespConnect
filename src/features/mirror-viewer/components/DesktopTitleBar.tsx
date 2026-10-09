@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
+import { WindowControls } from "./WindowControls";
 
 const IS_MAC = /Mac/.test(navigator.platform);
 
@@ -59,8 +60,7 @@ export function DesktopTitleBar({
         data-tauri-drag-region
         className="min-w-0 flex-1 truncate text-[13px] font-semibold text-neutral-300"
       >
-        {/* Elsewhere the native title bar above already shows the title. */}
-        {IS_MAC || fullscreen ? title : null}
+        {title}
       </span>
       <button
         type="button"
@@ -81,6 +81,7 @@ export function DesktopTitleBar({
         <Smartphone className="size-3.5" />
       </button>
       <AlwaysOnTopButton className="h-5 w-6" />
+      {IS_MAC ? null : <WindowControls maximizable />}
     </div>
   );
 }

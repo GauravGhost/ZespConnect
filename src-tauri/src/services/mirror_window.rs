@@ -32,9 +32,9 @@ pub const DEFAULT_LONG_SIDE: f64 = 820.0;
 pub const BOTTOM_INSET: f64 = 14.0;
 
 /// Height, in logical pixels, of a mirror window's own title bar (the title, the
-/// always-on-top pin and, on a desktop window, the phone-screen toggle; drawn by
-/// `MirrorTitleBar`/`DesktopTitleBar`). On macOS it replaces the native title
-/// bar, so it matches its 28px.
+/// always-on-top pin and, on a desktop window, the phone-screen toggle and window
+/// buttons; drawn by `MirrorTitleBar`/`DesktopTitleBar`). It replaces the native
+/// title bar on every platform, so it matches the 28px one on macOS.
 pub const TITLE_BAR: f64 = 28.0;
 
 /// The vertical space a window of `kind` reserves beside its video: a desktop's

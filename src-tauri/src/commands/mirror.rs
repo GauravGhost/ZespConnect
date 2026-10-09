@@ -154,23 +154,18 @@ pub async fn open_mirror_window(
         .inner_size(width, height)
         .min_inner_size(mirror_window::MIN_SIDE, mirror_window::MIN_SIDE)
         .maximizable(desktop);
-    // Window titles are hidden so each window can draw its own title bar (the
-    // always-on-top pin and, on desktop, the phone-screen toggle; see
-    // `MirrorTitleBar`/`DesktopTitleBar`). macOS keeps its traffic lights, so
-    // both kinds only hide the title and let their bar sit under them. Elsewhere
-    // a desktop window keeps the native bar (its own sits below it), while a
-    // phone-shaped window drops native chrome entirely. The shadow is off there
-    // so tao's hit-test leaves every edge resizable on Windows.
+    // Every mirror window draws its own title bar (the title, the always-on-top
+    // pin and, on a desktop, the phone-screen toggle and window buttons; see
+    // `MirrorTitleBar`/`DesktopTitleBar`), so the native bar is dropped rather
+    // than sitting above a second, empty one. macOS keeps its traffic lights via
+    // an overlay bar; elsewhere dropping the chrome (and the shadow) also lets
+    // tao's hit-test leave every edge resizable on Windows.
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
     #[cfg(not(target_os = "macos"))]
-    let builder = if desktop {
-        builder
-    } else {
-        builder.decorations(false).shadow(false)
-    };
+    let builder = builder.decorations(false).shadow(false);
     builder
         .build()
         .map_err(|error| AppError::Other(error.to_string()))?;

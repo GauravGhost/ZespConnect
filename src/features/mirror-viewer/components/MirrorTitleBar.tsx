@@ -1,9 +1,9 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
+import { WindowControls } from "./WindowControls";
 
 const IS_MAC = /Mac/.test(navigator.platform);
 
@@ -38,28 +38,7 @@ export function MirrorTitleBar() {
         {title}
       </span>
       <AlwaysOnTopButton className="size-5" />
-      {IS_MAC ? null : (
-        <>
-          <button
-            type="button"
-            onClick={() => void getCurrentWindow().minimize()}
-            aria-label="Minimize"
-            title="Minimize"
-            className="flex size-5 items-center justify-center rounded-full text-neutral-300 transition-colors hover:bg-white/10"
-          >
-            <Minus className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void getCurrentWindow().close()}
-            aria-label="Close"
-            title="Close"
-            className="flex size-5 items-center justify-center rounded-full text-neutral-300 transition-colors hover:bg-red-500/80 hover:text-white"
-          >
-            <X className="size-3.5" />
-          </button>
-        </>
-      )}
+      {IS_MAC ? null : <WindowControls />}
     </div>
   );
 }
