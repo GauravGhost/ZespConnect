@@ -65,7 +65,9 @@ export function MirrorViewer() {
     null,
   );
   const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const desktopRef = useRef(DESKTOP_WINDOW);
+  // Windows that forward a real mouse (hover and buttons), the wheel and the
+  // keyboard: desktop mode and app windows. A plain screen mirror stays touch-only.
+  const interactiveRef = useRef(DESKTOP_WINDOW);
   const pressedButtonRef = useRef(0);
   const wheelRef = useRef<{ x: number; y: number; dx: number; dy: number } | null>(null);
   const wheelFrameRef = useRef<number | null>(null);
@@ -73,6 +75,9 @@ export function MirrorViewer() {
   const [message, setMessage] = useState<string | null>(null);
   // A desktop session fills its window like a monitor and takes mouse and keyboard.
   const [desktop, setDesktop] = useState(DESKTOP_WINDOW);
+  // App windows take the same rich input as desktop mode even though they stay
+  // phone-shaped (no title bar, rounded corners).
+  const [interactive, setInteractive] = useState(DESKTOP_WINDOW);
   // Android hides the desktop while the phone is locked (only the wallpaper draws).
   const [locked, setLocked] = useState(false);
   // Desktop mode turns the phone's own screen off; the side toggle turns it back
@@ -171,8 +176,11 @@ export function MirrorViewer() {
       .startStream(id, channel)
       .then((session) => {
         if (disposed) return;
-        desktopRef.current = session.kind === "desktop";
-        setDesktop(desktopRef.current);
+        const kind = session.kind;
+        setDesktop(kind === "desktop");
+        const rich = kind === "desktop" || kind === "app" || kind === "screen-app";
+        interactiveRef.current = rich;
+        setInteractive(rich);
         setPhoneScreen(session.phoneScreen);
       })
       .catch(async (failure) => {
@@ -243,7 +251,7 @@ export function MirrorViewer() {
     const point = pendingMoveRef.current;
     if (!point) return;
     pendingMoveRef.current = null;
-    if (!desktopRef.current) {
+    if (!interactiveRef.current) {
       send("move", point.x, point.y);
     } else if (point.hover) {
       send("hover", point.x, point.y, { button: 0, buttons: 0 });
@@ -266,10 +274,11 @@ export function MirrorViewer() {
     enqueue((id) => ipc.mirror.scroll(id, wheel.x, wheel.y, width, height, hscroll, vscroll));
   }, [enqueue]);
 
-  // Desktop keyboard: printable characters go as text (respecting the Mac's
-  // layout), everything else — Enter, arrows, shortcuts — as Android keycodes.
+  // Keyboard (desktop mode and app windows): printable characters go as text
+  // (respecting the Mac's layout), everything else — Enter, arrows, shortcuts — as
+  // Android keycodes.
   useEffect(() => {
-    if (!desktop) return;
+    if (!interactive) return;
     const held = new Map<string, number>();
     const typed = new Set<string>();
 
@@ -319,7 +328,7 @@ export function MirrorViewer() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", releaseAll);
     };
-  }, [desktop, enqueue]);
+  }, [interactive, enqueue]);
 
   const pointFor = useCallback((event: { clientX: number; clientY: number }) => {
     const canvas = canvasRef.current;
@@ -343,13 +352,13 @@ export function MirrorViewer() {
     ipc.mirror.phoneScreen(id, on).catch(() => setPhoneScreen(!on));
   };
 
-  /** Desktop windows forward real mouse buttons; phone windows only a left click. */
-  const desktopMouse = (event: ReactPointerEvent<HTMLCanvasElement>) =>
-    desktopRef.current && event.pointerType === "mouse";
+  /** Interactive windows forward real mouse buttons; a screen mirror only a left click. */
+  const interactiveMouse = (event: ReactPointerEvent<HTMLCanvasElement>) =>
+    interactiveRef.current && event.pointerType === "mouse";
 
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (activePointerRef.current !== null) return;
-    const mouse = desktopMouse(event);
+    const mouse = interactiveMouse(event);
     if (event.pointerType === "mouse" && !mouse && event.button !== 0) return;
     const point = pointFor(event);
     if (!point) return;
@@ -366,7 +375,7 @@ export function MirrorViewer() {
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     // With no button held, a desktop mouse hovers (taskbar, window buttons, links).
-    const hover = activePointerRef.current === null && desktopMouse(event);
+    const hover = activePointerRef.current === null && interactiveMouse(event);
     if (!hover && activePointerRef.current !== event.pointerId) return;
     const point = pointFor(event);
     if (!point) return;
@@ -375,7 +384,7 @@ export function MirrorViewer() {
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLCanvasElement>) => {
-    if (!desktopRef.current) return;
+    if (!interactiveRef.current) return;
     const point = pointFor(event);
     if (!point) return;
     const [dx, dy] = wheelNotches(event.nativeEvent);
@@ -394,7 +403,7 @@ export function MirrorViewer() {
     pendingMoveRef.current = null;
     const point = pointFor(event);
     if (!point) return;
-    if (desktopMouse(event)) {
+    if (interactiveMouse(event)) {
       const button = pressedButtonRef.current;
       pressedButtonRef.current = 0;
       send("up", point.x, point.y, { button, buttons: 0 });
