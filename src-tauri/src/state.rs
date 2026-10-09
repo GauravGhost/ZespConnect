@@ -33,6 +33,9 @@ pub struct AppState {
     sessions: RwLock<HashMap<u64, SessionHandle>>,
     pending_sessions: RwLock<HashMap<u64, MirrorSessionSpec>>,
     aspects: RwLock<HashMap<u64, f64>>,
+    /// Sessions whose video stream has forwarded its first packet: the capture is
+    /// up, so control messages that would crash the server if sent earlier are safe.
+    streaming: RwLock<HashSet<u64>>,
     /// Desktop sessions whose user turned the phone's own screen on.
     phone_screens: RwLock<HashSet<u64>>,
     next_session: AtomicU64,
@@ -56,6 +59,7 @@ impl AppState {
             sessions: RwLock::new(HashMap::new()),
             pending_sessions: RwLock::new(HashMap::new()),
             aspects: RwLock::new(HashMap::new()),
+            streaming: RwLock::new(HashSet::new()),
             phone_screens: RwLock::new(HashSet::new()),
             next_session: AtomicU64::new(1),
             app_data_dir,
@@ -182,6 +186,21 @@ impl AppState {
             .and_then(|guard| guard.get(&id).copied())
     }
 
+    /// Mark that a session's video stream has started forwarding packets.
+    pub fn set_streaming(&self, id: u64) {
+        if let Ok(mut guard) = self.streaming.write() {
+            guard.insert(id);
+        }
+    }
+
+    /// Whether a session's video stream has forwarded at least one packet.
+    pub fn is_streaming(&self, id: u64) -> bool {
+        self.streaming
+            .read()
+            .map(|guard| guard.contains(&id))
+            .unwrap_or(false)
+    }
+
     pub fn set_phone_screen(&self, id: u64, on: bool) {
         if let Ok(mut guard) = self.phone_screens.write() {
             if on {
@@ -246,6 +265,9 @@ impl AppState {
             guard.remove(&id);
         }
         if let Ok(mut guard) = self.aspects.write() {
+            guard.remove(&id);
+        }
+        if let Ok(mut guard) = self.streaming.write() {
             guard.remove(&id);
         }
         if let Ok(mut guard) = self.phone_screens.write() {

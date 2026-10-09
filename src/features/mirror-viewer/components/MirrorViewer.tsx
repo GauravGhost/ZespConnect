@@ -160,13 +160,15 @@ export function MirrorViewer() {
       decoder.push(payload);
     };
 
-    // The decoder can go quiet without firing `error` - a hardware hiccup or GPU
-    // reset while the window is being resized - leaving the canvas frozen or black
-    // even though `status` still reads "live". If frames keep arriving but none
-    // come out, rebuild the decoder so it resumes at the next key frame.
+    // A hardware decoder that goes quiet produces neither output nor an `error`.
+    // After the first frame that freezes or blacks the canvas while `status` still
+    // reads "live"; before it - a cold decoder on the first session after launch -
+    // it leaves the window stuck on "Starting mirror…" forever, because nothing
+    // ever asks for a key frame. Either way: while data keeps arriving but no frame
+    // comes out, rebuild the decoder so it resumes at the next (requested) key frame.
     const watchdog = window.setInterval(() => {
       const now = performance.now();
-      if (disposed || !liveRef.current) return;
+      if (disposed) return;
       if (now - lastFrameAt > STALL_MS && now - lastDataAt < STALL_MS) {
         lastFrameAt = now;
         decoder.reset();

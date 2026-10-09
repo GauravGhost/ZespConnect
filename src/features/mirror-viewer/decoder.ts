@@ -72,7 +72,15 @@ export class H264Decoder {
       return;
     }
 
-    if (!this.ensureDecoder(this.config ?? payload)) return;
+    if (!this.ensureDecoder(this.config ?? payload)) {
+      // No codec config (SPS/PPS) yet, so the decoder cannot start and every frame
+      // would be dropped - the "Starting mirror…" hang with no error. Ask for a
+      // fresh key frame, whose payload carries the config, instead of waiting on a
+      // key frame the encoder sends only when the screen next changes.
+      this.needsKeyframe = true;
+      this.handlers.onNeedKeyframe?.();
+      return;
+    }
     this.needsKeyframe = false;
 
     const data = key && this.config ? concat(this.config, payload) : payload;

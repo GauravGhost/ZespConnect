@@ -27,17 +27,12 @@ use crate::util::{self, process, validation};
 const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
 const EVENT_SESSION_LOCKED: &str = "mirror:session:locked";
-/// How often a desktop session checks the lock screen: quickly while locked so
-/// the desktop appears right after unlocking, and often enough while unlocked to
-/// notice the phone being locked again or the launcher losing focus before a key
-/// waiting on it times out (Android allows 5s).
 const LOCKED_POLL: Duration = Duration::from_secs(1);
 const UNLOCKED_POLL: Duration = Duration::from_secs(2);
-/// Android's HOME keycode, which puts the desktop launcher back in front.
 const KEYCODE_HOME: u32 = 3;
+const START_APP_ATTEMPTS: usize = 6;
+const START_APP_RETRY: Duration = Duration::from_millis(900);
 
-/// `mirror:session:locked` - whether a desktop session's phone is locked, and
-/// whether its own screen is on (the title-bar toggle).
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LockState {
@@ -45,12 +40,12 @@ struct LockState {
     locked: bool,
     phone_screen: bool,
 }
-/// How long to wait for the server to connect back before giving up.
+// How long to wait for the server to connect back before giving up.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
-/// How often to look for a connection while also watching for a dead server.
+// How often to look for a connection while also watching for a dead server.
 const ACCEPT_POLL: Duration = Duration::from_millis(200);
 const READ_BUFFER: usize = 64 * 1024;
-/// A sane upper bound on a single video packet (guards against a corrupt header).
+// A sane upper bound on a single video packet (guards against a corrupt header).
 const MAX_PACKET: usize = 32 * 1024 * 1024;
 
 /// The 12-byte per-packet frame header: 3 flag bits + 61-bit PTS + `u32` size.
@@ -60,12 +55,10 @@ const CONFIG_FLAG: u64 = 0x4000_0000_0000_0000;
 const KEY_FLAG: u64 = 0x2000_0000_0000_0000;
 const PTS_MASK: u64 = 0x1FFF_FFFF_FFFF_FFFF;
 
-/// What one header on the video socket describes.
+// What one header on the video socket describes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Packet {
-    /// A capture-session change (device rotation / resize); carries no payload.
     Session,
-    /// An H.264 access unit.
     Media {
         config: bool,
         key: bool,
@@ -179,13 +172,20 @@ pub async fn start(
         }
     }
 
-    // Control messages sent as soon as the session is up.
-    let mut initial: Vec<Vec<u8>> = Vec::new();
-    if virtual_display {
-        if let Some(package) = spec.package.as_deref() {
-            initial.push(control::start_app(package)?);
-        }
-    }
+    // An app on a virtual display only draws - and so only produces video - once
+    // it is actually launched. The server learns the new display's id a moment
+    // after the sockets open and gives up waiting after a second, so a single
+    // early START_APP is regularly dropped ("No known display id") and the
+    // decoration-less display then stays empty and emits no frames at all. Send it
+    // repeatedly until the stream is live (the app is drawing).
+    let start_app = if virtual_display {
+        spec.package
+            .as_deref()
+            .map(control::start_app)
+            .transpose()?
+    } else {
+        None
+    };
 
     let listener = TcpListener::bind(("127.0.0.1", 0))
         .await
@@ -257,6 +257,25 @@ pub async fn start(
     // "close"; the registration above is the moment it becomes open.
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
 
+    // Launch the app on its virtual display; the server only knows the display a
+    // moment after the sockets open (and gives up after a second), so retry until
+    // the app is drawing (the stream is live) or the session ends.
+    if let Some(message) = start_app {
+        let control = control_channel.clone();
+        let handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            for _ in 0..START_APP_ATTEMPTS {
+                if handle.state::<AppState>().is_streaming(id)
+                    || handle.state::<AppState>().session_control(id).is_none()
+                {
+                    break;
+                }
+                let _ = control.send(message.clone());
+                tokio::time::sleep(START_APP_RETRY).await;
+            }
+        });
+    }
+
     // Desktop mode only shows once the phone is unlocked; watch the lock screen
     // and switch the phone's own screen to match (see `watch_lock`).
     if kind == MirrorKind::Desktop {
@@ -273,15 +292,7 @@ pub async fn start(
     let task_info = info.clone();
     let task_serial = spec.serial.clone();
     tauri::async_runtime::spawn(async move {
-        stream_video(
-            video,
-            channel,
-            &mut child,
-            stop_rx,
-            control_channel,
-            initial,
-        )
-        .await;
+        stream_video(handle.clone(), id, video, channel, &mut child, stop_rx).await;
         // Read before `remove_session` forgets it.
         let phone_screen_on = handle.state::<AppState>().phone_screen_on(id);
         let _ = child.kill().await;
@@ -334,7 +345,12 @@ async fn watch_lock(
                         if !app.state::<AppState>().phone_screen_on(id) {
                             let _ = control.send(control::set_display_power(false));
                         }
-                        let _ = control.send(control::reset_video());
+                        // Only once the capture is up: before that the server's
+                        // surface capture has no control yet and RESET_VIDEO
+                        // throws, killing the whole session (no frames at all).
+                        if app.state::<AppState>().is_streaming(id) {
+                            let _ = control.send(control::reset_video());
+                        }
                     }
                     locked = Some(now);
                     let phone_screen = app.state::<AppState>().phone_screen_on(id);
@@ -509,19 +525,19 @@ async fn accept(listener: &TcpListener, child: &mut Child, log_path: &Path) -> R
 /// Read the video socket and forward each access unit to the webview until the
 /// stream ends, the server exits, or the session is stopped.
 async fn stream_video(
+    app: AppHandle,
+    id: u64,
     video: TcpStream,
     channel: Channel<Response>,
     child: &mut Child,
     mut stop: tokio::sync::oneshot::Receiver<()>,
-    control_channel: ControlChannel,
-    initial: Vec<Vec<u8>>,
 ) {
-    for message in initial {
-        let _ = control_channel.send(message);
-    }
-
     let mut reader = BufReader::with_capacity(READ_BUFFER, video);
     let mut payload: Vec<u8> = Vec::new();
+    // The first forwarded packet means the capture is up, which is what unlocks
+    // the control messages that would otherwise crash the server if sent early
+    // (see `watch_lock` and the app-launch retry).
+    let mut announced = false;
 
     let reading = async {
         let mut header = [0u8; FRAME_HEADER];
@@ -553,6 +569,10 @@ async fn stream_video(
                 .is_err()
             {
                 break;
+            }
+            if !announced {
+                announced = true;
+                app.state::<AppState>().set_streaming(id);
             }
         }
     };
