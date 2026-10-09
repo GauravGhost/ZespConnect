@@ -8,8 +8,6 @@ pub enum LabelSource {
     Scrcpy,
     /// Served from the on-disk cache.
     Cache,
-    /// Prettified from `pm list packages`.
-    Pm,
     /// Derived from the package id (last resort).
     Derived,
 }

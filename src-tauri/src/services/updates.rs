@@ -14,7 +14,7 @@ use serde::Deserialize;
 use crate::error::{AppError, Result};
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
-/// Large binary downloads must not be bounded by a *total* request timeout —
+/// Large binary downloads must not be bounded by a *total* request timeout -
 /// that aborts a big file part-way on a slow link. Bound the connection and
 /// each read instead.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -103,7 +103,7 @@ pub async fn scrcpy_download() -> Result<(String, String)> {
     let name = asset_name(std::env::consts::OS, std::env::consts::ARCH, &version).ok_or_else(
         || {
             AppError::Other(format!(
-                "scrcpy publishes no build for {}/{} — install it with your package manager instead",
+                "scrcpy publishes no build for {}/{} - install it with your package manager instead",
                 std::env::consts::OS,
                 std::env::consts::ARCH
             ))
@@ -198,7 +198,7 @@ fn platform_tools_revision(xml: &str) -> Option<String> {
 }
 
 /// Build the shared HTTP client (timeout + User-Agent, both required by GitHub).
-/// For small metadata requests only — use [`download_client`] for binaries.
+/// For small metadata requests only - use [`download_client`] for binaries.
 pub fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)

@@ -16,7 +16,7 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import QRCode from "react-qr-code";
 import { toast } from "sonner";
 
@@ -33,11 +33,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDevices } from "@/features/devices";
-import { stateLabel, timeAgo } from "@/lib/format";
-import { errorMessage, ipc } from "@/lib/ipc";
+import { useDevices } from "@/hooks/useDevices";
+import { useQrPairing } from "@/hooks/useQrPairing";
+import { deviceName, stateLabel, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Device, MdnsDevice, QrPayload } from "@/types";
+import type { MdnsDevice } from "@/types";
 
 import {
   mdnsKey,
@@ -46,18 +46,12 @@ import {
   useEnableTcpip,
   useMdnsServices,
   usePairCode,
-  usePairQr,
   useRememberSavedDevices,
 } from "../hooks";
 import { useSavedWireless, type SavedWirelessDevice } from "../saved";
 
 const PAIRING_SERVICE = "_adb-tls-pairing._tcp";
 const CONNECT_SERVICE = "_adb-tls-connect._tcp";
-const PAIR_TIMEOUT_SECS = 180;
-
-function deviceName(device: Device): string {
-  return device.display_name || device.model || device.serial;
-}
 
 export function WirelessPanel() {
   const queryClient = useQueryClient();
@@ -70,11 +64,8 @@ export function WirelessPanel() {
   const [method, setMethod] = useState("qr");
   const [addr, setAddr] = useState("");
   const [code, setCode] = useState("");
-  const [qr, setQr] = useState<QrPayload | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
 
-  const pairQr = usePairQr();
+  const { qr, status, generating, secondsLeft, timer, generate, cancel } = useQrPairing();
   const pairCode = usePairCode();
   const connect = useConnectWireless();
   const disconnect = useDisconnectWireless();
@@ -102,14 +93,6 @@ export function WirelessPanel() {
     }
   }, []);
 
-  // Tick once a second so the QR expiry counts down while it is on screen.
-  useEffect(() => {
-    if (!qr) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [qr]);
-
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const target = addr.trim();
@@ -120,34 +103,10 @@ export function WirelessPanel() {
     else connect.mutate(target);
   }
 
-  const generate = useCallback(async () => {
-    pairQr.reset();
-    setGenerating(true);
-    try {
-      const payload = await ipc.wireless.qrPayload();
-      setQr(payload);
-      setNow(Date.now());
-      pairQr.mutate(payload.payload);
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setGenerating(false);
-    }
-  }, [pairQr]);
-
-  function hideQr() {
-    if (pairQr.isPending) void ipc.wireless.cancelQr().catch(() => {});
-    pairQr.reset();
-    setQr(null);
-  }
-
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["devices"] });
     queryClient.invalidateQueries({ queryKey: mdnsKey });
   }
-
-  const secondsLeft = qr ? Math.max(0, qr.created + PAIR_TIMEOUT_SECS - Math.floor(now / 1000)) : 0;
-  const timer = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
 
   return (
     <div className="mx-auto w-full max-w-5xl p-4">
@@ -189,20 +148,20 @@ export function WirelessPanel() {
                           </p>
                         </div>
 
-                        {pairQr.isPending ? (
+                        {status.kind === "waiting" ? (
                           <p className="text-muted-foreground flex items-center gap-2 text-sm">
                             <Loader2 className="size-4 animate-spin" />
                             Waiting for your phone…
                           </p>
                         ) : null}
-                        {pairQr.isSuccess ? (
+                        {status.kind === "success" ? (
                           <p className="text-success flex items-center gap-2 text-sm">
                             <CheckCircle2 className="size-4" />
-                            Connected to {pairQr.data}
+                            Connected to {status.address}
                           </p>
                         ) : null}
-                        {pairQr.isError ? (
-                          <p className="text-destructive text-sm">{errorMessage(pairQr.error)}</p>
+                        {status.kind === "error" ? (
+                          <p className="text-destructive text-sm">{status.message}</p>
                         ) : null}
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -215,14 +174,14 @@ export function WirelessPanel() {
                             <RotateCw className={cn("size-3.5", generating && "animate-spin")} />
                             Refresh
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={hideQr}>
+                          <Button variant="ghost" size="sm" onClick={cancel}>
                             Hide
                           </Button>
                         </div>
                         <p className="text-muted-foreground text-xs">
                           {secondsLeft > 0
                             ? `QR code expires in ${timer}`
-                            : "QR code expired — refresh to generate a new one."}
+                            : "QR code expired - refresh to generate a new one."}
                         </p>
                       </div>
                     </div>

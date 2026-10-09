@@ -6,9 +6,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { navItem } from "@/app/navigation";
 import { useAppStore } from "@/app/store";
 import { ThemeModeToggle } from "@/components/app/ThemeModeToggle";
-import { DeviceSwitcher } from "@/features/devices";
-import { QrPairDialog } from "@/features/wireless";
-import { useActiveDevice } from "@/features/devices/hooks";
+import { DeviceSwitcher } from "@/components/app/DeviceSwitcher";
+import { QrPairDialog } from "@/components/app/QrPairDialog";
+import { useActiveDevice } from "@/hooks/useDevices";
 import { useInstallLog } from "@/hooks/useInstallLog";
 import { useToolsStatus } from "@/hooks/useTools";
 

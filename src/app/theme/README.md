@@ -1,4 +1,4 @@
-# Theming — design-system contract
+# Theming - design-system contract
 
 Zesp Connect is themed after **Android 17 / Material You** (the quick-settings
 shade look: squircle tiles, pill buttons, thick sliders, soft elevated surfaces,
@@ -20,20 +20,20 @@ tactile press feedback). Read this before doing UI work.
    `rounded-2xl`/`rounded-xl`. Prefer the `--radius`-derived scale
    (`rounded-sm/md/lg/xl`) for semantic sizes.
 5. **Motion language:** interactive elements use
-   `transition-all duration-150 ease-emphasized` and `active:scale-[0.96]`–`[0.97]`
+   `transition-all duration-150 ease-emphasized` and `active:scale-[0.96]`-`[0.97]`
    press feedback. Focus ring = `ring-2 ring-ring ring-offset-2
-   ring-offset-background`.
+ring-offset-background`.
 6. **Elevation over borders:** prefer `bg-card` + soft shadow + a subtle
    `border-border/60` over heavy hard borders.
 7. **Reuse `QuickTile`** (`src/components/ui/quick-tile.tsx`) for tiles instead
    of re-implementing the squircle control.
 8. **No token without a home.** If you add a `--color-*` entry to `@theme
-   inline` in `src/styles/globals.css`, add the matching key to `ThemeTokens`
-   (`types.ts`) and every preset — otherwise themes can't control it.
+inline` in `src/styles/globals.css`, add the matching key to `ThemeTokens`
+   (`types.ts`) and every preset - otherwise themes can't control it.
 9. **Filled surfaces use the container pair.** Any filled / "on" control
    (button `default`, active tab, checked switch, `QuickTile`, badge `default`,
    active chip, toast action) uses `bg-primary-container
-   text-on-primary-container` — never `bg-primary text-primary-foreground`. In
+text-on-primary-container` - never `bg-primary text-primary-foreground`. In
    dark mode `--primary` is a light pastel, so a bright fill with dark text
    looks wrong; `--primary-container` darkens to a muted accent so on-colors
    stay legible. Keep `--primary` for text/icons, sliders, rings and selection.

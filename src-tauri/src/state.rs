@@ -6,7 +6,7 @@ use std::sync::RwLock;
 use crate::models::{
     Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolStatus,
 };
-use crate::services::mirror_session::ControlChannel;
+use crate::runtime::mirror_session::ControlChannel;
 use crate::util;
 
 /// A tracked scrcpy window plus the channel that asks its watcher to stop it.
@@ -115,7 +115,6 @@ impl AppState {
         }
     }
 
-    /// The scrcpy windows currently tracked.
     pub fn list_mirrors(&self) -> Vec<MirrorProcess> {
         self.mirrors
             .read()
@@ -123,21 +122,18 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    /// Register a running scrcpy window and its stop channel.
     pub fn set_mirror(&self, info: MirrorProcess, stop: tokio::sync::oneshot::Sender<()>) {
         if let Ok(mut guard) = self.mirrors.write() {
             guard.insert(info.pid, MirrorHandle { info, stop });
         }
     }
 
-    /// Drop a window's record (used by its watcher once the process ends).
     pub fn remove_mirror(&self, pid: u32) {
         if let Ok(mut guard) = self.mirrors.write() {
             guard.remove(&pid);
         }
     }
 
-    /// Take a window's stop channel, if it is still tracked.
     pub fn take_mirror(&self, pid: u32) -> Option<MirrorHandle> {
         self.mirrors
             .write()
@@ -145,7 +141,6 @@ impl AppState {
             .and_then(|mut guard| guard.remove(&pid))
     }
 
-    /// Take every tracked window (used to stop them all).
     pub fn drain_mirrors(&self) -> Vec<MirrorHandle> {
         self.mirrors
             .write()
@@ -153,7 +148,6 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    /// Allocate the next in-app session id.
     pub fn next_session_id(&self) -> u64 {
         self.next_session.fetch_add(1, Ordering::SeqCst)
     }
@@ -165,7 +159,6 @@ impl AppState {
         }
     }
 
-    /// Take a pending session's settings, if it has not been started yet.
     pub fn take_pending_session(&self, id: u64) -> Option<MirrorSessionSpec> {
         self.pending_sessions
             .write()
@@ -189,7 +182,6 @@ impl AppState {
             .and_then(|guard| guard.get(&id).copied())
     }
 
-    /// Remember whether a desktop session's user wants the phone's screen on.
     pub fn set_phone_screen(&self, id: u64, on: bool) {
         if let Ok(mut guard) = self.phone_screens.write() {
             if on {
@@ -200,7 +192,6 @@ impl AppState {
         }
     }
 
-    /// Whether a desktop session's user wants the phone's screen on (off by default).
     pub fn phone_screen_on(&self, id: u64) -> bool {
         self.phone_screens
             .read()
@@ -208,7 +199,6 @@ impl AppState {
             .unwrap_or(false)
     }
 
-    /// What a running session shows, if it is still tracked.
     pub fn session_kind(&self, id: u64) -> Option<MirrorKind> {
         self.sessions
             .read()
@@ -216,7 +206,6 @@ impl AppState {
             .and_then(|guard| guard.get(&id).map(|handle| handle.info.kind))
     }
 
-    /// The in-app mirror sessions currently running.
     pub fn list_sessions(&self) -> Vec<MirrorSession> {
         self.sessions
             .read()
@@ -224,7 +213,6 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    /// Register a running session, its stop channel, and its control channel.
     pub fn set_session(
         &self,
         info: MirrorSession,
@@ -243,7 +231,6 @@ impl AppState {
         }
     }
 
-    /// A handle that injects input into a running session, if it is still alive.
     pub fn session_control(&self, id: u64) -> Option<ControlChannel> {
         self.sessions
             .read()
@@ -251,7 +238,6 @@ impl AppState {
             .and_then(|guard| guard.get(&id).map(|handle| handle.control.clone()))
     }
 
-    /// Drop a session's record (used by its supervisor once it ends).
     pub fn remove_session(&self, id: u64) {
         if let Ok(mut guard) = self.sessions.write() {
             guard.remove(&id);
@@ -267,7 +253,6 @@ impl AppState {
         }
     }
 
-    /// Take a session's stop channel, if it is still tracked.
     pub fn take_session(&self, id: u64) -> Option<SessionHandle> {
         self.sessions
             .write()
@@ -275,7 +260,6 @@ impl AppState {
             .and_then(|mut guard| guard.remove(&id))
     }
 
-    /// Take every tracked session (used to stop them all).
     pub fn drain_sessions(&self) -> Vec<SessionHandle> {
         self.sessions
             .write()
@@ -301,13 +285,6 @@ impl AppState {
             *guard = serial.clone();
         }
         util::write_json(&self.selected_file(), &serial)
-    }
-
-    pub fn override_for(&self, tool: &str) -> Option<String> {
-        self.tool_overrides
-            .read()
-            .ok()
-            .and_then(|guard| guard.get(tool).cloned())
     }
 
     pub fn overrides(&self) -> HashMap<String, String> {
@@ -355,7 +332,6 @@ impl AppState {
         }
     }
 
-    /// Stop a device's logcat streamer, if one is running.
     pub fn stop_logcat(&self, serial: &str) {
         if let Ok(mut guard) = self.logcats.write() {
             if let Some(handle) = guard.remove(serial) {
@@ -387,7 +363,6 @@ impl AppState {
         rx
     }
 
-    /// Cancel the running QR pairing session, if any.
     pub fn cancel_pairing(&self) {
         if let Ok(mut guard) = self.pairing_cancel.write() {
             if let Some(tx) = guard.take() {

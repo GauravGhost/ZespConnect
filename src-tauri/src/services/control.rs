@@ -35,7 +35,7 @@ const SCROLL_RANGE: f32 = 16.0;
 /// buttons pressed the server injects it as a regular touchscreen finger.
 const POINTER_ID_MOUSE: u64 = u64::MAX;
 
-/// `START_APP` — `[type][u8 length][utf8 package]`. Launches an app on the
+/// `START_APP` - `[type][u8 length][utf8 package]`. Launches an app on the
 /// virtual display created by the `new_display` server option.
 pub fn start_app(package: &str) -> Result<Vec<u8>> {
     let name = package.as_bytes();
@@ -69,7 +69,7 @@ impl Position {
     }
 }
 
-/// `INJECT_TOUCH_EVENT` — `[type][u8 action][u64 pointerId][u32 x][u32 y]
+/// `INJECT_TOUCH_EVENT` - `[type][u8 action][u64 pointerId][u32 x][u32 y]
 /// [u16 width][u16 height][u16 pressure][u32 actionButton][u32 buttons]`.
 ///
 /// `action_button` is the `AMOTION_EVENT_BUTTON_*` that changed and `buttons`
@@ -106,7 +106,7 @@ pub fn inject_touch(
     message
 }
 
-/// `INJECT_SCROLL_EVENT` — `[type][u32 x][u32 y][u16 width][u16 height]
+/// `INJECT_SCROLL_EVENT` - `[type][u32 x][u32 y][u16 width][u16 height]
 /// [i16 hscroll][i16 vscroll][u32 buttons]`. Amounts are in wheel notches,
 /// clamped to ±16 and sent as a fixed-point fraction of that range. Positive
 /// `vscroll` scrolls up, positive `hscroll` scrolls right (Android's axes).
@@ -130,7 +130,7 @@ fn scroll_fixed_point(value: f32) -> i16 {
     (fraction * f32::from(i16::MAX)).round() as i16
 }
 
-/// `INJECT_KEYCODE` — `[type][u8 action][u32 keycode][u32 repeat][u32 metaState]`,
+/// `INJECT_KEYCODE` - `[type][u8 action][u32 keycode][u32 repeat][u32 metaState]`,
 /// with an Android `KEYCODE_*` and `META_*` mask.
 pub fn inject_keycode(action: KeyAction, keycode: u32, repeat: u32, meta_state: u32) -> Vec<u8> {
     let action = match action {
@@ -146,12 +146,12 @@ pub fn inject_keycode(action: KeyAction, keycode: u32, repeat: u32, meta_state: 
     message
 }
 
-/// `INJECT_TEXT` — `[type][u32 length][utf8 text]`, at most
+/// `INJECT_TEXT` - `[type][u32 length][utf8 text]`, at most
 /// [`INJECT_TEXT_MAX_BYTES`] bytes.
 pub fn inject_text(text: &str) -> Result<Vec<u8>> {
     let bytes = text.as_bytes();
     if bytes.is_empty() || bytes.len() > INJECT_TEXT_MAX_BYTES {
-        return Err(AppError::Invalid("Text must be 1–300 bytes".into()));
+        return Err(AppError::Invalid("Text must be 1-300 bytes".into()));
     }
     let mut message = Vec::with_capacity(5 + bytes.len());
     message.push(TYPE_INJECT_TEXT);
@@ -160,7 +160,7 @@ pub fn inject_text(text: &str) -> Result<Vec<u8>> {
     Ok(message)
 }
 
-/// `RESET_VIDEO` — `[type]`. Restarts the capture/encoder, so the next packets
+/// `RESET_VIDEO` - `[type]`. Restarts the capture/encoder, so the next packets
 /// are a fresh codec config and key frame. A decoder that dropped frames can
 /// only resync on a key frame, and the encoder sends none while the screen is
 /// still, so the client asks for one.
@@ -168,7 +168,7 @@ pub fn reset_video() -> Vec<u8> {
     vec![TYPE_RESET_VIDEO]
 }
 
-/// `SET_DISPLAY_POWER` — `[type][u8 on]`. While a virtual display is mirrored
+/// `SET_DISPLAY_POWER` - `[type][u8 on]`. While a virtual display is mirrored
 /// the server applies it to the phone's own (main) display, so the phone screen
 /// can go dark while the virtual display keeps rendering.
 pub fn set_display_power(on: bool) -> Vec<u8> {

@@ -45,7 +45,7 @@ type AppCache = HashMap<String, Vec<AppInfo>>;
 ///
 /// Everything after the `List of apps` marker is one app per line: an optional
 /// `INFO:` log prefix, then `*` for a system app (or `-`/space for a user app),
-/// then the label and the package in either order — the token that matches the
+/// then the label and the package in either order - the token that matches the
 /// package-id grammar is the package, the rest is the label.
 pub fn parse_scrcpy_apps(text: &str) -> Vec<AppInfo> {
     let mut apps = Vec::new();

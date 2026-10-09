@@ -1,8 +1,6 @@
 import { Loader2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app/AppHeader";
-import { ComingSoon } from "@/components/app/ComingSoon";
-import { navItem } from "@/app/navigation";
 import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { useAppStore, type TabId } from "@/app/store";
@@ -27,11 +25,7 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "console") return <ConsolePanel />;
   if (tab === "emulators") return <EmulatorsPanel />;
   if (tab === "settings") return <SettingsPanel />;
-  return (
-    <div className="flex h-full items-center justify-center">
-      <ComingSoon title={navItem(tab).label} />
-    </div>
-  );
+  return null;
 }
 
 function Main() {

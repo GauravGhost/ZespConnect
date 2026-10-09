@@ -1,4 +1,5 @@
 pub mod process;
+pub mod time;
 pub mod validation;
 
 use std::path::{Path, PathBuf};

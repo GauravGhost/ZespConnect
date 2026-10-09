@@ -6,7 +6,8 @@ use tauri::{AppHandle, State};
 
 use crate::error::{AppError, Result};
 use crate::models::{MdnsDevice, QrPayload};
-use crate::services::{adb, tracker, wireless};
+use crate::runtime::tracker;
+use crate::services::{adb, wireless};
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
@@ -28,7 +29,7 @@ pub async fn pair_wireless_qr(
     // A newer QR session supersedes an older one (e.g. the popup was reopened).
     let mut cancel = state.arm_pairing_cancel();
 
-    // One session at a time — they would otherwise fight over the adb server.
+    // One session at a time - they would otherwise fight over the adb server.
     // Give a just-cancelled session a moment to release the slot.
     let mut attempts = 0;
     let _guard = loop {
@@ -76,7 +77,7 @@ pub async fn pair_wireless_code(
     Ok(address)
 }
 
-/// `adb connect <addr>` — bring up a phone already enabled for wireless debugging.
+/// `adb connect <addr>` - bring up a phone already enabled for wireless debugging.
 #[tauri::command]
 pub async fn connect_wireless(
     addr: String,
@@ -89,7 +90,6 @@ pub async fn connect_wireless(
     Ok(address)
 }
 
-/// `adb disconnect <addr>`.
 #[tauri::command]
 pub async fn disconnect_wireless(
     addr: String,
@@ -120,7 +120,6 @@ pub async fn enable_wireless_tcpip(
     Ok(address)
 }
 
-/// The adb pairing/connect services currently advertised on the network.
 #[tauri::command]
 pub async fn list_mdns_services(state: State<'_, AppState>) -> Result<Vec<MdnsDevice>> {
     let adb_path = adb::adb_path(&state.tools())?;

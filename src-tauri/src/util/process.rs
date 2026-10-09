@@ -1,6 +1,6 @@
 //! Process helpers: run a child to completion, or spawn a detached one.
 //!
-//! Always spawns with an argv array — never a shell string — so nothing the
+//! Always spawns with an argv array - never a shell string - so nothing the
 //! UI passes through can be interpreted by a shell.
 
 use std::process::Stdio;
@@ -131,7 +131,7 @@ pub fn read_log_tail(path: &std::path::Path, max_lines: usize) -> String {
 /// looks like an error, otherwise the first non-empty line.
 ///
 /// A Java stack trace puts its message *before* the frames, so a tail is useless
-/// for the scrcpy server — the exception is the first line, not the last.
+/// for the scrcpy server - the exception is the first line, not the last.
 pub fn read_log_error(path: &std::path::Path) -> String {
     let Ok(contents) = std::fs::read_to_string(path) else {
         return String::new();

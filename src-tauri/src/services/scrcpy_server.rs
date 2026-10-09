@@ -149,7 +149,7 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
 
     if let Some(size) = opts.new_display.as_deref() {
         // `new_display` takes a size spec, or an empty value to reuse the main
-        // display's size — it is not a boolean.
+        // display's size - it is not a boolean.
         args.push(format!("new_display={size}"));
         if opts.kind == MirrorKind::Desktop {
             // Desktop mode *is* the decorations (launcher, taskbar, wallpaper).
@@ -157,7 +157,7 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
             // and keep the phone awake for the session (restored by cleanup).
             // Whether the phone sleeps when the desktop closes depends on the
             // phone-screen toggle at that moment, so the session decides it
-            // (see `mirror_session::finish_desktop`), not `power_off_on_close`.
+            // (see `runtime::mirror_session::finish_desktop`), not `power_off_on_close`.
             args.push("display_ime_policy=hide".to_string());
             args.push(format!(
                 "screen_off_timeout={DESKTOP_SCREEN_OFF_TIMEOUT_MS}"

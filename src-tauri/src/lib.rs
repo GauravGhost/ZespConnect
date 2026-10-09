@@ -2,6 +2,7 @@ pub mod commands;
 pub mod error;
 pub mod models;
 pub mod platform;
+pub mod runtime;
 pub mod services;
 pub mod state;
 pub mod tray;
@@ -53,7 +54,7 @@ pub fn run() {
 
             // Start the push-based device tracker.
             let handle = app.handle().clone();
-            let tracker = services::tracker::spawn(handle.clone());
+            let tracker = runtime::tracker::spawn(handle.clone());
             handle.state::<AppState>().set_tracker(tracker);
 
             // Tray icon + menu.
@@ -82,7 +83,7 @@ pub fn run() {
                         let _ = window.hide();
                     } else if let Some(id) = mirror_id(window.label()) {
                         platform::forget_aspect(window);
-                        services::mirror_session::stop(window.app_handle(), id);
+                        runtime::mirror_session::stop(window.app_handle(), id);
                     }
                 }
                 _ => {}
@@ -160,6 +161,10 @@ fn mirror_id(label: &str) -> Option<u64> {
         .and_then(|value| value.parse::<u64>().ok())
 }
 
+/// Sub-pixel slack allowed when correcting a window to its video's aspect ratio.
+#[cfg(not(windows))]
+const RESIZE_TOLERANCE_PX: f64 = 2.0;
+
 /// Nudge a resized mirror window back onto its video's aspect ratio, keeping the
 /// width the user dragged and letting the height follow.
 #[cfg(not(windows))]
@@ -184,7 +189,9 @@ fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, heig
         inset,
     );
 
-    if (width - logical_width).abs() > 2.0 || (height - logical_height).abs() > 2.0 {
+    if (width - logical_width).abs() > RESIZE_TOLERANCE_PX
+        || (height - logical_height).abs() > RESIZE_TOLERANCE_PX
+    {
         let _ = window.set_size(tauri::LogicalSize::new(width, height));
     }
 }

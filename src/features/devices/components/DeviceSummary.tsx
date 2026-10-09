@@ -1,4 +1,3 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import type { LucideIcon } from "lucide-react";
 import {
   AppWindow,
@@ -21,8 +20,8 @@ import type { ReactNode } from "react";
 import { useAppStore } from "@/app/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useInstallApk } from "@/features/apps/hooks";
-import { useDeviceInfo } from "../hooks";
+import { useInstallApk } from "@/hooks/useInstallApk";
+import { useDeviceInfo } from "@/hooks/useDevices";
 import {
   useOpenWindows,
   useStartCamera,
@@ -31,22 +30,15 @@ import {
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
+import { chooseApk } from "@/lib/apkPicker";
 import { batteryIcon } from "@/lib/battery";
-import { stateLabel, transportLabel } from "@/lib/format";
-import { DEFAULT_MIRROR_OPTIONS } from "@/lib/mirror";
+import { deviceName, stateLabel, transportLabel } from "@/lib/format";
+import { DEFAULT_MIRROR_OPTIONS, KIND_LABEL } from "@/lib/mirror";
 import { cn } from "@/lib/utils";
-import type { Device, MirrorKind } from "@/types";
+import type { Device } from "@/types";
 
 /** The first Android SDK with desktop windowing on connected displays (Android 16). */
 const MIN_DESKTOP_SDK = 36;
-
-const KIND_LABEL: Record<MirrorKind, string> = {
-  mirror: "Screen",
-  camera: "Camera",
-  app: "App window",
-  "screen-app": "App on screen",
-  desktop: "Desktop mode",
-};
 
 function Section({
   title,
@@ -77,7 +69,6 @@ function Section({
   );
 }
 
-/** Name, state and serial of the active device. */
 export function DeviceHero({ device }: { device: Device }) {
   const connected = device.state === "device";
   return (
@@ -87,9 +78,7 @@ export function DeviceHero({ device }: { device: Device }) {
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <h2 className="truncate text-lg leading-tight font-semibold">
-            {device.display_name || device.model || device.serial}
-          </h2>
+          <h2 className="truncate text-lg leading-tight font-semibold">{deviceName(device)}</h2>
           <Badge variant={connected ? "success" : "warning"} className="shrink-0">
             <span
               className={cn("size-1.5 rounded-full", connected ? "bg-success" : "bg-warning")}
@@ -131,7 +120,6 @@ function StatTile({
   );
 }
 
-/** Battery, connection and OS at a glance. */
 export function DeviceStats({
   device,
   battery,
@@ -154,7 +142,7 @@ export function DeviceStats({
       <StatTile
         icon={BatteryIcon}
         label="Battery"
-        value={hasBattery ? `${battery}%` : "—"}
+        value={hasBattery ? `${battery}%` : "-"}
         detail={charging ? "Charging" : "On battery"}
       >
         {hasBattery ? (
@@ -178,7 +166,7 @@ export function DeviceStats({
       <StatTile
         icon={Cpu}
         label="System"
-        value={androidVersion ? `Android ${androidVersion}` : "—"}
+        value={androidVersion ? `Android ${androidVersion}` : "-"}
         detail={sdk ? `API level ${sdk}` : undefined}
       />
     </div>
@@ -223,7 +211,6 @@ function ActionTile({
   );
 }
 
-/** One-click shortcuts to the things people do most with a connected phone. */
 export function QuickActions({ device }: { device: Device }) {
   const serial = device.serial;
   const setActiveTab = useAppStore((s) => s.setActiveTab);
@@ -233,19 +220,13 @@ export function QuickActions({ device }: { device: Device }) {
   const startCamera = useStartCamera();
   const startDesktop = useStartDesktop();
   const installApk = useInstallApk();
-  // Android 16 (API 36) brought desktop windowing to connected displays. The
-  // device list carries no SDK, so read it from the (shared, cached) device info.
+  // Android 16 (API 36) brought desktop windowing to connected displays.
   const { data: info } = useDeviceInfo(device.state === "device" ? serial : null);
   const desktopSupported = Number(info?.sdk || device.sdk) >= MIN_DESKTOP_SDK;
 
   async function pickApk() {
-    const selected = await open({
-      multiple: false,
-      directory: false,
-      filters: [{ name: "Android package", extensions: ["apk", "apks", "xapk"] }],
-      title: "Select an APK to install",
-    });
-    if (typeof selected === "string") installApk.mutate({ serial, path: selected });
+    const selected = await chooseApk();
+    if (selected) installApk.mutate({ serial, path: selected });
   }
 
   return (
@@ -309,7 +290,6 @@ export function QuickActions({ device }: { device: Device }) {
   );
 }
 
-/** Mirror windows open for this device, with a stop button each. */
 export function DeviceWindows({ device, className }: { device: Device; className?: string }) {
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const { windows } = useOpenWindows();

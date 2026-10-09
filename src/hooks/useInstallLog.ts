@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { events } from "@/lib/events";
 import type { ToolKind } from "@/types";
+
+import { useBackendEvents } from "./useBackendEvents";
 
 export interface InstallLogState {
   running: boolean;
@@ -28,13 +30,9 @@ const MAX_LINES = 300;
 export function useInstallLog() {
   const [state, setState] = useState<InstallLogState>(EMPTY);
 
-  useEffect(() => {
-    let unlistenProgress: (() => void) | undefined;
-    let unlistenDone: (() => void) | undefined;
-    let disposed = false;
-
-    events
-      .toolsInstallProgress((event) => {
+  useBackendEvents((track) => {
+    track(
+      events.toolsInstallProgress((event) => {
         setState((prev) => ({
           ...prev,
           running: true,
@@ -43,15 +41,10 @@ export function useInstallLog() {
           message: null,
           ok: null,
         }));
-      })
-      .then((fn) => {
-        if (disposed) fn();
-        else unlistenProgress = fn;
-      })
-      .catch(() => {});
-
-    events
-      .toolsInstallDone((event) => {
+      }),
+    );
+    track(
+      events.toolsInstallDone((event) => {
         setState((prev) => ({
           ...prev,
           running: false,
@@ -59,18 +52,8 @@ export function useInstallLog() {
           message: event.payload.message,
           ok: event.payload.ok,
         }));
-      })
-      .then((fn) => {
-        if (disposed) fn();
-        else unlistenDone = fn;
-      })
-      .catch(() => {});
-
-    return () => {
-      disposed = true;
-      unlistenProgress?.();
-      unlistenDone?.();
-    };
+      }),
+    );
   }, []);
 
   const reset = useCallback(() => setState(EMPTY), []);

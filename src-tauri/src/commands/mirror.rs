@@ -1,10 +1,8 @@
-//! Mirroring commands (thin wrappers over `services::mirror` and
-//! `services::mirror_session`).
+//! Mirroring commands (thin wrappers over `runtime::mirror` and
+//! `runtime::mirror_session`).
 
 use tauri::ipc::{Channel, Response};
-use tauri::{
-    AppHandle, LogicalSize, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-};
+use tauri::{AppHandle, LogicalSize, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::error::{AppError, Result};
 use crate::models::{
@@ -12,15 +10,13 @@ use crate::models::{
     TouchAction,
 };
 use crate::platform;
+use crate::runtime::mirror::{self, AppDisplay};
+use crate::runtime::mirror_session;
 use crate::services::control::{self, Position};
-use crate::services::mirror::{self, AppDisplay};
-use crate::services::mirror_session;
 use crate::services::mirror_window;
-use crate::services::scrcpy;
 use crate::state::AppState;
 use crate::util::validation::{validate_package, validate_serial};
 
-/// Mirror the full device screen in a new window.
 #[tauri::command]
 pub async fn start_mirror(
     serial: String,
@@ -31,7 +27,6 @@ pub async fn start_mirror(
     mirror::start_mirror(&app, &serial, &options).await
 }
 
-/// Stream the device camera in a new window.
 #[tauri::command]
 pub async fn start_camera(
     serial: String,
@@ -42,7 +37,7 @@ pub async fn start_camera(
     mirror::start_camera(&app, &serial, &options).await
 }
 
-/// Open an app in its own window on the laptop (main-display fallback on 12–13).
+/// Open an app in its own window on the laptop (main-display fallback on 12-13).
 #[tauri::command]
 pub async fn start_app_window(
     serial: String,
@@ -73,7 +68,7 @@ pub async fn start_app_on_screen(
 #[tauri::command]
 pub async fn start_desktop(serial: String, app: AppHandle) -> Result<MirrorProcess> {
     validate_serial(&serial)?;
-    let display = screen_desktop_display(&app);
+    let display = mirror::screen_desktop_display(&app);
     mirror::start_desktop(&app, &serial, &display).await
 }
 
@@ -89,7 +84,6 @@ pub async fn stop_all_mirrors(app: AppHandle) -> Result<()> {
     Ok(())
 }
 
-/// The scrcpy windows currently open.
 #[tauri::command]
 pub fn list_mirrors(state: State<'_, AppState>) -> Vec<MirrorProcess> {
     state.list_mirrors()
@@ -112,7 +106,7 @@ pub async fn open_mirror_window(
     }
 
     let desktop = kind == MirrorKind::Desktop;
-    let desktop_display = desktop.then(|| screen_desktop_display(&app));
+    let desktop_display = desktop.then(|| mirror::screen_desktop_display(&app));
 
     let id = {
         let state = app.state::<AppState>();
@@ -137,7 +131,7 @@ pub async fn open_mirror_window(
         label.clone()
     };
     // A desktop opens landscape and, unlike a phone-shaped window, can go full
-    // screen (the green button on macOS) — it is sized to fill the screen exactly.
+    // screen (the green button on macOS) - it is sized to fill the screen exactly.
     let (width, height) = if desktop {
         (
             mirror_window::DEFAULT_LONG_SIDE * 1.5,
@@ -156,7 +150,7 @@ pub async fn open_mirror_window(
         "index.html"
     };
     let builder = WebviewWindowBuilder::new(&app, window_label(id), WebviewUrl::App(page.into()))
-        .title(format!("Zesp Connect — {title}"))
+        .title(format!("Zesp Connect - {title}"))
         .inner_size(width, height)
         .min_inner_size(mirror_window::MIN_SIDE, mirror_window::MIN_SIDE)
         .maximizable(desktop);
@@ -184,28 +178,11 @@ pub async fn open_mirror_window(
     Ok(id)
 }
 
-/// The desktop display for the screen Zesp Connect's main window is on (the
-/// primary screen as a fallback), in the `WxH/dpi` form scrcpy expects.
-fn screen_desktop_display(app: &AppHandle) -> String {
-    let monitor = app
-        .get_webview_window("main")
-        .and_then(|window| window.current_monitor().ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
-    match monitor {
-        Some(monitor) => scrcpy::desktop_display(
-            monitor.size().width,
-            monitor.size().height,
-            monitor.scale_factor(),
-        ),
-        None => scrcpy::desktop_display(1920, 1080, 1.0),
-    }
-}
-
 /// Fit a session's window to its video's aspect ratio once the first frame reveals
 /// the device's dimensions, and remember the ratio so later resizes stay locked to
 /// it. The video area then matches the frame exactly, so the canvas fills the
 /// window (below its title bar and, for a phone-shaped window, above its bottom
-/// gap — see `mirror_window::vertical_inset`) instead of being letterboxed.
+/// gap - see `mirror_window::vertical_inset`) instead of being letterboxed.
 #[tauri::command]
 pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle) -> Result<()> {
     if width == 0 || height == 0 {
@@ -219,7 +196,7 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     let aspect = width as f64 / height as f64;
     let state = app.state::<AppState>();
     let inset = mirror_window::vertical_inset(state.session_kind(id));
-    let long_side = window_long_side(&window, inset);
+    let long_side = mirror::window_long_side(&window, inset);
     state.set_aspect(id, aspect);
     // On Windows this locks the ratio through the native resize hook so the
     // dragged edge tracks the cursor; elsewhere it is a no-op and the window's
@@ -233,20 +210,6 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
         .map_err(|error| AppError::Other(error.to_string()))?;
 
     Ok(())
-}
-
-/// The longer side of a window's video area in logical pixels, used to keep a
-/// window's footprint steady when its aspect ratio changes on rotation.
-fn window_long_side(window: &WebviewWindow, inset: f64) -> f64 {
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let Ok(size) = window.inner_size() else {
-        return mirror_window::DEFAULT_LONG_SIDE;
-    };
-    let (width, height) = mirror_window::unpad(
-        (size.width as f64 / scale, size.height as f64 / scale),
-        inset,
-    );
-    width.max(height)
 }
 
 /// Stream a previously opened session's video into the calling window.
@@ -345,7 +308,6 @@ pub async fn mirror_phone_screen(id: u64, on: bool, state: State<'_, AppState>) 
     channel.send(control::set_display_power(on))
 }
 
-/// Type text into a running session.
 #[tauri::command]
 pub async fn mirror_text(id: u64, text: String, state: State<'_, AppState>) -> Result<()> {
     session_channel(&state, id)?.send(control::inject_text(&text)?)
@@ -357,7 +319,6 @@ fn session_channel(state: &State<'_, AppState>, id: u64) -> Result<mirror_sessio
         .ok_or_else(|| AppError::Invalid("Unknown mirror session".into()))
 }
 
-/// Close one in-app session and its window.
 #[tauri::command]
 pub async fn stop_mirror_session(id: u64, app: AppHandle) -> Result<()> {
     mirror_session::stop(&app, id);
@@ -365,7 +326,6 @@ pub async fn stop_mirror_session(id: u64, app: AppHandle) -> Result<()> {
     Ok(())
 }
 
-/// The in-app mirror sessions currently running.
 #[tauri::command]
 pub fn list_mirror_sessions(state: State<'_, AppState>) -> Vec<MirrorSession> {
     state.list_sessions()
@@ -403,7 +363,7 @@ pub async fn mirror_session_fallback(id: u64, app: AppHandle) -> Result<()> {
             let display = spec
                 .desktop_display
                 .clone()
-                .unwrap_or_else(|| screen_desktop_display(&app));
+                .unwrap_or_else(|| mirror::screen_desktop_display(&app));
             mirror::start_desktop(&app, &spec.serial, &display).await?;
         }
     }

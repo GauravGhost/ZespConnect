@@ -1,8 +1,8 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import { Check, Copy, DownloadCloud, FolderSearch, RefreshCw, Terminal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { InstallerLogOutput } from "@/components/app/InstallerLogOutput";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useInstallLog } from "@/hooks/useInstallLog";
 import { useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
 import { errorMessage } from "@/lib/ipc";
+import { pickToolExecutable } from "@/lib/toolDialogs";
 import type { ToolInfo, ToolKind, UpdateInfo } from "@/types";
 
 type Os = "windows" | "macos" | "linux";
@@ -178,12 +179,8 @@ export function DependencyCheck() {
   const os = detectOs();
 
   async function browse(kind: ToolKind) {
-    const selected = await open({
-      multiple: false,
-      directory: false,
-      title: `Select the ${kind} executable`,
-    });
-    if (typeof selected === "string") {
+    const selected = await pickToolExecutable(kind);
+    if (selected) {
       setToolPath.mutate({ tool: kind, path: selected });
     }
   }
@@ -243,9 +240,7 @@ export function DependencyCheck() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="bg-muted/50 max-h-40 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre-wrap">
-              {log.lines.length > 0 ? log.lines.join("\n") : "Waiting for output…"}
-            </pre>
+            <InstallerLogOutput lines={log.lines} className="max-h-40" />
           </CardContent>
         </Card>
       ) : null}

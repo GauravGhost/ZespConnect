@@ -9,7 +9,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary-container text-on-primary-container shadow-xs hover:bg-primary-container/90",
+        default:
+          "bg-primary-container text-on-primary-container shadow-xs hover:bg-primary-container/90",
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline: "border border-border bg-transparent hover:bg-accent hover:text-accent-foreground",
@@ -52,4 +53,5 @@ function Button({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants };

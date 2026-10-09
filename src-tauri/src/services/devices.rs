@@ -32,6 +32,11 @@ static DIGITS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\d+)").expect("valid 
 static VOLUME_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"volume is (\d+) in range \[(\d+)\.\.(\d+)\]").expect("valid regex"));
 
+const INFO_TIMEOUT: Duration = Duration::from_secs(25);
+/// Screen-brightness ceilings: 8-bit on older releases, 12-bit since Android 12.
+const BRIGHTNESS_MAX_8BIT: i32 = 255;
+const BRIGHTNESS_MAX_12BIT: i32 = 4095;
+
 /// A serial that is an mDNS alias rather than a host:port address.
 pub fn is_mdns(serial: &str) -> bool {
     serial.contains("_adb-tls-") || serial.contains("._tcp")
@@ -103,7 +108,7 @@ pub fn parse_devices(text: &str) -> Vec<Device> {
 
 /// Collapse the Android 11+ duplicate transports for one phone.
 ///
-/// A wireless device shows up twice — as `ip:port` and as an
+/// A wireless device shows up twice - as `ip:port` and as an
 /// `adb-<hash>-<name>._adb-tls-connect._tcp` alias. Keep the mDNS alias (scrcpy
 /// refuses the `ip:port` serial while the alias exists) and carry the address
 /// for display and reconnecting.
@@ -197,8 +202,11 @@ pub fn parse_info(text: &str) -> DeviceInfo {
             if let Some(caps) = DIGITS_RE.captures(value) {
                 if let Ok(brightness) = caps[1].parse::<i32>() {
                     info.quick.brightness = brightness;
-                    // Android 12+ widened the range to 0-4095; older releases use 0-255.
-                    info.quick.brightness_max = if brightness > 255 { 4095 } else { 255 };
+                    info.quick.brightness_max = if brightness > BRIGHTNESS_MAX_8BIT {
+                        BRIGHTNESS_MAX_12BIT
+                    } else {
+                        BRIGHTNESS_MAX_8BIT
+                    };
                 }
             }
         } else if line.starts_with("level:") {
@@ -210,7 +218,7 @@ pub fn parse_info(text: &str) -> DeviceInfo {
         } else if line.starts_with("VOL:") || VOLUME_RE.is_match(line) {
             // `cmd media_session volume --get` also prints `[V] ...` verbose lines
             // (to stdout), so the value often lands on its own line rather than the
-            // `VOL:`-prefixed one — match either.
+            // `VOL:`-prefixed one - match either.
             if let Some(caps) = VOLUME_RE.captures(line) {
                 let current: i32 = caps[1].parse().unwrap_or(0);
                 let low: i32 = caps[2].parse().unwrap_or(0);
@@ -243,7 +251,7 @@ pub async fn list(tools: &ToolStatus) -> Result<Vec<Device>> {
 /// Battery + version + quick state for one device.
 pub async fn info(tools: &ToolStatus, serial: &str) -> Result<DeviceInfo> {
     let adb = adb::adb_path(tools)?;
-    let output = adb::shell(&adb, serial, INFO_COMMAND, Duration::from_secs(25)).await?;
+    let output = adb::shell(&adb, serial, INFO_COMMAND, INFO_TIMEOUT).await?;
     if !output.success && output.text().is_empty() {
         return Err(AppError::CommandFailed(format!(
             "Could not read info for {serial}"

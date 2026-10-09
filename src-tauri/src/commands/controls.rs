@@ -8,14 +8,12 @@ use crate::services::toggles;
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
-/// Toggles, brightness and volume for the active device.
 #[tauri::command]
 pub async fn get_quick_state(serial: String, state: State<'_, AppState>) -> Result<QuickState> {
     validate_serial(&serial)?;
     toggles::quick_state(&state.tools(), &serial).await
 }
 
-/// Flip one quick toggle (wifi, bluetooth, darkmode, airplane, data, location, dnd, rotate).
 #[tauri::command]
 pub async fn set_toggle(
     serial: String,

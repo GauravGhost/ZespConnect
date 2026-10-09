@@ -3,7 +3,7 @@
  *
  * To add / customize / remove a theme, edit ONLY this file:
  *   1. Add a `defineTheme(...)` entry to `THEMES` with its accent colors.
- *   2. Nothing else in the app needs to change — the picker and the runtime
+ *   2. Nothing else in the app needs to change - the picker and the runtime
  *      `ThemeProvider` read from `THEMES`, and every component is driven by
  *      semantic tokens (see the design-system contract in `./README.md`).
  *
@@ -15,11 +15,7 @@ import type { ThemePreset, ThemeTokens } from "./types";
 
 type SurfaceTokens = Omit<
   ThemeTokens,
-  | "--primary"
-  | "--primary-foreground"
-  | "--ring"
-  | "--primary-container"
-  | "--on-primary-container"
+  "--primary" | "--primary-foreground" | "--ring" | "--primary-container" | "--on-primary-container"
 >;
 
 const NEUTRAL_LIGHT: SurfaceTokens = {

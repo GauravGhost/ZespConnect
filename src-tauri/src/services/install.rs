@@ -2,7 +2,7 @@
 //!
 //! Deliberately Tauri-free: the caller owns the app data directory and passes a
 //! callback that receives progress lines (the command layer forwards those to
-//! the UI as events). Nothing here needs administrator rights — everything is
+//! the UI as events). Nothing here needs administrator rights - everything is
 //! written under `<app_data_dir>/tools`, which the user owns.
 
 use std::path::{Path, PathBuf};

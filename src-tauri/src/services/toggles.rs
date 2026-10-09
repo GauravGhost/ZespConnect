@@ -29,7 +29,6 @@ const OVERLAY_BRIGHTNESS_MAX: &str =
 const KEYCODE_VOLUME_UP: &str = "24";
 const KEYCODE_VOLUME_DOWN: &str = "25";
 
-static DIGITS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\d+)").expect("valid regex"));
 static VOLUME_RANGE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"volume is (\d+) in range \[(\d+)\.\.(\d+)\]").expect("valid regex"));
 
@@ -37,25 +36,25 @@ static BRIGHTNESS_MAX: Lazy<Mutex<HashMap<String, i32>>> = Lazy::new(|| Mutex::n
 
 /// The remote shell command for one quick toggle.
 pub fn toggle_command(key: &str, on: bool) -> Result<String> {
-    let bool01 = if on { "1" } else { "0" };
-    let onoff = if on { "enable" } else { "disable" };
-    let yesno = if on { "yes" } else { "no" };
+    let flag = if on { "1" } else { "0" };
+    let on_off = if on { "enable" } else { "disable" };
+    let yes_no = if on { "yes" } else { "no" };
 
     let command = match key {
-        "wifi" => format!("svc wifi {onoff}"),
-        "bluetooth" => format!("svc bluetooth {onoff}"),
-        "darkmode" => format!("cmd uimode night {yesno}"),
+        "wifi" => format!("svc wifi {on_off}"),
+        "bluetooth" => format!("svc bluetooth {on_off}"),
+        "darkmode" => format!("cmd uimode night {yes_no}"),
         "airplane" => format!(
-            "settings put global airplane_mode_on {bool01} && \
+            "settings put global airplane_mode_on {flag} && \
              am broadcast -a android.intent.action.AIRPLANE_MODE"
         ),
-        "data" => format!("settings put global mobile_data {bool01} && svc data {onoff}"),
+        "data" => format!("settings put global mobile_data {flag} && svc data {on_off}"),
         "location" => format!(
             "settings put secure location_mode {}",
             if on { "3" } else { "0" }
         ),
-        "dnd" => format!("cmd settings put global zen_mode {bool01}"),
-        "rotate" => format!("settings put system accelerometer_rotation {bool01}"),
+        "dnd" => format!("cmd settings put global zen_mode {flag}"),
+        "rotate" => format!("settings put system accelerometer_rotation {flag}"),
         _ => return Err(AppError::Invalid(format!("Unknown toggle: {key}"))),
     };
     Ok(command)
@@ -101,7 +100,7 @@ pub async fn set_volume(tools: &ToolStatus, serial: &str, percent: i32) -> Resul
 
     // `cmd media_session volume --set` is a silent no-op on several Android
     // builds (verified on Android 16), so drive the stream with volume key
-    // events instead — the platform always honours those.
+    // events instead - the platform always honours those.
     let key = if delta > 0 {
         KEYCODE_VOLUME_UP
     } else {
@@ -122,7 +121,7 @@ pub async fn reboot(tools: &ToolStatus, serial: &str, mode: RebootMode) -> Resul
 /// Read (once per device) the framework's screen-brightness ceiling.
 ///
 /// The `screen_brightness` setting accepts any integer, so writing a probe value
-/// cannot reveal the range — the configured maximum has to be read directly.
+/// cannot reveal the range - the configured maximum has to be read directly.
 /// `cmd overlay lookup` is available on Android 13+; older devices fall back to
 /// the AOSP default of 255.
 async fn brightness_max(adb: &str, serial: &str) -> i32 {
@@ -176,13 +175,6 @@ fn cache_set<T>(cache: &Lazy<Mutex<HashMap<String, T>>>, serial: &str, value: T)
     if let Ok(mut guard) = cache.lock() {
         guard.insert(serial.to_string(), value);
     }
-}
-
-/// First run of digits in `text`, if any.
-pub fn first_int(text: &str) -> Option<i32> {
-    DIGITS_RE
-        .captures(text)
-        .and_then(|caps| caps[1].parse::<i32>().ok())
 }
 
 /// `(current, low, high)` from a `volume is X in range [low..high]` line.
@@ -307,12 +299,5 @@ mod tests {
         assert_eq!(volume_index(50, 0, 15), 8);
         assert_eq!(volume_index(100, 1, 10), 10);
         assert_eq!(volume_index(0, 1, 10), 1);
-    }
-
-    #[test]
-    fn reads_first_integer() {
-        assert_eq!(first_int("1024"), Some(1024));
-        assert_eq!(first_int("null"), None);
-        assert_eq!(first_int(" 260\n"), Some(260));
     }
 }

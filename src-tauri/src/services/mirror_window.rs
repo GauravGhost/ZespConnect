@@ -3,7 +3,7 @@
 //! Tauri/tao expose no aspect-ratio lock, so a mirror window keeps the video's
 //! shape by hand. The first decoded frame reveals the device's dimensions and we
 //! size the window to them ([`fit_size`]), so the client area matches the frame
-//! and the canvas fills the window instead of being letterboxed with padding —
+//! and the canvas fills the window instead of being letterboxed with padding -
 //! a landscape app gets a landscape window automatically.
 //!
 //! Keeping that shape while the user drags an edge is done two ways. On Windows
@@ -62,7 +62,7 @@ pub fn unpad((width, height): (f64, f64), inset: f64) -> (f64, f64) {
 /// stretched very wide cannot produce an absurd size on the next turn.
 pub const MAX_LONG_SIDE: f64 = 2000.0;
 
-/// Grow `(width, height)` — staying on `aspect = width / height` — until neither
+/// Grow `(width, height)` - staying on `aspect = width / height` - until neither
 /// side is below [`MIN_SIDE`], rounding to whole pixels for stable `set_size`s.
 fn with_minimum(width: f64, height: f64, aspect: f64) -> (f64, f64) {
     let (mut width, mut height) = (width, height);

@@ -10,8 +10,8 @@ const HEADER_LEN = 9;
 
 /**
  * How many decode requests may be outstanding before we stop feeding delta
- * frames. A mirror is a live stream: when the decoder falls behind — which it
- * does while the window is being resized and the GPU is busy re-rasterizing —
+ * frames. A mirror is a live stream: when the decoder falls behind - which it
+ * does while the window is being resized and the GPU is busy re-rasterizing -
  * we want the newest picture, not a growing backlog of stale ones. An unbounded
  * queue is what eventually stalls a hardware decoder, and a stalled decoder
  * produces no `error`, so the canvas just goes quiet and black.
@@ -24,7 +24,7 @@ export interface DecoderHandlers {
   /**
    * The decoder dropped frames and is waiting for a key frame. The encoder only
    * sends one when the stream starts (or the picture changes a lot), so a still
-   * screen — a desktop at rest — would otherwise stay frozen on a stale picture.
+   * screen - a desktop at rest - would otherwise stay frozen on a stale picture.
    */
   onNeedKeyframe?: () => void;
 }
@@ -92,7 +92,7 @@ export class H264Decoder {
   /**
    * Drop the decoder and wait for the next key frame. Used when it has gone
    * quiet (no output while frames keep arriving), which otherwise freezes the
-   * canvas on the last picture — or leaves it black.
+   * canvas on the last picture - or leaves it black.
    */
   reset(): void {
     this.teardown();

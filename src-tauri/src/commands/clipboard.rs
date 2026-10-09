@@ -7,7 +7,6 @@ use crate::services::clipboard as clipboard_service;
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
-/// Send text to the device clipboard.
 #[tauri::command]
 pub async fn clipboard_send(
     serial: String,
@@ -19,7 +18,6 @@ pub async fn clipboard_send(
     clipboard_service::send(&tools, &serial, &text).await
 }
 
-/// Read the device clipboard and put it on the desktop clipboard.
 #[tauri::command]
 pub async fn clipboard_read(serial: String, state: State<'_, AppState>) -> Result<String> {
     validate_serial(&serial)?;

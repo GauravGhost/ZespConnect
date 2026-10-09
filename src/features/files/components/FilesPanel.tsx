@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useActiveDevice } from "@/features/devices";
+import { useActiveDevice } from "@/hooks/useDevices";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { FileEntry } from "@/types";
@@ -53,7 +53,6 @@ export function FilesPanel() {
   const [folderName, setFolderName] = useState("");
   const [confirm, setConfirm] = useState<FileEntry | null>(null);
 
-  // Start each device at the shared storage root.
   useEffect(() => setPath(ROOT), [serial]);
 
   const {
@@ -244,7 +243,7 @@ export function FilesPanel() {
                     {entry.date}
                   </span>
                   <span className="text-muted-foreground w-20 shrink-0 text-right text-xs tabular-nums">
-                    {entry.is_directory ? "—" : entry.formatted_size}
+                    {entry.is_directory ? "-" : entry.formatted_size}
                   </span>
                 </button>
 

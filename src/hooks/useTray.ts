@@ -5,6 +5,8 @@ import { useAppStore, type TabId } from "@/app/store";
 import { events } from "@/lib/events";
 import { ipc } from "@/lib/ipc";
 
+import { useBackendEvents } from "./useBackendEvents";
+
 function isTabId(value: string): value is TabId {
   return (TAB_IDS as string[]).includes(value);
 }
@@ -15,38 +17,22 @@ export function useTrayNavigation() {
   const setSelectedSerial = useAppStore((s) => s.setSelectedSerial);
   const selectedSerial = useAppStore((s) => s.selectedSerial);
 
-  useEffect(() => {
-    let disposed = false;
-    const unlisteners: Array<() => void> = [];
-
-    const track = (pending: Promise<() => void>) => {
-      pending
-        .then((unlisten) => {
-          if (disposed) unlisten();
-          else unlisteners.push(unlisten);
-        })
-        .catch(() => {
-          /* backend not ready yet */
-        });
-    };
-
-    track(
-      events.trayNavigate((event) => {
-        if (isTabId(event.payload.tab)) setActiveTab(event.payload.tab);
-      }),
-    );
-    track(
-      events.traySelectDevice((event) => {
-        setSelectedSerial(event.payload.serial);
-        setActiveTab("overview");
-      }),
-    );
-
-    return () => {
-      disposed = true;
-      unlisteners.forEach((unlisten) => unlisten());
-    };
-  }, [setActiveTab, setSelectedSerial]);
+  useBackendEvents(
+    (track) => {
+      track(
+        events.trayNavigate((event) => {
+          if (isTabId(event.payload.tab)) setActiveTab(event.payload.tab);
+        }),
+      );
+      track(
+        events.traySelectDevice((event) => {
+          setSelectedSerial(event.payload.serial);
+          setActiveTab("overview");
+        }),
+      );
+    },
+    [setActiveTab, setSelectedSerial],
+  );
 
   // Seed the selection from the backend on first run (so restarts restore it).
   useEffect(() => {

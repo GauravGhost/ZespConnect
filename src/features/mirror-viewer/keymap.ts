@@ -50,11 +50,11 @@ const KEYCODES: Record<string, number> = {
   MetaRight: IS_MAC ? 114 : 118,
 };
 
-// KeyA–KeyZ → KEYCODE_A (29) … KEYCODE_Z (54).
+// KeyA-KeyZ → KEYCODE_A (29) … KEYCODE_Z (54).
 for (let i = 0; i < 26; i++) KEYCODES[`Key${String.fromCharCode(65 + i)}`] = 29 + i;
-// Digit0–Digit9 → KEYCODE_0 (7) … KEYCODE_9 (16).
+// Digit0-Digit9 → KEYCODE_0 (7) … KEYCODE_9 (16).
 for (let i = 0; i < 10; i++) KEYCODES[`Digit${i}`] = 7 + i;
-// F1–F12 → KEYCODE_F1 (131) … KEYCODE_F12 (142).
+// F1-F12 → KEYCODE_F1 (131) … KEYCODE_F12 (142).
 for (let i = 1; i <= 12; i++) KEYCODES[`F${i}`] = 130 + i;
 
 /** The Android keycode for a physical key, if it has one. */

@@ -3,4 +3,5 @@ coverage
 node_modules
 src-tauri/target
 src-tauri/gen
+.commandcode
 package-lock.json

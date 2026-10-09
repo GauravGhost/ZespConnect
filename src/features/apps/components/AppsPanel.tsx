@@ -1,5 +1,4 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { open } from "@tauri-apps/plugin-dialog";
 import { AlertTriangle, Loader2, Package, RefreshCw, Search, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -7,21 +6,22 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useActiveDevice } from "@/features/devices";
+import { useActiveDevice } from "@/hooks/useDevices";
 import {
   useOpenAppOnScreen,
   useOpenAppWindow,
   useOpenWindows,
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
+import { chooseApk } from "@/lib/apkPicker";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { AppInfo } from "@/types";
 import { filterApps, type AppFilter } from "../filter";
+import { useInstallApk } from "@/hooks/useInstallApk";
 import {
   useAppList,
   useClearAppData,
-  useInstallApk,
   useLaunchApp,
   useRefreshAppList,
   useUninstallApp,
@@ -93,13 +93,8 @@ export function AppsPanel() {
 
   async function pickApk() {
     if (!serial) return;
-    const selected = await open({
-      multiple: false,
-      directory: false,
-      filters: [{ name: "Android package", extensions: ["apk", "apks", "xapk"] }],
-      title: "Select an APK to install",
-    });
-    if (typeof selected === "string") installApk.mutate({ serial, path: selected });
+    const selected = await chooseApk();
+    if (selected) installApk.mutate({ serial, path: selected });
   }
 
   function runConfirm() {
@@ -178,7 +173,7 @@ export function AppsPanel() {
         </div>
 
         {data?.stale ? (
-          <p className="text-muted-foreground text-xs">Showing cached names — refreshing…</p>
+          <p className="text-muted-foreground text-xs">Showing cached names - refreshing…</p>
         ) : null}
       </div>
 

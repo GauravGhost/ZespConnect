@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useActiveDevice } from "@/features/devices";
+import { useActiveDevice } from "@/hooks/useDevices";
 import {
   useOpenWindows,
   useStartCamera,
@@ -15,18 +15,10 @@ import {
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
-import { DEFAULT_MIRROR_OPTIONS } from "@/lib/mirror";
+import { DEFAULT_MIRROR_OPTIONS, KIND_LABEL } from "@/lib/mirror";
 import { cn } from "@/lib/utils";
-import type { MirrorKind, MirrorOptions } from "@/types";
+import type { MirrorOptions } from "@/types";
 import { MirrorOptionsForm } from "./MirrorOptionsForm";
-
-const KIND_LABEL: Record<MirrorKind, string> = {
-  mirror: "Screen",
-  camera: "Camera",
-  app: "App window",
-  "screen-app": "App on screen",
-  desktop: "Desktop mode",
-};
 
 const MODES = [
   { id: "screen", label: "Screen", hint: "Mirror the display in a window", icon: Monitor },

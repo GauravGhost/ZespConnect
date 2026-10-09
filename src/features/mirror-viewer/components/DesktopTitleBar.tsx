@@ -7,7 +7,6 @@ import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
 
 const IS_MAC = /Mac/.test(navigator.platform);
 
-
 export function DesktopTitleBar({
   phoneScreen,
   onTogglePhoneScreen,

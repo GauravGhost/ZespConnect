@@ -83,7 +83,7 @@ jobs:
           '
 
       # Secrets cannot be used in `if:` conditions, so this step always runs on
-      # Windows and no-ops when the certificate secret is absent — the build then
+      # Windows and no-ops when the certificate secret is absent - the build then
       # stays unsigned and the workflow still succeeds.
       - name: Configure Windows code signing
         if: matrix.platform == 'windows-latest'

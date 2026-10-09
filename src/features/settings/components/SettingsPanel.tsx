@@ -1,12 +1,13 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import { RefreshCw, Search, Terminal } from "lucide-react";
 import { toast } from "sonner";
 
+import { InstallerLogOutput } from "@/components/app/InstallerLogOutput";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInstallLog } from "@/hooks/useInstallLog";
 import { useCheckUpdates, useInstallTool, useSetToolPath, useToolsStatus } from "@/hooks/useTools";
 import { errorMessage } from "@/lib/ipc";
+import { pickToolExecutable } from "@/lib/toolDialogs";
 import type { ToolKind } from "@/types";
 import { AppearanceCard } from "./AppearanceCard";
 import { ToolCard } from "./ToolCard";
@@ -19,12 +20,8 @@ export function SettingsPanel() {
   const log = useInstallLog();
 
   async function locate(kind: ToolKind) {
-    const selected = await open({
-      multiple: false,
-      directory: false,
-      title: `Select the ${kind} executable`,
-    });
-    if (typeof selected === "string") {
+    const selected = await pickToolExecutable(kind);
+    if (selected) {
       setPath.mutate({ tool: kind, path: selected });
     }
   }
@@ -40,7 +37,7 @@ export function SettingsPanel() {
       onSuccess: (status) => {
         const found = kind === "adb" ? status.adb.found : status.scrcpy.found;
         if (found) toast.success(`${kind} is ready`);
-        else toast.warning(`Installed, but ${kind} was not found — set its path manually`);
+        else toast.warning(`Installed, but ${kind} was not found - set its path manually`);
       },
     });
   }
@@ -50,7 +47,7 @@ export function SettingsPanel() {
       onError: (error) => toast.error(errorMessage(error)),
       onSuccess: (status) => {
         const problems = [status.adb_update.error, status.scrcpy_update.error].filter(Boolean);
-        if (problems.length > 0) toast.warning(`Update check incomplete — ${problems[0]}`);
+        if (problems.length > 0) toast.warning(`Update check incomplete - ${problems[0]}`);
         else toast.success("Checked for updates");
       },
     });
@@ -127,9 +124,7 @@ export function SettingsPanel() {
                 {log.message}
               </p>
             ) : null}
-            <pre className="bg-muted/50 max-h-52 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre-wrap">
-              {log.lines.length > 0 ? log.lines.join("\n") : "Waiting for output…"}
-            </pre>
+            <InstallerLogOutput lines={log.lines} className="max-h-52" />
           </CardContent>
         </Card>
       ) : null}

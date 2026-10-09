@@ -7,7 +7,6 @@ import { baseName, joinPath } from "./path";
 
 export const filesKey = (serial: string, path: string) => ["files", serial, path] as const;
 
-/** The entries in a device directory. */
 export function useDirectory(serial: string | null, path: string) {
   return useQuery({
     queryKey: filesKey(serial ?? "", path),
@@ -16,7 +15,6 @@ export function useDirectory(serial: string | null, path: string) {
   });
 }
 
-/** Copy a device file to a chosen host path. */
 export function usePullFile(serial: string | null) {
   return useMutation({
     mutationFn: ({ remote, local }: { remote: string; local: string }) =>
@@ -26,7 +24,6 @@ export function usePullFile(serial: string | null) {
   });
 }
 
-/** Copy host files into the directory currently shown. */
 export function usePushFiles(serial: string | null, path: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -43,7 +40,6 @@ export function usePushFiles(serial: string | null, path: string) {
   });
 }
 
-/** Create a folder inside the directory currently shown. */
 export function useCreateFolder(serial: string | null, path: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -56,7 +52,6 @@ export function useCreateFolder(serial: string | null, path: string) {
   });
 }
 
-/** Delete a device file or directory. */
 export function useDeleteEntry(serial: string | null, path: string) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -11,7 +11,6 @@ use crate::services::adb;
 
 const SHELL_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Run one command on the device and capture stdout, stderr and the exit code.
 pub async fn exec(tools: &ToolStatus, serial: &str, command: &str) -> Result<ShellResult> {
     if command.trim().is_empty() {
         return Err(AppError::Invalid("Empty command".into()));

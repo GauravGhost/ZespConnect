@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { events } from "@/lib/events";
@@ -7,6 +7,8 @@ import { errorMessage, ipc } from "@/lib/ipc";
 import { DEFAULT_MIRROR_OPTIONS } from "@/lib/mirror";
 import { supportsInAppMirror } from "@/lib/webcodecs";
 import type { MirrorKind, MirrorOptions } from "@/types";
+
+import { useBackendEvents } from "./useBackendEvents";
 
 export const mirrorsKey = ["mirrors"] as const;
 export const sessionsKey = ["mirror-sessions"] as const;
@@ -32,31 +34,15 @@ export interface OpenWindow {
 export function useOpenWindows() {
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const unlisten: (() => void)[] = [];
-    let disposed = false;
-
-    const subscribe = (pending: Promise<() => void>) => {
-      pending
-        .then((fn) => {
-          if (disposed) fn();
-          else unlisten.push(fn);
-        })
-        .catch(() => {
-          /* backend not ready yet */
-        });
-    };
-
-    subscribe(events.mirrorStarted(() => invalidateWindows(queryClient)));
-    subscribe(events.mirrorSessionStarted(() => invalidateWindows(queryClient)));
-    subscribe(events.mirrorExited(() => invalidateWindows(queryClient)));
-    subscribe(events.mirrorSessionExited(() => invalidateWindows(queryClient)));
-
-    return () => {
-      disposed = true;
-      unlisten.forEach((fn) => fn());
-    };
-  }, [queryClient]);
+  useBackendEvents(
+    (track) => {
+      track(events.mirrorStarted(() => invalidateWindows(queryClient)));
+      track(events.mirrorSessionStarted(() => invalidateWindows(queryClient)));
+      track(events.mirrorExited(() => invalidateWindows(queryClient)));
+      track(events.mirrorSessionExited(() => invalidateWindows(queryClient)));
+    },
+    [queryClient],
+  );
 
   const mirrors = useQuery({ queryKey: mirrorsKey, queryFn: () => ipc.mirror.list() });
   const sessions = useQuery({ queryKey: sessionsKey, queryFn: () => ipc.mirror.listSessions() });

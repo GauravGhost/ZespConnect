@@ -1,8 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, QrCode, RotateCw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,61 +11,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { errorMessage, ipc } from "@/lib/ipc";
+import { useQrPairing } from "@/hooks/useQrPairing";
 import { cn } from "@/lib/utils";
-import type { QrPayload } from "@/types";
 
-const PAIR_TIMEOUT_SECS = 180;
 const CLOSE_AFTER_SUCCESS_MS = 1200;
-
-type Status =
-  | { kind: "idle" }
-  | { kind: "waiting" }
-  | { kind: "success"; address: string }
-  | { kind: "error"; message: string };
 
 /** Header button that opens a small QR pairing popup and closes itself once paired. */
 export function QrPairDialog() {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [qr, setQr] = useState<QrPayload | null>(null);
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [now, setNow] = useState(() => Date.now());
-  // Each generated QR gets a session id so results from a stale pairing attempt
-  // (closed popup, refreshed code) are ignored.
-  const sessionRef = useRef(0);
-
-  const generate = useCallback(async () => {
-    const session = ++sessionRef.current;
-    setQr(null);
-    setStatus({ kind: "idle" });
-    try {
-      const payload = await ipc.wireless.qrPayload();
-      if (session !== sessionRef.current) return;
-      setQr(payload);
-      setNow(Date.now());
-      setStatus({ kind: "waiting" });
-      const address = await ipc.wireless.qrPair(payload.payload, PAIR_TIMEOUT_SECS);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-      if (session !== sessionRef.current) return;
-      setStatus({ kind: "success", address });
-      toast.success(`Connected to ${address}`);
-    } catch (error) {
-      if (session !== sessionRef.current) return;
-      setStatus({ kind: "error", message: errorMessage(error) });
-    }
-  }, [queryClient]);
+  const { qr, status, secondsLeft, timer, generate, cancel } = useQrPairing();
 
   function onOpenChange(next: boolean) {
     setOpen(next);
-    if (next) {
-      void generate();
-    } else {
-      sessionRef.current++;
-      if (status.kind === "waiting") void ipc.wireless.cancelQr().catch(() => {});
-      setQr(null);
-      setStatus({ kind: "idle" });
-    }
+    if (next) void generate();
+    else cancel();
   }
 
   // Close automatically shortly after a successful connection.
@@ -77,16 +34,6 @@ export function QrPairDialog() {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.kind]);
-
-  // Tick once a second so the expiry counts down while the code is shown.
-  useEffect(() => {
-    if (!qr) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [qr]);
-
-  const secondsLeft = qr ? Math.max(0, qr.created + PAIR_TIMEOUT_SECS - Math.floor(now / 1000)) : 0;
-  const timer = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
 
   return (
     <>
@@ -110,8 +57,7 @@ export function QrPairDialog() {
           <DialogHeader className="text-center sm:text-center">
             <DialogTitle>Scan to connect</DialogTitle>
             <DialogDescription>
-              On your phone, open Developer options › Wireless debugging › Pair device with QR
-              code.
+              On your phone, open Developer options › Wireless debugging › Pair device with QR code.
             </DialogDescription>
           </DialogHeader>
 

@@ -175,7 +175,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
         ID_REFRESH => {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
-                crate::services::tracker::refresh(&app).await;
+                crate::runtime::tracker::refresh(&app).await;
             });
         }
         ID_EXIT => app.exit(0),

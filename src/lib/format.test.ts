@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deviceIdentity, formatBytes, stateLabel, transportLabel } from "@/lib/format";
+import { deviceIdentity, stateLabel, transportLabel } from "@/lib/format";
 import type { Device } from "@/types";
 
 function makeDevice(overrides: Partial<Device> = {}): Device {
@@ -35,11 +35,5 @@ describe("format", () => {
     expect(transportLabel(makeDevice({ transport: "usb" }))).toBe("USB");
     expect(stateLabel("unauthorized")).toBe("Unauthorized");
     expect(stateLabel("device")).toBe("Connected");
-  });
-
-  it("formats byte sizes", () => {
-    expect(formatBytes(0)).toBe("0 B");
-    expect(formatBytes(1024)).toBe("1.0 KB");
-    expect(formatBytes(1536)).toBe("1.5 KB");
   });
 });

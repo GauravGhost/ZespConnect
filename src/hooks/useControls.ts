@@ -28,7 +28,6 @@ const TOGGLE_FIELD: Record<QuickToggleKey, ToggleField> = {
   rotate: "auto_rotate",
 };
 
-/** Toggles, brightness and volume for the active device. */
 export function useQuickState(serial: string | null) {
   return useQuery({
     queryKey: quickStateKey(serial ?? ""),

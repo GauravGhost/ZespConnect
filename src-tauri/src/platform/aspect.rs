@@ -3,7 +3,7 @@
 //! tao exposes neither an aspect-ratio lock nor a `WM_SIZING` hook, so we
 //! subclass each mirror window's procedure and clamp the rectangle the user is
 //! dragging *before* Windows applies it. That is how native windows lock a resize
-//! to a ratio, and it keeps the dragged edge under the cursor — correcting the
+//! to a ratio, and it keeps the dragged edge under the cursor - correcting the
 //! size afterwards does not, because Windows has already tracked the raw cursor.
 
 use std::collections::HashMap;

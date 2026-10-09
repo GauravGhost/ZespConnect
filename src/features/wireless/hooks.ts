@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { useDevices } from "@/features/devices";
+import { useDevices } from "@/hooks/useDevices";
 import { errorMessage, ipc } from "@/lib/ipc";
 
 import { useSavedWireless } from "./saved";
@@ -30,23 +30,6 @@ export function useMdnsServices() {
     queryKey: mdnsKey,
     queryFn: () => ipc.wireless.mdnsServices(),
     refetchInterval: 3_000,
-  });
-}
-
-/** Pair a phone by scanning a QR code generated in the app. */
-export function usePairQr() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: string) => ipc.wireless.qrPair(payload, 180),
-    onSuccess: (address) => {
-      toast.success(`Connected to ${address}`);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-    },
-    onError: (error) => {
-      // Superseded or hidden on purpose — not worth a toast.
-      if (errorMessage(error) === "Pairing cancelled") return;
-      toast.error(errorMessage(error));
-    },
   });
 }
 
@@ -97,7 +80,7 @@ export function useEnableTcpip() {
     mutationFn: ({ serial, port }: { serial: string; port?: number }) =>
       ipc.wireless.enableTcpip(serial, port),
     onSuccess: (address) => {
-      toast.success(`Wireless debugging on — connected to ${address}`);
+      toast.success(`Wireless debugging on - connected to ${address}`);
       queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
     onError: (error) => toast.error(errorMessage(error)),

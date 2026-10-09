@@ -37,7 +37,6 @@ fn helper_missing(output: &str) -> bool {
         || text.contains("not found")
 }
 
-/// Send `text` to the device clipboard.
 pub async fn send(tools: &ToolStatus, serial: &str, text: &str) -> Result<()> {
     let adb_path = adb::adb_path(tools)?;
     let output = adb::shell(&adb_path, serial, &write_command(text), ACTION_TIMEOUT).await?;
@@ -54,7 +53,6 @@ pub async fn send(tools: &ToolStatus, serial: &str, text: &str) -> Result<()> {
     Ok(())
 }
 
-/// Read the text AdbClipboard last exposed from the device clipboard.
 pub async fn read(tools: &ToolStatus, serial: &str) -> Result<String> {
     let adb_path = adb::adb_path(tools)?;
     let command = format!("cat {CLIPBOARD_FILE}");
@@ -67,7 +65,6 @@ pub async fn read(tools: &ToolStatus, serial: &str) -> Result<String> {
     Ok(output.stdout.trim_end_matches(['\n', '\r']).to_string())
 }
 
-/// Put `text` on the desktop clipboard.
 pub fn copy_to_host(text: &str) -> Result<()> {
     let mut clipboard = arboard::Clipboard::new()
         .map_err(|e| AppError::Other(format!("Desktop clipboard unavailable: {e}")))?;

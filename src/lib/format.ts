@@ -1,24 +1,17 @@
 import type { Device } from "@/types";
 
-export function formatBytes(size: number): string {
-  if (size <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = size;
-  let index = 0;
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index += 1;
-  }
-  return `${value.toFixed(1)} ${units[index]}`;
-}
-
 export function transportLabel(device: Device): string {
   return device.transport === "wifi" ? "Wi-Fi" : "USB";
 }
 
-/** "Pixel 8 · Android 15 · 82% · Wi-Fi" — the header identity line. */
+/** The device's display name, falling back to its model and then its serial. */
+export function deviceName(device: Device): string {
+  return device.display_name || device.model || device.serial;
+}
+
+/** "Pixel 8 · Android 15 · 82% · Wi-Fi" - the header identity line. */
 export function deviceIdentity(device: Device): string {
-  const parts: string[] = [device.display_name || device.model || device.serial];
+  const parts: string[] = [deviceName(device)];
   if (device.android_version) parts.push(`Android ${device.android_version}`);
   if (typeof device.battery === "number" && device.battery >= 0) {
     parts.push(`${device.battery}%`);
@@ -27,7 +20,7 @@ export function deviceIdentity(device: Device): string {
   return parts.join(" · ");
 }
 
-/** "just now", "2 minutes ago", "3 days ago" — for stored timestamps. */
+/** "just now", "2 minutes ago", "3 days ago" - for stored timestamps. */
 export function timeAgo(timestamp: number): string {
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
   if (seconds < 45) return "just now";

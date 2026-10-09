@@ -27,7 +27,6 @@ pub fn adb_path(tools: &ToolStatus) -> Result<String> {
     tools.adb.path.clone().ok_or(AppError::AdbMissing)
 }
 
-/// Run adb with raw arguments.
 pub async fn run(adb: &str, args: &[String], timeout: Duration) -> Result<ProcessOutput> {
     process::run(adb, args, timeout).await
 }
@@ -54,7 +53,7 @@ pub async fn run_scoped(
     process::run(adb, &full, timeout).await
 }
 
-/// `adb -s <serial> shell <command>` — `command` is a single remote shell line.
+/// `adb -s <serial> shell <command>` - `command` is a single remote shell line.
 pub async fn shell(
     adb: &str,
     serial: &str,
@@ -65,7 +64,6 @@ pub async fn shell(
     run_scoped(adb, serial, &args, timeout).await
 }
 
-/// `adb -s <serial> push <local> <remote>`.
 pub async fn push(
     adb: &str,
     serial: &str,
@@ -77,7 +75,7 @@ pub async fn push(
     run_scoped(adb, serial, &args, timeout).await
 }
 
-/// `adb -s <serial> reverse <remote> tcp:<local_port>` — the device connects back
+/// `adb -s <serial> reverse <remote> tcp:<local_port>` - the device connects back
 /// to a host port we are listening on (scrcpy's default tunnel direction).
 pub async fn reverse(
     adb: &str,
@@ -94,7 +92,6 @@ pub async fn reverse(
     run_scoped(adb, serial, &args, timeout).await
 }
 
-/// `adb -s <serial> reverse --remove <remote>`.
 pub async fn reverse_remove(
     adb: &str,
     serial: &str,
@@ -122,7 +119,7 @@ pub async fn list_devices_raw(adb: &str) -> Result<ProcessOutput> {
     .await
 }
 
-/// `adb connect <address>` — unscoped (there is no device serial yet).
+/// `adb connect <address>` - unscoped (there is no device serial yet).
 pub async fn connect(adb: &str, address: &str) -> Result<ProcessOutput> {
     run(
         adb,
@@ -132,7 +129,6 @@ pub async fn connect(adb: &str, address: &str) -> Result<ProcessOutput> {
     .await
 }
 
-/// `adb disconnect <target>` — unscoped.
 pub async fn disconnect(adb: &str, target: &str) -> Result<ProcessOutput> {
     run(
         adb,
@@ -142,7 +138,7 @@ pub async fn disconnect(adb: &str, target: &str) -> Result<ProcessOutput> {
     .await
 }
 
-/// `adb -s <serial> tcpip <port>` — restart adbd on the device in TCP mode.
+/// `adb -s <serial> tcpip <port>` - restart adbd on the device in TCP mode.
 pub async fn tcpip(adb: &str, serial: &str, port: u16) -> Result<ProcessOutput> {
     let args = vec!["tcpip".to_string(), port.to_string()];
     run_scoped(adb, serial, &args, DEFAULT_TIMEOUT).await

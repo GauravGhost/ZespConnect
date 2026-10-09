@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveDevice } from "@/features/devices";
+import { useActiveDevice } from "@/hooks/useDevices";
 import { ClipboardView } from "./ClipboardView";
 import { LogcatView } from "./LogcatView";
 import { ShellView } from "./ShellView";

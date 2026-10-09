@@ -40,10 +40,17 @@ import { QuickTile } from "@/components/ui/quick-tile";
 import { Slider } from "@/components/ui/slider";
 import { formatClock, useClock } from "@/hooks/useClock";
 import { batteryIcon } from "@/lib/battery";
+import { deviceName } from "@/lib/format";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { Device, QuickState, QuickToggleKey, RebootMode } from "@/types";
-import { useQuickState, useReboot, useSetBrightness, useSetToggle, useSetVolume } from "../hooks";
+import {
+  useQuickState,
+  useReboot,
+  useSetBrightness,
+  useSetToggle,
+  useSetVolume,
+} from "@/hooks/useControls";
 
 const TOGGLES: { key: QuickToggleKey; field: keyof QuickState; label: string; icon: LucideIcon }[] =
   [
@@ -63,7 +70,7 @@ const REBOOT_MODES: { mode: RebootMode; label: string; icon: LucideIcon }[] = [
   { mode: "recovery", label: "Recovery", icon: ShieldAlert },
 ];
 
-/** Shade-style 0–100 bar: keeps a local draft while dragging, commits on release. */
+/** Shade-style 0-100 bar: keeps a local draft while dragging, commits on release. */
 function ShadeSlider({
   label,
   icon: Icon,
@@ -174,7 +181,7 @@ export function QuickSettingsShade({ device }: { device: Device }) {
   const reboot = useReboot(serial);
   const [rebootMode, setRebootMode] = useState<RebootMode | null>(null);
 
-  const name = device.display_name || device.model || device.serial;
+  const name = deviceName(device);
 
   function confirmReboot() {
     if (!rebootMode) return;

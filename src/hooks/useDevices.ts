@@ -6,33 +6,24 @@ import { events } from "@/lib/events";
 import { ipc } from "@/lib/ipc";
 import type { Device } from "@/types";
 
+import { useBackendEvents } from "./useBackendEvents";
+
 export const devicesKey = ["devices"] as const;
 
 /** Live device list: seeded by `list_devices`, kept fresh by `devices:changed`. */
 export function useDevices() {
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-
-    events
-      .devicesChanged((event) => {
-        queryClient.setQueryData<Device[]>(devicesKey, event.payload);
-      })
-      .then((fn) => {
-        if (disposed) fn();
-        else unlisten = fn;
-      })
-      .catch(() => {
-        /* backend not ready yet — polling fallback still applies */
-      });
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [queryClient]);
+  useBackendEvents(
+    (track) => {
+      track(
+        events.devicesChanged((event) =>
+          queryClient.setQueryData<Device[]>(devicesKey, event.payload),
+        ),
+      );
+    },
+    [queryClient],
+  );
 
   return useQuery({
     queryKey: devicesKey,

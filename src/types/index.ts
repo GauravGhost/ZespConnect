@@ -80,7 +80,7 @@ export interface DeviceInfo {
   quick: QuickState;
 }
 
-export type LabelSource = "scrcpy" | "cache" | "pm" | "derived";
+export type LabelSource = "scrcpy" | "cache" | "derived";
 
 export interface AppInfo {
   package: string;
@@ -112,7 +112,6 @@ export interface MirrorOptions {
   audio: boolean;
   borderless: boolean;
   stay_awake: boolean;
-  virtual_display: boolean;
   always_on_top: boolean;
   aspect_lock: boolean;
   background: string | null;

@@ -128,7 +128,6 @@ fn ensure_success(output: &ProcessOutput) -> Result<()> {
     }
 }
 
-/// The entries in a device directory.
 pub async fn list(tools: &ToolStatus, serial: &str, path: &str) -> Result<Vec<FileEntry>> {
     validate_remote_path(path)?;
     let adb_path = adb::adb_path(tools)?;
@@ -146,7 +145,6 @@ pub async fn list(tools: &ToolStatus, serial: &str, path: &str) -> Result<Vec<Fi
     Ok(parse_ls(&output.stdout, path))
 }
 
-/// Copy a device file or directory to the host.
 pub async fn pull(tools: &ToolStatus, serial: &str, remote: &str, local: &str) -> Result<()> {
     validate_remote_path(remote)?;
     if local.trim().is_empty() {
@@ -158,7 +156,6 @@ pub async fn pull(tools: &ToolStatus, serial: &str, remote: &str, local: &str) -
     ensure_success(&output)
 }
 
-/// Copy a host file or directory to the device.
 pub async fn push(tools: &ToolStatus, serial: &str, local: &str, remote: &str) -> Result<()> {
     validate_remote_path(remote)?;
     if local.trim().is_empty() {
@@ -170,7 +167,6 @@ pub async fn push(tools: &ToolStatus, serial: &str, local: &str, remote: &str) -
     ensure_success(&output)
 }
 
-/// `mkdir -p <path>` on the device.
 pub async fn create_dir(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
     validate_remote_path(path)?;
     let adb_path = adb::adb_path(tools)?;
@@ -179,7 +175,6 @@ pub async fn create_dir(tools: &ToolStatus, serial: &str, path: &str) -> Result<
     ensure_success(&output)
 }
 
-/// `rm -rf <path>` on the device.
 pub async fn delete(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
     validate_remote_path(path)?;
     let adb_path = adb::adb_path(tools)?;

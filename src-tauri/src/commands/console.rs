@@ -10,7 +10,6 @@ use crate::services::{adb, console as console_service};
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
-/// Run one command on the device and return its output.
 #[tauri::command]
 pub async fn shell_exec(
     serial: String,
@@ -81,7 +80,6 @@ pub async fn open_logcat(
     Ok(())
 }
 
-/// Stop the device's logcat streamer.
 #[tauri::command]
 pub fn close_logcat(serial: String, state: State<'_, AppState>) -> Result<()> {
     validate_serial(&serial)?;

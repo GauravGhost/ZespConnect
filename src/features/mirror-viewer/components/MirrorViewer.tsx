@@ -129,7 +129,7 @@ export function MirrorViewer() {
         } finally {
           // Drawing can throw while the GPU surface is rebuilt during a resize. A
           // frame left unclosed stays in the decoder's pool and, after ~16 of them,
-          // silences it for good — the "black screen with no error" symptom.
+          // silences it for good - the "black screen with no error" symptom.
           frame.close();
         }
 
@@ -160,8 +160,8 @@ export function MirrorViewer() {
       decoder.push(payload);
     };
 
-    // The decoder can go quiet without firing `error` — a hardware hiccup or GPU
-    // reset while the window is being resized — leaving the canvas frozen or black
+    // The decoder can go quiet without firing `error` - a hardware hiccup or GPU
+    // reset while the window is being resized - leaving the canvas frozen or black
     // even though `status` still reads "live". If frames keep arriving but none
     // come out, rebuild the decoder so it resumes at the next key frame.
     const watchdog = window.setInterval(() => {
@@ -188,7 +188,7 @@ export function MirrorViewer() {
         if (disposed) return;
         setStatus("error");
         setMessage(errorMessage(failure));
-        // This webview cannot render the stream — reopen as an external window.
+        // This webview cannot render the stream - reopen as an external window.
         await ipc.mirror.fallback(id).catch(() => undefined);
       });
 
@@ -276,7 +276,7 @@ export function MirrorViewer() {
   }, [enqueue]);
 
   // Keyboard (desktop mode and app windows): printable characters go as text
-  // (respecting the Mac's layout), everything else — Enter, arrows, shortcuts — as
+  // (respecting the Mac's layout), everything else - Enter, arrows, shortcuts - as
   // Android keycodes.
   useEffect(() => {
     if (!interactive) return;

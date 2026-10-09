@@ -96,7 +96,7 @@ async fn resolve_tool(
     ToolInfo::missing()
 }
 
-/// `<app_data_dir>/tools` — where downloaded adb/scrcpy copies live.
+/// `<app_data_dir>/tools` - where downloaded adb/scrcpy copies live.
 pub fn managed_root(managed_dir: &Path) -> PathBuf {
     managed_dir.join("tools")
 }
@@ -170,7 +170,7 @@ async fn version_of(name: &str, path: &std::path::Path, args: &[&str]) -> Option
 /// The human-meaningful version from a tool's `--version` banner.
 ///
 /// `adb` prints its ADB **protocol** version first (`Android Debug Bridge
-/// version 1.0.41` — a constant) and the **platform-tools release** second
+/// version 1.0.41` - a constant) and the **platform-tools release** second
 /// (`Version 36.0.0-…`). The release is what matches upstream and the update
 /// check, so prefer it. Everything else uses the first version token.
 fn preferred_version(name: &str, text: &str) -> Option<String> {

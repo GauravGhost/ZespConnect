@@ -3,9 +3,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "@/app/store";
 
 function useSystemDark(): boolean {
-  const [dark, setDark] = useState(
-    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
-  );
+  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   useEffect(() => {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");

@@ -10,7 +10,6 @@ const MAX_LINES = 2000;
 /** Coalesce logcat lines so a chatty device does not re-render per line. */
 const FLUSH_MS = 300;
 
-/** Run one `adb shell` command on the active device. */
 export function useShellExec(serial: string | null) {
   return useMutation({
     mutationFn: (command: string) => ipc.console.exec(serial as string, command),
@@ -43,7 +42,6 @@ export interface LogcatController {
   clear: () => void;
 }
 
-/** Stream `adb logcat` into a bounded, buffered line list. */
 export function useLogcat(serial: string | null): LogcatController {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [streaming, setStreaming] = useState(false);

@@ -91,7 +91,6 @@ pub struct MirrorOptions {
     pub audio: bool,
     pub borderless: bool,
     pub stay_awake: bool,
-    pub virtual_display: bool,
     pub always_on_top: bool,
     pub aspect_lock: bool,
     pub background: Option<String>,

@@ -1,7 +1,7 @@
 //! scrcpy argv building and Android API detection for app windows.
 //!
-//! No Tauri types here — everything is pure or a thin adb call, so it is unit
-//! tested directly. The lifecycle lives in `services::mirror`.
+//! No Tauri types here - everything is pure or a thin adb call, so it is unit
+//! tested directly. The lifecycle lives in `runtime::mirror`.
 
 use std::time::Duration;
 
@@ -39,7 +39,7 @@ const FLEX_DISPLAY_MIN_VERSION: &str = "4.0";
 
 /// scrcpy added `--no-vd-system-decorations` (server: `vd_system_decorations`)
 /// in 3.1. A decorated virtual display gets the launcher, wallpaper, status bar
-/// and — in Android 16+ desktop mode — a taskbar. On Android 17 an app
+/// and - in Android 16+ desktop mode - a taskbar. On Android 17 an app
 /// cold-started on it while the phone is asleep never draws, leaving only the
 /// wallpaper, so app windows always turn the decorations off when supported.
 const VD_DECORATIONS_MIN_VERSION: &str = "3.1";
@@ -211,7 +211,8 @@ fn parse_desktop_prepare(output: &str) -> Result<bool> {
 ///   has no focused window (or only an ANR dialog over it). Launcher3 can drop its
 ///   focus when the taskbar's all-apps/recents panel closes, and the next key then
 ///   times out into an "Application Not Responding" dialog that blocks the desktop.
-const DESKTOP_PROBE_COMMAND: &str = "dumpsys activity activities | grep -m1 -o 'mKeyguardShowing=[a-z]*'; \
+const DESKTOP_PROBE_COMMAND: &str =
+    "dumpsys activity activities | grep -m1 -o 'mKeyguardShowing=[a-z]*'; \
 dumpsys input | awk '\
 /^Input Dispatcher State at time of last ANR/{exit} \
 /^  FocusedApplications:/{s=1;next} \
@@ -500,7 +501,7 @@ mod tests {
         let args = app_window_args(
             "SERIAL",
             "com.example.app",
-            "Zesp Connect — Example",
+            "Zesp Connect - Example",
             true,
             true,
             true,

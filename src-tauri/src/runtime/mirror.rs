@@ -1,16 +1,16 @@
 //! scrcpy app-window lifecycle: spawn, track, stop, and report exit.
 //!
-//! Like `services::tracker`, this is a long-lived background coordinator, so it
+//! Like `runtime::tracker`, this is a long-lived background coordinator, so it
 //! talks to Tauri for state and events. The pure argv logic is in
 //! `services::scrcpy`.
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 use crate::error::{AppError, Result};
 use crate::models::{MirrorKind, MirrorOptions, MirrorProcess};
-use crate::services::{adb, scrcpy};
+use crate::services::{adb, mirror_window, scrcpy};
 use crate::state::AppState;
 use crate::util::{self, process};
 
@@ -20,6 +20,10 @@ const EVENT_MIRROR_EXITED: &str = "mirror:exited";
 /// is ambiguous; give it a moment before trusting the window is up.
 const STARTUP_GRACE: Duration = Duration::from_millis(1500);
 const LOG_TAIL_LINES: usize = 4;
+/// Fallback desktop size when no monitor can be read (e.g. a headless session).
+const FALLBACK_DESKTOP_WIDTH: u32 = 1920;
+const FALLBACK_DESKTOP_HEIGHT: u32 = 1080;
+const FALLBACK_SCALE: f64 = 1.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppDisplay {
@@ -30,7 +34,7 @@ pub enum AppDisplay {
 }
 
 /// Open an app on the laptop. Falls back to the main display automatically on
-/// Android 12–13 (and unknown versions), where a virtual display locks the phone.
+/// Android 12-13 (and unknown versions), where a virtual display locks the phone.
 pub async fn start_app(
     app: &AppHandle,
     serial: &str,
@@ -63,7 +67,7 @@ pub async fn start_app(
     } else {
         label.to_string()
     };
-    let title = format!("Zesp Connect — {label}");
+    let title = format!("Zesp Connect - {label}");
     let args = scrcpy::app_window_args(
         serial,
         package,
@@ -89,7 +93,6 @@ pub async fn start_app(
     .await
 }
 
-/// Mirror the full device screen in a new window.
 pub async fn start_mirror(
     app: &AppHandle,
     serial: &str,
@@ -100,7 +103,7 @@ pub async fn start_mirror(
     let adb_bin = adb::adb_path(&tools)?;
 
     let label = device_label(app, serial);
-    let title = format!("Zesp Connect — {label}");
+    let title = format!("Zesp Connect - {label}");
     let args = scrcpy::mirror_args(serial, &title, options);
 
     spawn_window(
@@ -127,7 +130,7 @@ pub async fn start_desktop(app: &AppHandle, serial: &str, display: &str) -> Resu
     scrcpy::prepare_desktop(&adb_bin, serial).await?;
 
     let label = format!("{} desktop", device_label(app, serial));
-    let title = format!("Zesp Connect — {label}");
+    let title = format!("Zesp Connect - {label}");
     let args = scrcpy::desktop_args(serial, &title, display);
 
     spawn_window(
@@ -145,7 +148,6 @@ pub async fn start_desktop(app: &AppHandle, serial: &str, display: &str) -> Resu
     .await
 }
 
-/// Stream the device camera in a new window.
 pub async fn start_camera(
     app: &AppHandle,
     serial: &str,
@@ -156,7 +158,7 @@ pub async fn start_camera(
     let adb_bin = adb::adb_path(&tools)?;
 
     let label = format!("{} camera", device_label(app, serial));
-    let title = format!("Zesp Connect — {label}");
+    let title = format!("Zesp Connect - {label}");
     let args = scrcpy::camera_args(serial, &title, options);
 
     spawn_window(
@@ -172,6 +174,41 @@ pub async fn start_camera(
         },
     )
     .await
+}
+
+/// The desktop display for the screen Zesp Connect's main window is on (the
+/// primary screen as a fallback), in the `WxH/dpi` form scrcpy expects.
+pub fn screen_desktop_display(app: &AppHandle) -> String {
+    let monitor = app
+        .get_webview_window("main")
+        .and_then(|window| window.current_monitor().ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten());
+    match monitor {
+        Some(monitor) => scrcpy::desktop_display(
+            monitor.size().width,
+            monitor.size().height,
+            monitor.scale_factor(),
+        ),
+        None => scrcpy::desktop_display(
+            FALLBACK_DESKTOP_WIDTH,
+            FALLBACK_DESKTOP_HEIGHT,
+            FALLBACK_SCALE,
+        ),
+    }
+}
+
+/// The longer side of a window's video area in logical pixels, used to keep a
+/// window's footprint steady when its aspect ratio changes on rotation.
+pub fn window_long_side(window: &WebviewWindow, inset: f64) -> f64 {
+    let scale = window.scale_factor().unwrap_or(FALLBACK_SCALE);
+    let Ok(size) = window.inner_size() else {
+        return mirror_window::DEFAULT_LONG_SIDE;
+    };
+    let (width, height) = mirror_window::unpad(
+        (size.width as f64 / scale, size.height as f64 / scale),
+        inset,
+    );
+    width.max(height)
 }
 
 /// A human name for a connected device, falling back to its serial.
@@ -197,7 +234,7 @@ struct WindowSpec<'a> {
 }
 
 /// Spawn a scrcpy window, confirm it came up, register it in `AppState`, and
-/// watch it until it exits (or is stopped) — then clean up and emit
+/// watch it until it exits (or is stopped) - then clean up and emit
 /// `mirror:exited`. Shared by app windows, screen mirrors and the camera.
 async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorProcess> {
     let log_dir = util::ensure_dir(app.state::<AppState>().app_data_dir().join("mirror-logs"))?;
@@ -226,7 +263,7 @@ async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorPro
         kind: spec.kind,
         package: spec.package,
         label: Some(spec.label),
-        started: unix_now(),
+        started: util::time::unix_now(),
     };
 
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
@@ -255,7 +292,6 @@ async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorPro
     Ok(info)
 }
 
-/// Close one tracked window.
 pub fn stop(app: &AppHandle, pid: u32) -> Result<()> {
     if let Some(handle) = app.state::<AppState>().take_mirror(pid) {
         let _ = handle.stop.send(());
@@ -263,16 +299,8 @@ pub fn stop(app: &AppHandle, pid: u32) -> Result<()> {
     Ok(())
 }
 
-/// Close every tracked window.
 pub fn stop_all(app: &AppHandle) {
     for handle in app.state::<AppState>().drain_mirrors() {
         let _ = handle.stop.send(());
     }
-}
-
-fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
 }

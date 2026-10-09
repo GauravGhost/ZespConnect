@@ -6,10 +6,10 @@ import { PhoneFrame } from "@/components/app/PhoneFrame";
 import { useAppStore } from "@/app/store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { QuickSettingsShade } from "@/features/controls";
+import { QuickSettingsShade } from "@/components/app/QuickSettingsShade";
 import type { Device } from "@/types";
 import { DeviceHero, DeviceStats, DeviceWindows, QuickActions } from "./DeviceSummary";
-import { useActiveDevice, useDeviceInfo } from "../hooks";
+import { useActiveDevice, useDeviceInfo } from "@/hooks/useDevices";
 
 /** Two-column Overview: the phone on the left, details beside it. */
 function OverviewLayout({ phone, children }: { phone: ReactNode; children: ReactNode }) {

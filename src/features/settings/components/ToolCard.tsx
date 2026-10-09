@@ -73,7 +73,7 @@ export function ToolCard({
             {info?.path ?? "No binary resolved yet"}
           </p>
           {update?.error ? (
-            <p className="text-muted-foreground text-xs">Update check failed — {update.error}</p>
+            <p className="text-muted-foreground text-xs">Update check failed - {update.error}</p>
           ) : null}
         </div>
 

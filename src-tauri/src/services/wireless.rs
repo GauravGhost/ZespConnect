@@ -6,7 +6,7 @@
 //! the phone scans the code it advertises an `_adb-tls-pairing._tcp` service,
 //! which we locate and complete with a plain `adb pair`.
 
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use crate::error::{AppError, Result};
 use crate::models::{MdnsDevice, QrPayload};
@@ -49,7 +49,7 @@ pub fn generate() -> QrPayload {
     QrPayload {
         payload: format!("WIFI:T:ADB;S:{name};P:{password};;"),
         password,
-        created: unix_secs(),
+        created: crate::util::time::unix_now(),
     }
 }
 
@@ -59,13 +59,6 @@ fn numeric_password(id: &uuid::Uuid) -> String {
         .take(10)
         .map(|byte| char::from(b'0' + (byte % 10)))
         .collect()
-}
-
-fn unix_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_secs())
-        .unwrap_or(0)
 }
 
 /// Extract and validate the service name + password from a QR payload.

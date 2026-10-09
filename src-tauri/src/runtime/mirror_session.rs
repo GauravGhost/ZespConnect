@@ -9,7 +9,7 @@
 //! connects back. That avoids the forward-mode dummy byte and the port race.
 
 use std::path::Path;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, Emitter, Manager};
@@ -36,7 +36,7 @@ const UNLOCKED_POLL: Duration = Duration::from_secs(2);
 /// Android's HOME keycode, which puts the desktop launcher back in front.
 const KEYCODE_HOME: u32 = 3;
 
-/// `mirror:session:locked` — whether a desktop session's phone is locked, and
+/// `mirror:session:locked` - whether a desktop session's phone is locked, and
 /// whether its own screen is on (the title-bar toggle).
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -171,7 +171,7 @@ pub async fn start(
     };
 
     // On a virtual display the app is launched over the control socket. Where
-    // that is unsafe (Android 12–13), foreground the app and mirror the main
+    // that is unsafe (Android 12-13), foreground the app and mirror the main
     // display instead.
     if kind == MirrorKind::ScreenApp {
         if let Some(package) = spec.package.as_deref() {
@@ -243,7 +243,7 @@ pub async fn start(
         kind,
         package: spec.package.clone(),
         label: Some(label),
-        started: unix_now(),
+        started: crate::util::time::unix_now(),
         phone_screen: screen_was_on,
     };
 
@@ -375,7 +375,6 @@ async fn finish_desktop(adb_bin: &str, serial: &str, phone_screen_on: bool) {
     }
 }
 
-/// Close one session (its supervisor also tears the server down).
 pub fn stop(app: &AppHandle, id: u64) {
     let state = app.state::<AppState>();
     if let Some(handle) = state.take_session(id) {
@@ -388,7 +387,6 @@ pub fn stop(app: &AppHandle, id: u64) {
     }
 }
 
-/// Close every session.
 pub fn stop_all(app: &AppHandle) {
     for handle in app.state::<AppState>().drain_sessions() {
         let _ = handle.stop.send(());
@@ -586,13 +584,6 @@ fn failure_message(log_path: &Path, fallback: &str) -> String {
     } else {
         message
     }
-}
-
-fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
