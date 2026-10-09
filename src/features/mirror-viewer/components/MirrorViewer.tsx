@@ -24,6 +24,7 @@ import {
   wheelNotches,
 } from "../keymap";
 import { DesktopTitleBar } from "./DesktopTitleBar";
+import { MirrorTitleBar } from "./MirrorTitleBar";
 
 type Status = "connecting" | "live" | "error";
 
@@ -416,7 +417,9 @@ export function MirrorViewer() {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-neutral-950">
       {desktop ? (
         <DesktopTitleBar phoneScreen={phoneScreen} onTogglePhoneScreen={togglePhoneScreen} />
-      ) : null}
+      ) : (
+        <MirrorTitleBar />
+      )}
       {/* A phone window keeps a 14px bottom gap and rounded corners, like a phone;
           a desktop fills the area under its title bar like a monitor. The window
           is sized to include either (`mirror_window::vertical_inset`). */}

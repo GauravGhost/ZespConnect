@@ -31,18 +31,20 @@ pub const DEFAULT_LONG_SIDE: f64 = 820.0;
 /// area and [`pad`]/[`unpad`] convert to and from the client area.
 pub const BOTTOM_INSET: f64 = 14.0;
 
-/// Height, in logical pixels, of a desktop window's own title bar (the window
-/// title and the phone-screen toggle, `DesktopTitleBar`). On macOS it replaces
-/// the native title bar, so it matches its 28px.
-pub const DESKTOP_BAR: f64 = 28.0;
+/// Height, in logical pixels, of a mirror window's own title bar (the title, the
+/// always-on-top pin and, on a desktop window, the phone-screen toggle; drawn by
+/// `MirrorTitleBar`/`DesktopTitleBar`). On macOS it replaces the native title
+/// bar, so it matches its 28px.
+pub const TITLE_BAR: f64 = 28.0;
 
 /// The vertical space a window of `kind` reserves beside its video: a desktop's
-/// title bar above it, or a phone-shaped window's [`BOTTOM_INSET`] below it.
+/// title bar above it, or a phone-shaped window's title bar above it and
+/// [`BOTTOM_INSET`] below it.
 pub fn vertical_inset(kind: Option<MirrorKind>) -> f64 {
     if kind == Some(MirrorKind::Desktop) {
-        DESKTOP_BAR
+        TITLE_BAR
     } else {
-        BOTTOM_INSET
+        TITLE_BAR + BOTTOM_INSET
     }
 }
 
@@ -264,10 +266,16 @@ mod tests {
     }
 
     #[test]
-    fn a_desktop_reserves_its_title_bar() {
-        assert_eq!(vertical_inset(Some(MirrorKind::Desktop)), DESKTOP_BAR);
-        assert_eq!(vertical_inset(Some(MirrorKind::App)), BOTTOM_INSET);
-        assert_eq!(vertical_inset(None), BOTTOM_INSET);
+    fn a_desktop_reserves_only_its_title_bar() {
+        assert_eq!(vertical_inset(Some(MirrorKind::Desktop)), TITLE_BAR);
+    }
+
+    #[test]
+    fn a_phone_reserves_a_title_bar_and_a_bottom_gap() {
+        let expected = TITLE_BAR + BOTTOM_INSET;
+        assert_eq!(vertical_inset(Some(MirrorKind::App)), expected);
+        assert_eq!(vertical_inset(Some(MirrorKind::ScreenApp)), expected);
+        assert_eq!(vertical_inset(None), expected);
     }
 
     #[test]

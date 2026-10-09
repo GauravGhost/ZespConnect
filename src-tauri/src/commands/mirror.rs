@@ -160,15 +160,22 @@ pub async fn open_mirror_window(
         .inner_size(width, height)
         .min_inner_size(mirror_window::MIN_SIDE, mirror_window::MIN_SIDE)
         .maximizable(desktop);
-    // On macOS the desktop draws its own title bar (title + phone-screen toggle)
-    // under the traffic lights; elsewhere it sits below the native one.
+    // Window titles are hidden so each window can draw its own title bar (the
+    // always-on-top pin and, on desktop, the phone-screen toggle; see
+    // `MirrorTitleBar`/`DesktopTitleBar`). macOS keeps its traffic lights, so
+    // both kinds only hide the title and let their bar sit under them. Elsewhere
+    // a desktop window keeps the native bar (its own sits below it), while a
+    // phone-shaped window drops native chrome entirely. The shadow is off there
+    // so tao's hit-test leaves every edge resizable on Windows.
     #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
+    #[cfg(not(target_os = "macos"))]
     let builder = if desktop {
         builder
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true)
     } else {
-        builder
+        builder.decorations(false).shadow(false)
     };
     builder
         .build()
@@ -197,8 +204,8 @@ fn screen_desktop_display(app: &AppHandle) -> String {
 /// Fit a session's window to its video's aspect ratio once the first frame reveals
 /// the device's dimensions, and remember the ratio so later resizes stay locked to
 /// it. The video area then matches the frame exactly, so the canvas fills the
-/// window (beside its title bar or bottom gap, see `mirror_window::vertical_inset`) instead of
-/// being letterboxed.
+/// window (below its title bar and, for a phone-shaped window, above its bottom
+/// gap — see `mirror_window::vertical_inset`) instead of being letterboxed.
 #[tauri::command]
 pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle) -> Result<()> {
     if width == 0 || height == 0 {

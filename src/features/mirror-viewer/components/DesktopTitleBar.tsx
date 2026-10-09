@@ -3,25 +3,18 @@ import { Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
 
 const IS_MAC = /Mac/.test(navigator.platform);
 
-/**
- * A desktop window's own title bar: the window title, and a toggle for the
- * phone's own screen (off while the desktop runs, on to use the phone too).
- *
- * On macOS it replaces the native title bar (the window uses an overlay title
- * bar), so it leaves room for the traffic lights and drags the window. Its
- * height must match `mirror_window::DESKTOP_BAR`. In full screen it floats over
- * the desktop and appears when the pointer reaches the top edge.
- */
+
 export function DesktopTitleBar({
   phoneScreen,
   onTogglePhoneScreen,
-}: {
+}: Readonly<{
   phoneScreen: boolean;
   onTogglePhoneScreen: () => void;
-}) {
+}>) {
   const [title, setTitle] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -88,6 +81,7 @@ export function DesktopTitleBar({
       >
         <Smartphone className="size-3.5" />
       </button>
+      <AlwaysOnTopButton className="h-5 w-6" />
     </div>
   );
 }
