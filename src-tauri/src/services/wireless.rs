@@ -1,10 +1,6 @@
-//! Wireless debugging (Android 11+): pair a phone over Wi-Fi by scanning a QR
-//! code shown in the UI.
-//!
-//! The host does not run its own mDNS stack. It generates the QR payload, then
-//! delegates discovery to the adb server's own mDNS (`adb mdns services`): once
-//! the phone scans the code it advertises an `_adb-tls-pairing._tcp` service,
-//! which we locate and complete with a plain `adb pair`.
+//! Wireless debugging (Android 11+): pair a phone over Wi-Fi by scanning a QR code shown in the UI.
+//! Discovery is delegated to the adb server's own mDNS (`adb mdns services`): the phone advertises
+//! an `_adb-tls-pairing._tcp` service, which we locate and complete with a plain `adb pair`.
 
 use std::time::{Duration, Instant};
 
@@ -38,9 +34,7 @@ pub struct MdnsService {
     pub port: u16,
 }
 
-/// Build a fresh QR payload: random service name + numeric password.
-///
-/// Randomness comes from `Uuid::new_v4()` (OS CSPRNG), not the clock.
+/// Build a fresh QR payload (random service name + numeric password) from `Uuid::new_v4()`, not the clock.
 pub fn generate() -> QrPayload {
     let id = uuid::Uuid::new_v4();
     let compact = id.simple().to_string();
@@ -149,8 +143,7 @@ where
     }
 }
 
-/// Pair with the phone behind `payload`, then bring it up as a connected
-/// wireless device. Returns the connected `host:port`.
+/// Pair with the phone behind `payload`, then connect it; returns the connected `host:port`.
 pub async fn pair_and_connect(adb_path: &str, payload: &str, timeout: Duration) -> Result<String> {
     let (name, password) = parse_qr(payload)?;
 
@@ -239,8 +232,7 @@ async fn device_present(adb_path: &str, host: &str) -> bool {
     }
 }
 
-/// Pair using an explicit `host:port` and the code shown on the phone's
-/// Wireless debugging screen. Returns the normalized `host:port`.
+/// Pair using an explicit `host:port` and the phone's pairing code; returns the normalized address.
 pub async fn pair_code(adb_path: &str, address: &str, code: &str) -> Result<String> {
     let (host, port) = parse_host_port(address)?;
     validate_pairing_password(code)?;
@@ -274,8 +266,7 @@ pub async fn disconnect(adb_path: &str, target: &str) -> Result<()> {
     Ok(())
 }
 
-/// Restart adbd in TCP mode on a USB-connected device, discover its Wi-Fi IP,
-/// and connect to it. Returns the connected `ip:port`.
+/// Restart adbd in TCP mode on a USB device, discover its Wi-Fi IP, and connect; returns the address.
 pub async fn enable_tcpip(adb_path: &str, serial: &str, port: u16) -> Result<String> {
     validate_serial(serial)?;
     if port == 0 {

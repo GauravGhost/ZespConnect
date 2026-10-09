@@ -1,8 +1,5 @@
-//! Quick controls: toggles, brightness, volume and reboot.
-//!
-//! The brightness ceiling differs per device and is read from the framework
-//! resource (cached for the life of the process). The pure helpers at the bottom
-//! are unit-tested.
+//! Quick controls: toggles, brightness, volume and reboot. The brightness ceiling differs per
+//! device and is read from the framework resource, cached for the life of the process.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -19,8 +16,7 @@ use crate::util::process::ProcessOutput;
 const SET_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Fallback screen-brightness ceiling (the AOSP default) for devices that do not
-/// expose `config_screenBrightnessSettingMaximum`.
+/// Fallback screen-brightness ceiling (AOSP default) for devices without `config_screenBrightnessSettingMaximum`.
 const BRIGHTNESS_MAX_FALLBACK: i32 = 255;
 /// Framework resource holding the upper bound of `Settings.System.SCREEN_BRIGHTNESS`.
 const OVERLAY_BRIGHTNESS_MAX: &str =
@@ -98,9 +94,7 @@ pub async fn set_volume(tools: &ToolStatus, serial: &str, percent: i32) -> Resul
         return Ok(());
     }
 
-    // `cmd media_session volume --set` is a silent no-op on several Android
-    // builds (verified on Android 16), so drive the stream with volume key
-    // events instead - the platform always honours those.
+    // `cmd media_session volume --set` is a silent no-op on several builds, so drive the stream with key events.
     let key = if delta > 0 {
         KEYCODE_VOLUME_UP
     } else {
@@ -118,12 +112,8 @@ pub async fn reboot(tools: &ToolStatus, serial: &str, mode: RebootMode) -> Resul
     ensure_ok(&output)
 }
 
-/// Read (once per device) the framework's screen-brightness ceiling.
-///
-/// The `screen_brightness` setting accepts any integer, so writing a probe value
-/// cannot reveal the range - the configured maximum has to be read directly.
-/// `cmd overlay lookup` is available on Android 13+; older devices fall back to
-/// the AOSP default of 255.
+/// Read (once per device) the framework's screen-brightness ceiling. The setting accepts any
+/// integer, so the configured maximum has to be read directly; older devices fall back to 255.
 async fn brightness_max(adb: &str, serial: &str) -> i32 {
     if let Some(max) = cache_get(&BRIGHTNESS_MAX, serial) {
         return max;
@@ -190,8 +180,7 @@ pub fn parse_volume_levels(text: &str) -> Option<(i32, i32, i32)> {
     }
 }
 
-/// The brightness ceiling from `cmd overlay lookup` output, if it is a sane
-/// integer (a bare number on the first line; error text is rejected).
+/// The brightness ceiling from `cmd overlay lookup`, if the first line is a sane integer.
 pub fn parse_brightness_max(text: &str) -> Option<i32> {
     let value = text.lines().next()?.trim().parse::<i32>().ok()?;
     (1..=65_535).contains(&value).then_some(value)

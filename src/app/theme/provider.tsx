@@ -4,11 +4,7 @@ import { useAppStore } from "@/app/store";
 import { getTheme } from "./presets";
 import { useResolvedTheme } from "./useResolvedTheme";
 
-/**
- * Applies the active theme by writing its tokens as CSS custom properties on
- * `<html>` and toggling the `.dark` class (which powers the `dark:` variants).
- * Palettes come from `presets.ts`; this component owns no colors itself.
- */
+/** Writes the active theme's tokens as CSS custom properties on `<html>` and toggles the `.dark` class. */
 export function ThemeProvider() {
   const themeId = useAppStore((state) => state.themeId);
   const resolved = useResolvedTheme();

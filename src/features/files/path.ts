@@ -40,11 +40,7 @@ export function breadcrumbs(path: string): Crumb[] {
   return crumbs;
 }
 
-/**
- * Breadcrumb segments below `root` (`/sdcard/.trash-storage` under `/sdcard` →
- * `.trash-storage`). The root is rendered separately, so crumbs at or above it
- * are dropped to avoid repeating it.
- */
+/** Breadcrumb segments below `root`; the root is rendered separately, so crumbs at or above it are dropped. */
 export function breadcrumbsWithin(path: string, root: string): Crumb[] {
   const base = root.replace(/\/+$/, "");
   return breadcrumbs(path).filter(

@@ -1,7 +1,4 @@
-//! scrcpy argv building and Android API detection for app windows.
-//!
-//! No Tauri types here - everything is pure or a thin adb call, so it is unit
-//! tested directly. The lifecycle lives in `runtime::mirror`.
+//! scrcpy argv building and Android API detection for app windows; pure or thin adb calls, unit tested directly.
 
 use std::time::Duration;
 
@@ -11,8 +8,7 @@ use crate::services::{adb, updates};
 
 const API_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// Bounds for the numeric options the UI can send, so a bad value can never
-/// reach scrcpy (they are clamped, not rejected, to keep the UI forgiving).
+/// Bounds for the UI's numeric options; values are clamped, not rejected, to keep the UI forgiving.
 pub const MIN_RESOLUTION: u32 = 240;
 pub const MAX_RESOLUTION: u32 = 4096;
 pub const MAX_FPS_LIMIT: u32 = 240;
@@ -24,24 +20,18 @@ const FIT_VALUES: &[&str] = &["contain", "cover", "stretch"];
 /// Default `-m` cap when an app is mirrored on the main display.
 pub const DEFAULT_MAX_SIZE: u32 = 1024;
 
-/// scrcpy's `--new-display` creates a virtual display. On Android 12, 12L and 13
-/// the platform SystemUI crashes on it and the phone ends up locked, so those
-/// versions (and any unknown version) must mirror the main display instead.
+/// scrcpy's `--new-display` crashes SystemUI on Android 12-13, so those (and unknown) versions mirror the main display.
 const UNSAFE_VIRTUAL_DISPLAY_APIS: &[u32] = &[31, 32, 33];
 
-/// scrcpy refuses a virtual display before Android 10, so older devices mirror
-/// the main display with the app brought to the foreground.
+/// scrcpy refuses a virtual display before Android 10, so older devices mirror the main display.
 const MIN_VIRTUAL_DISPLAY_API: u32 = 29;
 
-/// scrcpy added `--flex-display` in 4.0; older releases (e.g. 3.3.3) reject it
-/// with "unrecognized option", so it must only be sent when supported.
+/// scrcpy added `--flex-display` in 4.0; older releases reject it as an unrecognized option.
 const FLEX_DISPLAY_MIN_VERSION: &str = "4.0";
 
-/// scrcpy added `--no-vd-system-decorations` (server: `vd_system_decorations`)
-/// in 3.1. A decorated virtual display gets the launcher, wallpaper, status bar
-/// and - in Android 16+ desktop mode - a taskbar. On Android 17 an app
-/// cold-started on it while the phone is asleep never draws, leaving only the
-/// wallpaper, so app windows always turn the decorations off when supported.
+/// scrcpy added `--no-vd-system-decorations` (server: `vd_system_decorations`) in 3.1. Decorated
+/// virtual displays get the launcher/wallpaper/taskbar, on which a cold app never draws while the
+/// phone sleeps, so app windows turn decorations off when supported.
 const VD_DECORATIONS_MIN_VERSION: &str = "3.1";
 
 pub fn scrcpy_path(tools: &ToolStatus) -> Result<String> {
@@ -71,27 +61,22 @@ pub async fn android_api(adb_path: &str, serial: &str) -> Option<u32> {
     output.stdout.trim().parse().ok()
 }
 
-/// Whether the installed scrcpy understands `--flex-display` (added in 4.0).
-/// An unknown version is treated as unsupported, so we err toward omitting it.
+/// Whether the installed scrcpy understands `--flex-display`; unknown versions are treated as unsupported.
 pub fn flex_display_supported(version: Option<&str>) -> bool {
     version
         .map(|version| updates::compare(version, FLEX_DISPLAY_MIN_VERSION).is_ge())
         .unwrap_or(false)
 }
 
-/// Whether the installed scrcpy can turn off virtual display decorations.
-/// An unknown version is treated as unsupported, so we err toward omitting it.
+/// Whether the installed scrcpy can turn off virtual display decorations; unknown versions are unsupported.
 pub fn vd_decorations_option_supported(version: Option<&str>) -> bool {
     version
         .map(|version| updates::compare(version, VD_DECORATIONS_MIN_VERSION).is_ge())
         .unwrap_or(false)
 }
 
-/// Build the argv for an app window. With a virtual display the app gets its own
-/// resizable window; otherwise the main display is mirrored with the app in front.
-///
-/// The adb binary is NOT an argument: scrcpy 4.x removed `--adb` and expects the
-/// path in the `ADB` environment variable instead (set by the caller).
+/// Build the argv for an app window (virtual display, else main display with the app in front).
+/// The adb binary is not an argument: scrcpy 4.x takes it from the `ADB` env var (set by the caller).
 pub fn app_window_args(
     serial: &str,
     package: &str,
@@ -130,37 +115,28 @@ pub fn app_window_args(
     args
 }
 
-/// Android 16 (API 36) brought desktop windowing to connected displays: the
-/// taskbar, desktop launcher and freeform app windows.
+/// Android 16 (API 36) brought desktop windowing (taskbar, launcher, freeform windows) to connected displays.
 pub const MIN_DESKTOP_API: u32 = 36;
 
-/// The longest side a desktop display may take. Larger (4K/5K) screens are
-/// scaled down with the density, so the desktop keeps its layout while the
-/// phone's encoder and the link stay within comfortable limits.
+/// The longest side a desktop display may take; larger screens are scaled down with the density.
 const MAX_DESKTOP_SIDE: f64 = 2560.0;
 
 /// Android's baseline density: one dp is one pixel at 160 dpi.
 const BASE_DENSITY: f64 = 160.0;
 
-/// Desktop sessions stream a large, text-heavy display; default to a higher
-/// bitrate (Mbps) than a phone-sized mirror so text stays crisp.
+/// Desktop streams a large, text-heavy display, so it defaults to a higher bitrate (Mbps) than a phone mirror.
 pub const DESKTOP_BIT_RATE: u32 = 16;
 
-/// Wake the phone (a no-op when it is awake) if it supports desktop mode, in
-/// the same round trip as the check. Prints `<sdk> <freeform> <wakefulness>`
-/// first, the wakefulness read before waking (`Awake` when the screen was on).
-///
-/// A virtual display started while the phone sleeps never draws apps that are
-/// launched cold, which on a desktop leaves only the wallpaper.
+/// Wake the phone (no-op when awake) if it supports desktop mode, in the same round trip as the
+/// check. Prints `<sdk> <freeform> <wakefulness>` first; a virtual display started while the phone
+/// sleeps never draws cold-launched apps.
 const DESKTOP_PREPARE_COMMAND: &str = "sdk=$(getprop ro.build.version.sdk); \
 ff=$(pm has-feature android.software.freeform_window_management); \
 w=$(dumpsys power 2>/dev/null | grep -m1 -o 'mWakefulness=[A-Za-z]*'); \
 echo \"$sdk $ff ${w#mWakefulness=}\"; \
 [ \"$sdk\" -ge 36 ] && [ \"$ff\" = true ] && input keyevent KEYCODE_WAKEUP";
 
-/// The `WxH/dpi` virtual display matching a computer screen of `width`×`height`
-/// physical pixels at `scale` (its device-pixel ratio), so the desktop fills the
-/// screen in full screen and is laid out like the computer's own UI.
+/// The `WxH/dpi` virtual display matching a computer screen of `width`×`height` pixels at `scale`.
 pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
     let (width, height) = (f64::from(width.max(1)), f64::from(height.max(1)));
     let scale = if scale.is_finite() && scale > 0.0 {
@@ -175,9 +151,7 @@ pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
     format!("{}x{}/{dpi}", align(width), align(height))
 }
 
-/// Check that `serial` can run Android's desktop mode and wake it for the
-/// session. Returns whether the phone's screen was already on before the wake.
-/// Fails with a readable reason when desktop mode cannot run.
+/// Check that `serial` can run desktop mode and wake it; returns whether its screen was already on.
 pub async fn prepare_desktop(adb_path: &str, serial: &str) -> Result<bool> {
     let output = adb::shell(adb_path, serial, DESKTOP_PREPARE_COMMAND, API_TIMEOUT).await?;
     parse_desktop_prepare(&output.stdout)
@@ -205,12 +179,9 @@ fn parse_desktop_prepare(output: &str) -> Result<bool> {
     }
 }
 
-/// Probes a desktop session's phone, one line per finding:
-/// - whether the lock screen is up (`KeyguardController.mKeyguardShowing`);
-/// - `launcherUnfocused` when a secondary-display launcher is the focused app but
-///   has no focused window (or only an ANR dialog over it). Launcher3 can drop its
-///   focus when the taskbar's all-apps/recents panel closes, and the next key then
-///   times out into an "Application Not Responding" dialog that blocks the desktop.
+/// Probes a desktop session's phone, one line per finding: the lock-screen state, and
+/// `launcherUnfocused` when a secondary-display launcher is focused with no focused window (or only
+/// an ANR dialog), which can time the next key out into a "not responding" dialog.
 const DESKTOP_PROBE_COMMAND: &str =
     "dumpsys activity activities | grep -m1 -o 'mKeyguardShowing=[a-z]*'; \
 dumpsys input | awk '\
@@ -225,9 +196,7 @@ END{for(d in app)if(!(d in win)){print \"launcherUnfocused\";exit}}'";
 /// What [`desktop_probe`] found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DesktopProbe {
-    /// Whether the lock screen is showing, when it could be read. While it is,
-    /// Android keeps the desktop (launcher, taskbar, app windows) hidden and only
-    /// the wallpaper draws.
+    /// Whether the lock screen is showing; while it is, Android hides the desktop and only the wallpaper draws.
     pub locked: Option<bool>,
     /// The desktop launcher has lost input focus (see [`DESKTOP_PROBE_COMMAND`]).
     pub launcher_unfocused: bool,
@@ -258,18 +227,14 @@ pub async fn desktop_probe(adb_path: &str, serial: &str) -> Option<DesktopProbe>
     Some(parse_desktop_probe(&output.stdout))
 }
 
-/// Put the phone to sleep (locking it) after a desktop session. The short delay
-/// lets scrcpy's cleanup restore the display power first, so it cannot switch the
-/// panel back on behind the sleep. A no-op when the phone is already asleep.
+/// Put the phone to sleep after a desktop session; the short delay lets scrcpy's cleanup restore display power first.
 const SLEEP_COMMAND: &str = "sleep 0.5; input keyevent KEYCODE_SLEEP";
 
 pub async fn sleep_phone(adb_path: &str, serial: &str) {
     let _ = adb::shell(adb_path, serial, SLEEP_COMMAND, API_TIMEOUT).await;
 }
 
-/// Build the argv for a desktop-mode window when it cannot be rendered in-app:
-/// a decorated virtual display of `display` (`WxH/dpi`), with the phone's own
-/// screen turned off and put back to sleep on close.
+/// Build the argv for a desktop-mode window (decorated virtual display; phone screen off, asleep on close).
 pub fn desktop_args(serial: &str, window_title: &str, display: &str) -> Vec<String> {
     vec![
         "--serial".to_string(),
@@ -320,8 +285,7 @@ fn push_bitrate(args: &mut Vec<String>, opts: &MirrorOptions) {
     }
 }
 
-/// Window/window-decoration flags shared by mirror and camera sessions. Values
-/// that scrcpy would reject (bad colour, unknown fit mode) are simply dropped.
+/// Window flags shared by mirror and camera sessions; values scrcpy would reject are dropped.
 fn push_window_flags(args: &mut Vec<String>, opts: &MirrorOptions) {
     if opts.stay_awake {
         args.push("--stay-awake".to_string());

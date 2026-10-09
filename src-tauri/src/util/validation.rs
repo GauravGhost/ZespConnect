@@ -9,7 +9,6 @@ use crate::error::{AppError, Result};
 static PACKAGE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$").expect("valid regex"));
 
-/// Safe remote path tokens we allow unquoted handling for; anything else is quoted.
 pub fn validate_package(package: &str) -> Result<()> {
     if PACKAGE_RE.is_match(package) {
         Ok(())
@@ -80,9 +79,7 @@ pub fn parse_host_port(value: &str) -> Result<(String, u16)> {
     Ok((host.to_string(), port))
 }
 
-/// Validate a device path before it reaches `adb shell`. Requires an absolute
-/// path, forbids traversal, and rejects the filesystem root so a `rm -rf` can
-/// never be aimed at `/`.
+/// Validate a device path before it reaches `adb shell`: absolute, no traversal, never the filesystem root.
 pub fn validate_remote_path(path: &str) -> Result<()> {
     let invalid = !path.starts_with('/')
         || path.len() < 2
@@ -98,10 +95,8 @@ pub fn validate_remote_path(path: &str) -> Result<()> {
     Ok(())
 }
 
-/// POSIX single-quote escaping, mirroring Python's `shlex.quote`.
-///
-/// adb joins its arguments into a single remote shell line, so any value that
-/// becomes part of an `adb shell` command must be quoted for that shell.
+/// POSIX single-quote escaping, mirroring Python's `shlex.quote`. adb joins its arguments into
+/// one remote shell line, so any value in an `adb shell` command must be quoted for that shell.
 pub fn shell_quote(value: &str) -> String {
     if value.is_empty() {
         return "''".to_string();

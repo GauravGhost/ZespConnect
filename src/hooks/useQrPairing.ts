@@ -22,10 +22,7 @@ export interface QrPairing {
   cancel: () => void;
 }
 
-/**
- * Generate a pairing QR code and wait for the phone to scan it. Each attempt
- * gets a session id so results from a superseded attempt are ignored.
- */
+/** Generate a pairing QR and wait for the scan; each attempt gets a session id so stale results are ignored. */
 export function useQrPairing(): QrPairing {
   const queryClient = useQueryClient();
   const [qr, setQr] = useState<QrPayload | null>(null);

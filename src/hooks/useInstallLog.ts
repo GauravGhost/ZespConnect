@@ -23,10 +23,7 @@ const EMPTY: InstallLogState = {
 
 const MAX_LINES = 300;
 
-/**
- * Live view of the tool installer: streams `tools:install:progress` lines and
- * settles on `tools:install:done`.
- */
+/** Live tool-installer log: streams `tools:install:progress` and settles on `tools:install:done`. */
 export function useInstallLog() {
   const [state, setState] = useState<InstallLogState>(EMPTY);
 

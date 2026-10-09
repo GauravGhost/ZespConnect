@@ -1,10 +1,6 @@
 export type ThemeMode = "light" | "dark" | "system";
 
-/**
- * Theme tokens keyed by their literal CSS custom-property name so applying a
- * theme is a plain loop over `Object.entries`. Every token here maps 1:1 to a
- * `--color-*` entry in the `@theme inline` block of `src/styles/globals.css`.
- */
+/** Theme tokens keyed by CSS custom-property name, each mapping 1:1 to a `--color-*` in `globals.css`. */
 export interface ThemeTokens {
   "--radius": string;
   "--background": string;

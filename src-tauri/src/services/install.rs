@@ -1,9 +1,6 @@
-//! Download a tool from upstream and unpack it into the app-managed directory.
-//!
-//! Deliberately Tauri-free: the caller owns the app data directory and passes a
-//! callback that receives progress lines (the command layer forwards those to
-//! the UI as events). Nothing here needs administrator rights - everything is
-//! written under `<app_data_dir>/tools`, which the user owns.
+//! Download a tool from upstream and unpack it into the app-managed directory. Deliberately
+//! Tauri-free: the caller passes a progress callback, and everything is written under
+//! `<app_data_dir>/tools`, which the user owns (no administrator rights).
 
 use std::path::{Path, PathBuf};
 
@@ -16,8 +13,7 @@ use crate::services::{tools, updates};
 
 const PROGRESS_STEP: u64 = 10;
 
-/// Download the latest `tool`, extract it to
-/// `<app_data_dir>/tools/<slot>/<version>/`, and return the binary path.
+/// Download the latest `tool`, extract it to `<app_data_dir>/tools/<slot>/<version>/`, and return the binary path.
 pub async fn install<F: Fn(String) + Send>(
     managed_dir: &Path,
     tool: ToolKind,
@@ -177,8 +173,7 @@ fn verify_companions<F: Fn(String) + Send>(
     Ok(())
 }
 
-/// Windows adb needs its two DLLs; they ship in the platform-tools zip. A no-op
-/// elsewhere (the Linux/macOS packages have no DLLs).
+/// Windows adb needs its two DLLs (shipped in the platform-tools zip); a no-op elsewhere.
 #[cfg(windows)]
 fn warn_missing_adb_dlls<F: Fn(String) + Send>(tool: ToolKind, dir: &Path, on_line: &F) {
     if !matches!(tool, ToolKind::Adb) {

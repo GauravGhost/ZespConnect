@@ -3,11 +3,7 @@ import type { ReactNode } from "react";
 import { formatClock, useClock } from "@/hooks/useClock";
 import { cn } from "@/lib/utils";
 
-/**
- * A stylised Android handset: bezel, punch-hole camera, status bar and gesture
- * pill. The screen is whatever `children` renders; `status` fills the right
- * side of the status bar and `statusLeft` replaces the clock on the left.
- */
+/** Stylised Android handset; `children` renders the screen and `status`/`statusLeft` fill the status bar. */
 export function PhoneFrame({
   children,
   status,

@@ -23,11 +23,7 @@ interface ComboboxInputProps extends Omit<React.ComponentProps<"input">, "value"
   align?: "start" | "end";
 }
 
-/**
- * A text input with a dropdown of preset values: pick a common value from the
- * list, or type your own in the same field. Handy for "choose a preset or enter
- * a custom one" inputs (resolution, FPS, zoom, …).
- */
+/** Text input with a dropdown of presets, or type a custom value (resolution, FPS, zoom, …). */
 export function ComboboxInput({
   value,
   onValueChange,

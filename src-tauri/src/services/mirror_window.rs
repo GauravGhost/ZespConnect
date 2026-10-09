@@ -1,45 +1,23 @@
-//! Client-area sizing for in-app mirror windows.
-//!
-//! Tauri/tao expose no aspect-ratio lock, so a mirror window keeps the video's
-//! shape by hand. The first decoded frame reveals the device's dimensions and we
-//! size the window to them ([`fit_size`]), so the client area matches the frame
-//! and the canvas fills the window instead of being letterboxed with padding -
-//! a landscape app gets a landscape window automatically.
-//!
-//! Keeping that shape while the user drags an edge is done two ways. On Windows
-//! the native `WM_SIZING` hook asks us for the rectangle *before* it is applied,
-//! and [`resize`] answers with one on the video's aspect ratio, anchoring the
-//! opposite edge/corner so the dragged one tracks the cursor. `WM_SIZING` gives
-//! the *outer* rectangle, hence [`Frame`] (the non-client border/title size) is
-//! subtracted to work in client space. Where there is no such hook the caller
-//! falls back to correcting the size afterwards with [`lock_size`].
+//! Client-area sizing for in-app mirror windows: Tauri/tao has no aspect-ratio lock, so a
+//! mirror window keeps the video's shape by hand. Windows' `WM_SIZING` hook supplies the
+//! resized rectangle before it is applied (converted to client space via [`Frame`]); where
+//! there is no such hook the caller corrects the size with [`lock_size`].
 
 use crate::models::MirrorKind;
 
-/// Smallest client-area side a mirror window may shrink to. The window's minimum
-/// size is set to this in both dimensions so the OS never clamps a resize in a way
-/// that would fight the aspect ratio.
+/// Smallest client-area side a mirror window may shrink to; set as the OS minimum in both dimensions.
 pub const MIN_SIDE: f64 = 240.0;
 
-/// The longer side a window takes the first time it fits a session, and the
-/// footprint a freshly opened mirror starts at.
+/// The longer side a window takes the first time it fits a session.
 pub const DEFAULT_LONG_SIDE: f64 = 820.0;
 
-/// Margin, in logical pixels, below the video so it does not run into the
-/// window's bottom edge (the sides already have one). The viewer pads its canvas
-/// by the same amount (`MirrorViewer`), so the sizing below works on the video
-/// area and [`pad`]/[`unpad`] convert to and from the client area.
+/// Margin below the video so it does not run into the window's bottom edge; `MirrorViewer` pads its canvas by the same amount.
 pub const BOTTOM_INSET: f64 = 14.0;
 
-/// Height, in logical pixels, of a mirror window's own title bar (the title, the
-/// always-on-top pin and, on a desktop window, the phone-screen toggle and window
-/// buttons; drawn by `MirrorTitleBar`/`DesktopTitleBar`). It replaces the native
-/// title bar on every platform, so it matches the 28px one on macOS.
+/// Height of a mirror window's own title bar, which replaces the native one on every platform.
 pub const TITLE_BAR: f64 = 28.0;
 
-/// The vertical space a window of `kind` reserves beside its video: a desktop's
-/// title bar above it, or a phone-shaped window's title bar above it and
-/// [`BOTTOM_INSET`] below it.
+/// The vertical space a window of `kind` reserves: a desktop's title bar only, or a phone's title bar plus `BOTTOM_INSET`.
 pub fn vertical_inset(kind: Option<MirrorKind>) -> f64 {
     if kind == Some(MirrorKind::Desktop) {
         TITLE_BAR
@@ -58,12 +36,10 @@ pub fn unpad((width, height): (f64, f64), inset: f64) -> (f64, f64) {
     (width, (height - inset).max(1.0))
 }
 
-/// Upper bound on the longer side kept across a rotation, so a window the user
-/// stretched very wide cannot produce an absurd size on the next turn.
+/// Upper bound on the longer side across a rotation, so a stretched window cannot produce an absurd size.
 pub const MAX_LONG_SIDE: f64 = 2000.0;
 
-/// Grow `(width, height)` - staying on `aspect = width / height` - until neither
-/// side is below [`MIN_SIDE`], rounding to whole pixels for stable `set_size`s.
+/// Grow `(width, height)` on `aspect` until neither side is below `MIN_SIDE`, rounded to whole pixels.
 fn with_minimum(width: f64, height: f64, aspect: f64) -> (f64, f64) {
     let (mut width, mut height) = (width, height);
     if width < MIN_SIDE {
@@ -77,8 +53,7 @@ fn with_minimum(width: f64, height: f64, aspect: f64) -> (f64, f64) {
     (width.round(), height.round())
 }
 
-/// The window size that shows a `width`×`height` video with its longer side at
-/// `long_side`, preserving the video's aspect ratio.
+/// The window size that shows a `width`×`height` video with its longer side at `long_side`.
 pub fn fit_size(width: u32, height: u32, long_side: f64) -> (f64, f64) {
     let aspect = width as f64 / height as f64;
     let long_side = long_side.clamp(MIN_SIDE * 2.0, MAX_LONG_SIDE);
@@ -89,17 +64,14 @@ pub fn fit_size(width: u32, height: u32, long_side: f64) -> (f64, f64) {
     }
 }
 
-/// Correct a size the user dragged to back onto `aspect`, keeping the width they
-/// chose and letting the height follow. Used where the platform offers no resize
-/// hook to constrain the rectangle up front.
+/// Correct a dragged size back onto `aspect`, keeping the width and letting the height follow (no-hook platforms).
 #[cfg_attr(windows, allow(dead_code))]
 pub fn lock_size(width: f64, aspect: f64) -> (f64, f64) {
     let width = width.max(MIN_SIDE);
     with_minimum(width, width / aspect, aspect)
 }
 
-/// A window rectangle in physical pixels, matching the Win32 `RECT` used by
-/// `WM_SIZING`.
+/// A window rectangle in physical pixels, matching the Win32 `RECT` used by `WM_SIZING`.
 #[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
@@ -109,9 +81,7 @@ pub struct Rect {
     pub bottom: i32,
 }
 
-/// The non-client size of a window: the border, title bar and shadows the OS adds
-/// around the client area. `WM_SIZING` deals in the outer rectangle, so the two
-/// are subtracted before the aspect ratio is applied.
+/// The non-client size of a window (border, title bar, shadows); `WM_SIZING` deals in the outer rectangle.
 #[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Frame {
@@ -133,16 +103,13 @@ pub enum Edge {
     BottomRight,
 }
 
-/// Scale a client size up, preserving the ratio, until neither side is below
-/// [`MIN_SIDE`].
+/// Scale a client size up on ratio until neither side is below `MIN_SIDE`.
 fn grow_to_minimum(width: f64, height: f64) -> (f64, f64) {
     let scale = (MIN_SIDE / width).max(MIN_SIDE / height).max(1.0);
     ((width * scale).round(), (height * scale).round())
 }
 
-/// Force a dragged outer rectangle back onto the client aspect ratio, anchoring
-/// the edge/corner opposite the one being dragged so the dragged one follows the
-/// cursor.
+/// Force a dragged outer rectangle onto the client aspect ratio, anchoring the opposite edge so the dragged one follows the cursor.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn resize(mut rect: Rect, aspect: f64, frame: Frame, edge: Edge) -> Rect {
     let (anchor_x, anchor_y) = anchor(rect, edge);
@@ -158,8 +125,7 @@ pub fn resize(mut rect: Rect, aspect: f64, frame: Frame, edge: Edge) -> Rect {
         // A side only drives one dimension; the ratio supplies the other.
         Edge::Left | Edge::Right => (client_width, client_width / aspect),
         Edge::Top | Edge::Bottom => (client_height * aspect, client_height),
-        // A corner drives whichever dimension is further from the ratio, so the
-        // rectangle encloses the cursor instead of jumping past it.
+        // A corner drives whichever dimension is further from the ratio, enclosing the cursor.
         _ => {
             if client_width / client_height >= aspect {
                 (client_width, client_width / aspect)
@@ -183,8 +149,7 @@ pub fn resize(mut rect: Rect, aspect: f64, frame: Frame, edge: Edge) -> Rect {
         Edge::Top | Edge::TopLeft | Edge::TopRight => rect.top = anchor_y - height,
         _ => {}
     }
-    // Sides that do not move keep both perpendicular coordinates, but the derived
-    // dimension still needs applying (e.g. a right-edge drag changes the height).
+    // A non-moving side keeps its perpendicular coordinates, but the derived dimension still applies.
     match edge {
         Edge::Left | Edge::Right => rect.bottom = rect.top + height,
         Edge::Top | Edge::Bottom => rect.right = rect.left + width,

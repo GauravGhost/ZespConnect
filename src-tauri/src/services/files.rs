@@ -1,8 +1,5 @@
-//! Device file browsing and transfer over adb.
-//!
-//! Listing uses `ls -la <path>/` (the trailing slash follows `/sdcard`, which is
-//! a symlink) and parses it into [`FileEntry`]s. Parsing is pure and unit-tested
-//! against `tests/fixtures/adb_ls_la.txt`. No Tauri types here.
+//! Device file browsing and transfer over adb. Listing uses `ls -la <path>/` (the trailing slash
+//! follows `/sdcard`, a symlink) and parses it into [`FileEntry`]s; parsing is pure and unit-tested.
 
 use std::time::Duration;
 
@@ -58,9 +55,7 @@ pub fn join_path(base: &str, name: &str) -> String {
     }
 }
 
-/// Parse `ls -la` output into entries rooted at `base`, directories first then
-/// case-insensitive by name. `.`/`..` are skipped (the UI navigates via the
-/// breadcrumb and an Up action) and symlink targets are stripped from the name.
+/// Parse `ls -la` into entries rooted at `base`, directories first then case-insensitive by name; skips `.`/`..`.
 pub fn parse_ls(text: &str, base: &str) -> Vec<FileEntry> {
     let mut entries = Vec::new();
 

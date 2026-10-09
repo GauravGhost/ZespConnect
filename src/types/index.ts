@@ -1,8 +1,4 @@
-/**
- * TS mirrors of the Rust models in `src-tauri/src/models/`.
- * Keep these in sync with the serde structs; the Rust side uses snake_case
- * fields which serde serialises exactly as written here.
- */
+/** TS mirrors of the Rust models in `src-tauri/src/models/`; keep in sync with the snake_case serde structs. */
 
 export type ToolSource = "override" | "path" | "known" | "not_found";
 

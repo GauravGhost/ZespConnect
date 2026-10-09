@@ -3,13 +3,7 @@ import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/**
- * Android 17 (Material 3 expressive) style slider: a thick rounded track with a
- * solid fill and a tall, thin pill-shaped handle. An optional `leadingIcon` sits
- * inside the track on the left, like the brightness/volume controls in the
- * Quick Settings shade. `size="lg"` is the chunky shade variant: a tall track
- * the icon fits inside, as on the phone's own brightness/volume bars.
- */
+/** Material 3 expressive slider; optional `leadingIcon` sits in the track, `size="lg"` is the chunky shade variant. */
 function Slider({
   className,
   defaultValue,

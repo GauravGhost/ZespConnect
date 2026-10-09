@@ -1,10 +1,6 @@
-//! System tray integration (Windows, macOS and Linux).
-//!
-//! Mirrors an Androlaunch-style menu: a Dashboard entry, a live Devices
-//! submenu, Run at Startup, quick navigation to the Console/Wireless screens,
-//! Refresh Devices, and Exit. Clicks either open the window on a specific tab
-//! (through the `tray:navigate` / `tray:select-device` events) or act on the
-//! backend directly.
+//! System tray integration (Windows, macOS and Linux): a Dashboard entry, a live Devices submenu,
+//! Run at Startup, navigation to Console/Wireless, Refresh Devices and Exit. Clicks either open the
+//! window on a tab (via the `tray:*` events) or act on the backend directly.
 
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -45,8 +41,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let mut builder: TrayIconBuilder<Wry> = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
         .tooltip("Zesp Connect")
-        // On Windows a left click shows the window; macOS/Linux open the menu
-        // on click, so the Dashboard entry is what brings the window forward.
+        // On Windows a left click shows the window; macOS/Linux open the menu, so Dashboard brings it forward.
         .show_menu_on_left_click(!cfg!(target_os = "windows"))
         .on_menu_event(|app, event| handle_menu(app, event.id.as_ref()))
         .on_tray_icon_event(|tray, event| {

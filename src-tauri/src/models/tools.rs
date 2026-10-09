@@ -50,10 +50,7 @@ impl ToolInfo {
     }
 }
 
-/// Result of comparing an installed tool against the latest upstream release.
-///
-/// Computed by `services::updates` (needs the network); a `Default` value means
-/// "not checked yet".
+/// Comparison of an installed tool against the latest upstream release; a `Default` means "not checked".
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UpdateInfo {
     /// Latest version published upstream, if it could be read.

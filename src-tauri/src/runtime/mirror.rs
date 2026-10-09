@@ -1,8 +1,5 @@
-//! scrcpy app-window lifecycle: spawn, track, stop, and report exit.
-//!
-//! Like `runtime::tracker`, this is a long-lived background coordinator, so it
-//! talks to Tauri for state and events. The pure argv logic is in
-//! `services::scrcpy`.
+//! scrcpy app-window lifecycle: spawn, track, stop, report exit. Tauri-coupled like the
+//! other runtime coordinators; the pure argv logic is in `services::scrcpy`.
 
 use std::time::Duration;
 
@@ -16,8 +13,7 @@ use crate::util::{self, process};
 
 const EVENT_MIRROR_STARTED: &str = "mirror:started";
 const EVENT_MIRROR_EXITED: &str = "mirror:exited";
-/// scrcpy aborts almost immediately when the device is unreachable or the serial
-/// is ambiguous; give it a moment before trusting the window is up.
+/// scrcpy aborts almost immediately on an unreachable device; wait a moment before trusting the window.
 const STARTUP_GRACE: Duration = Duration::from_millis(1500);
 const LOG_TAIL_LINES: usize = 4;
 /// Fallback desktop size when no monitor can be read (e.g. a headless session).
@@ -33,8 +29,7 @@ pub enum AppDisplay {
     Screen,
 }
 
-/// Open an app on the laptop. Falls back to the main display automatically on
-/// Android 12-13 (and unknown versions), where a virtual display locks the phone.
+/// Open an app; falls back to the main display on Android versions where a virtual display locks the phone.
 pub async fn start_app(
     app: &AppHandle,
     serial: &str,
@@ -121,8 +116,7 @@ pub async fn start_mirror(
     .await
 }
 
-/// Open Android's desktop mode (taskbar, launcher, freeform windows) on a
-/// virtual display of `display` (`WxH/dpi`) in a new window.
+/// Open Android's desktop mode on a virtual display of `display` (`WxH/dpi`) in a new window.
 pub async fn start_desktop(app: &AppHandle, serial: &str, display: &str) -> Result<MirrorProcess> {
     let tools = app.state::<AppState>().tools();
     let scrcpy_bin = scrcpy::scrcpy_path(&tools)?;
@@ -176,8 +170,7 @@ pub async fn start_camera(
     .await
 }
 
-/// The desktop display for the screen Zesp Connect's main window is on (the
-/// primary screen as a fallback), in the `WxH/dpi` form scrcpy expects.
+/// The `WxH/dpi` desktop display for the main window's screen, falling back to the primary monitor.
 pub fn screen_desktop_display(app: &AppHandle) -> String {
     let monitor = app
         .get_webview_window("main")
@@ -197,8 +190,7 @@ pub fn screen_desktop_display(app: &AppHandle) -> String {
     }
 }
 
-/// The longer side of a window's video area in logical pixels, used to keep a
-/// window's footprint steady when its aspect ratio changes on rotation.
+/// The longer side of a window's video area in logical pixels, kept steady across rotation.
 pub fn window_long_side(window: &WebviewWindow, inset: f64) -> f64 {
     let scale = window.scale_factor().unwrap_or(FALLBACK_SCALE);
     let Ok(size) = window.inner_size() else {
@@ -233,14 +225,11 @@ struct WindowSpec<'a> {
     args: &'a [String],
 }
 
-/// Spawn a scrcpy window, confirm it came up, register it in `AppState`, and
-/// watch it until it exits (or is stopped) - then clean up and emit
-/// `mirror:exited`. Shared by app windows, screen mirrors and the camera.
+/// Spawn a scrcpy window, register it, and watch it until it exits; then clean up and emit `mirror:exited`.
 async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorProcess> {
     let log_dir = util::ensure_dir(app.state::<AppState>().app_data_dir().join("mirror-logs"))?;
     let log_path = log_dir.join(format!("{}.log", uuid::Uuid::new_v4()));
-    // scrcpy finds adb on PATH, but pass our resolved binary through the ADB env
-    // variable so a custom/fake path is honoured (scrcpy 4.x has no `--adb` option).
+    // Pass our resolved adb via the ADB env var (scrcpy 4.x has no `--adb` option).
     let child_env = [("ADB", spec.adb_bin)];
     let mut child = process::spawn_captured(spec.scrcpy_bin, spec.args, &log_path, &child_env)?;
 
@@ -269,8 +258,7 @@ async fn spawn_window(app: &AppHandle, spec: WindowSpec<'_>) -> Result<MirrorPro
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
     app.state::<AppState>().set_mirror(info.clone(), stop_tx);
 
-    // Notify observers the window is up (also covers mirrors opened from the
-    // fallback path, which has no mutation of its own to refresh the list).
+    // Notify observers the window is up (also covers mirrors opened from the fallback path).
     let _ = app.emit(EVENT_MIRROR_STARTED, &info);
 
     // Watch until the window closes (or we ask it to), then clean up and notify.

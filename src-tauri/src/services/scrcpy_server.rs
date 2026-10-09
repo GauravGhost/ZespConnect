@@ -1,14 +1,7 @@
-//! Bootstrap helpers for running scrcpy's *standalone server* ourselves.
-//!
-//! Instead of spawning the scrcpy binary (which opens its own OS window with its
-//! own taskbar/Dock entry), we push `scrcpy-server` to the device, run it, and
-//! read the video socket directly. The server is configured to emit a plain H.264
-//! access-unit stream: the device/session metadata preamble is disabled while the
-//! 12-byte per-packet frame header is kept, so the video socket starts at the
-//! first packet header and needs no version-specific handshake.
-//!
-//! scrcpy 4.0 renamed the metadata option (`send_codec_meta` → `send_stream_meta`),
-//! so the name is chosen from the detected version.
+//! Bootstrap helpers for running scrcpy's *standalone server* ourselves: we push `scrcpy-server`
+//! to the device and read the video socket directly, configured to emit a plain H.264 stream (the
+//! metadata preamble off, the 12-byte frame header on) so no version-specific handshake is needed.
+//! scrcpy 4.0 renamed the metadata option, so the name is chosen from the detected version.
 
 use std::path::{Path, PathBuf};
 
@@ -22,9 +15,7 @@ const STREAM_META_MIN_VERSION: &str = "4.0";
 /// The oldest scrcpy whose standalone-server options we target.
 pub const MIN_VERSION: &str = "3.0";
 
-/// How long the phone may idle before sleeping while a desktop session runs. A
-/// phone that falls asleep stops drawing newly launched apps, so this outlasts
-/// any session; scrcpy's cleanup restores the user's own timeout on exit.
+/// How long the phone may idle before sleeping during a desktop session; scrcpy's cleanup restores the user's timeout.
 const DESKTOP_SCREEN_OFF_TIMEOUT_MS: u32 = 24 * 60 * 60 * 1000;
 
 /// The server artifact shipped next to the scrcpy binary.
@@ -82,8 +73,7 @@ pub fn server_path(scrcpy_bin: &str) -> Result<PathBuf> {
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
     pub kind: MirrorKind,
-    /// The `new_display` size spec: `""` reuses the main display's size, a
-    /// `WxH/dpi` value sizes it (desktop mode). `None` mirrors an existing display.
+    /// `""` reuses the main display's size, `WxH/dpi` sizes it (desktop), `None` mirrors an existing display.
     pub new_display: Option<String>,
     pub max_size: u32,
     pub max_fps: Option<u32>,
@@ -117,9 +107,7 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
         "clipboard_autosync=false".to_string(),
     ];
 
-    // scrcpy applies `stay_awake` only from its CleanUp thread, which runs only
-    // when `cleanup=true`; with cleanup disabled the device screen still times
-    // out and the mirror goes black. Our own teardown drops the pushed server.
+    // scrcpy applies `stay_awake` only from its CleanUp thread (needs `cleanup=true`); our teardown drops the server.
     args.push(format!("cleanup={}", opts.stay_awake));
 
     if let Some(fps) = opts.max_fps {
@@ -148,24 +136,17 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
     }
 
     if let Some(size) = opts.new_display.as_deref() {
-        // `new_display` takes a size spec, or an empty value to reuse the main
-        // display's size - it is not a boolean.
+        // `new_display` takes a size spec (or empty for the main display's size), not a boolean.
         args.push(format!("new_display={size}"));
         if opts.kind == MirrorKind::Desktop {
-            // Desktop mode *is* the decorations (launcher, taskbar, wallpaper).
-            // Typing comes from the computer, so keep the phone's keyboard away,
-            // and keep the phone awake for the session (restored by cleanup).
-            // Whether the phone sleeps when the desktop closes depends on the
-            // phone-screen toggle at that moment, so the session decides it
-            // (see `runtime::mirror_session::finish_desktop`), not `power_off_on_close`.
+            // Desktop mode is the decorations; typing comes from the computer, so hide the phone IME.
+            // Sleep-on-close is decided by the session's phone-screen toggle (see `finish_desktop`).
             args.push("display_ime_policy=hide".to_string());
             args.push(format!(
                 "screen_off_timeout={DESKTOP_SCREEN_OFF_TIMEOUT_MS}"
             ));
         } else if scrcpy::vd_decorations_option_supported(Some(version)) {
-            // Without the launcher, wallpaper and taskbar on the virtual display,
-            // only the app is shown and a cold start draws even while the phone
-            // sleeps (see `scrcpy::VD_DECORATIONS_MIN_VERSION`).
+            // Without decorations only the app is shown, so a cold start draws even while the phone sleeps.
             args.push("vd_system_decorations=false".to_string());
         }
     }

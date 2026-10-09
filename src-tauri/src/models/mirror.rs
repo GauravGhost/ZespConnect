@@ -12,8 +12,7 @@ pub enum MirrorKind {
     App,
     /// The main display with an app in the foreground.
     ScreenApp,
-    /// Android's desktop mode on a decorated virtual display (taskbar, launcher,
-    /// freeform windows), sized to the computer's screen.
+    /// Android's desktop mode on a decorated virtual display, sized to the computer's screen.
     Desktop,
 }
 

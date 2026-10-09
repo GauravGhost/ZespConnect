@@ -9,8 +9,7 @@ use crate::error::{AppError, Result};
 use crate::models::{Device, DeviceInfo, DeviceState, DeviceTransport, QuickState, ToolStatus};
 use crate::services::adb;
 
-/// Single round-trip script that reports model, version, battery and every
-/// quick-setting we care about. Ported from the reference backend.
+/// Single round-trip script reporting model, version, battery and every quick setting we track.
 const INFO_COMMAND: &str = concat!(
     r#"echo "MODEL:$(getprop ro.product.model)"; "#,
     r#"echo "VER:$(getprop ro.build.version.release)"; "#,
@@ -106,12 +105,9 @@ pub fn parse_devices(text: &str) -> Vec<Device> {
     dedupe(devices)
 }
 
-/// Collapse the Android 11+ duplicate transports for one phone.
-///
-/// A wireless device shows up twice - as `ip:port` and as an
-/// `adb-<hash>-<name>._adb-tls-connect._tcp` alias. Keep the mDNS alias (scrcpy
-/// refuses the `ip:port` serial while the alias exists) and carry the address
-/// for display and reconnecting.
+/// Collapse the Android 11+ duplicate transports for one phone: a wireless device shows up as
+/// `ip:port` and as an mDNS alias. Keep the alias (scrcpy refuses the `ip:port` serial while it
+/// exists) and carry the address for display and reconnecting.
 pub fn dedupe(devices: Vec<Device>) -> Vec<Device> {
     let mut result: Vec<Device> = Vec::new();
 
@@ -216,9 +212,7 @@ pub fn parse_info(text: &str) -> DeviceInfo {
         } else if line.contains("powered: true") {
             info.charging = true;
         } else if line.starts_with("VOL:") || VOLUME_RE.is_match(line) {
-            // `cmd media_session volume --get` also prints `[V] ...` verbose lines
-            // (to stdout), so the value often lands on its own line rather than the
-            // `VOL:`-prefixed one - match either.
+            // `cmd media_session volume --get` prints `[V] ...` lines too, so the value may be on its own line.
             if let Some(caps) = VOLUME_RE.captures(line) {
                 let current: i32 = caps[1].parse().unwrap_or(0);
                 let low: i32 = caps[2].parse().unwrap_or(0);

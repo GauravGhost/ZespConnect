@@ -74,9 +74,7 @@ pub fn run() {
                 // Keep a mirror window's client area on the video's aspect ratio, so
                 // resizing scales both dimensions together instead of adding padding.
                 tauri::WindowEvent::Resized(size) => on_mirror_resized(window, *size),
-                // Closing the main window keeps the app running in the tray; quit from
-                // the tray's Exit entry. A mirror window closes for real, stopping the
-                // session it is rendering.
+                // Closing main hides to the tray (quit from the tray); a mirror window closes for real, stopping its session.
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     if window.label() == "main" {
                         api.prevent_close();

@@ -1,5 +1,4 @@
-//! Tool lifecycle: re-resolve, update-check and install, driving managed state
-//! and progress events. Tauri-coupled, unlike the pure `services::tools`.
+//! Tool lifecycle: re-resolve, update-check and install, driving managed state and progress events.
 
 use std::path::Path;
 
@@ -33,8 +32,7 @@ pub async fn check_for_updates(app: &AppHandle) -> Result<ToolStatus> {
     let state = app.state::<AppState>();
     let mut status = state.tools();
 
-    // adb's own version string is the ADB protocol version (`1.0.41`); the
-    // comparable value is the platform-tools release (`37.0.1`).
+    // adb reports its protocol version (`1.0.41`); compare platform-tools releases (`37.0.1`).
     let installed_adb = match state.adb_path() {
         Some(path) => tools::platform_tools_version(&path).await,
         None => None,
@@ -63,8 +61,7 @@ pub async fn check_for_updates(app: &AppHandle) -> Result<ToolStatus> {
     Ok(status)
 }
 
-/// Re-resolve tools and restart the device tracker (the adb path may have
-/// changed). The last update check is preserved so badges survive a re-scan.
+/// Re-resolve tools and restart the device tracker; the last update check is preserved.
 pub async fn refresh(app: &AppHandle) -> Result<ToolStatus> {
     let state = app.state::<AppState>();
     let overrides = state.overrides();
@@ -87,8 +84,7 @@ pub async fn refresh(app: &AppHandle) -> Result<ToolStatus> {
     Ok(status)
 }
 
-/// Download one tool from upstream, point the override at it, then re-resolve.
-/// Streams each progress line to the UI and finishes with a done event.
+/// Download one tool, point the override at it, re-resolve, and stream progress to the UI.
 pub async fn perform_install(app: &AppHandle, tool: ToolKind) -> Result<ToolStatus> {
     let managed_dir = app.state::<AppState>().app_data_dir();
     let tool_name = tool.name().to_string();

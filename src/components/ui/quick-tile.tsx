@@ -3,12 +3,8 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Android quick-settings tile: a squircle with an icon chip and a label, filled
- * in when the setting is on. The whole tile is the control. This is the
- * signature Material You element - reuse it instead of re-implementing tiles.
- *
- * `layout="wide"` is the shade's horizontal pill (icon left, label and On/Off
- * underneath), used inside the phone mockup on Overview.
+ * Android quick-settings tile; the whole tile is the control. `layout="wide"` is the
+ * shade's horizontal pill used in the Overview phone mockup.
  */
 export function QuickTile({
   icon: Icon,

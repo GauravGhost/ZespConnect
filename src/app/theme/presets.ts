@@ -1,15 +1,7 @@
 /**
- * ⭐ SINGLE SOURCE OF TRUTH for app themes.
- *
- * To add / customize / remove a theme, edit ONLY this file:
- *   1. Add a `defineTheme(...)` entry to `THEMES` with its accent colors.
- *   2. Nothing else in the app needs to change - the picker and the runtime
- *      `ThemeProvider` read from `THEMES`, and every component is driven by
- *      semantic tokens (see the design-system contract in `./README.md`).
- *
- * Values must be `oklch()` (Tailwind resolves `/opacity` modifiers on them via
- * color-mix). Shared neutral surfaces live in `NEUTRAL_LIGHT` / `NEUTRAL_DARK`;
- * each theme only overrides the accent (`--primary`, `--ring`, ...).
+ * Single source of truth for app themes: add a `defineTheme(...)` entry to `THEMES` and
+ * nothing else changes. Values must be `oklch()`; each theme overrides only the accent on
+ * top of the shared `NEUTRAL_LIGHT` / `NEUTRAL_DARK` surfaces.
  */
 import type { ThemePreset, ThemeTokens } from "./types";
 
@@ -90,11 +82,7 @@ interface Accent {
   darkOnPrimaryContainer: string;
 }
 
-/**
- * Compose a full preset from the shared neutral surfaces + accent overrides.
- * In light mode the container mirrors `--primary` (bright fill stays as-is); in
- * dark mode it darkens to a muted accent so near-white text reads well.
- */
+/** Compose a preset from the shared neutrals + accent; the container darkens in dark mode for readable text. */
 function defineTheme(id: string, label: string, accent: Accent): ThemePreset {
   return {
     id,

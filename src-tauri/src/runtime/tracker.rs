@@ -1,8 +1,5 @@
-//! Background device tracker.
-//!
-//! Runs `adb track-devices` (a long-lived, push-based stream) and re-publishes
-//! the device list whenever it changes. Falls back to periodic refresh if the
-//! stream ends. The frontend query poll is a final safety net.
+//! Background device tracker: runs `adb track-devices` and re-publishes the device list
+//! on change, retrying if the stream ends (the frontend poll is the final safety net).
 
 use std::time::Duration;
 
@@ -48,8 +45,7 @@ pub async fn refresh(app: &AppHandle) {
     }
 }
 
-/// Read length-prefixed frames from `adb track-devices`; on each frame the
-/// device set changed, so refresh and publish. Returns when the stream ends.
+/// Read length-prefixed frames from `adb track-devices`; each frame means the device set changed.
 async fn track_stream(app: &AppHandle, adb_path: &str) -> crate::error::Result<()> {
     use std::process::{Command as StdCommand, Stdio};
 

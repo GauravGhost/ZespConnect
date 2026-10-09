@@ -15,15 +15,12 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(6);
 static VERSION_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(\d+\.\d+(?:\.\d+)?)").expect("valid regex"));
 
-/// `adb --version` prints the ADB protocol version first (`Android Debug Bridge
-/// version 1.0.41`) and the platform-tools release second (`Version 37.0.1-…`).
-/// Only the latter is comparable to the upstream revision, so pull it out
-/// separately (capital `Version`, so the protocol line does not match).
+/// Pulls the platform-tools release from `adb --version` (e.g. `Version 37.0.1-…`), not the
+/// protocol version line; the capital `Version` keeps the protocol line from matching.
 static PLATFORM_TOOLS_VERSION_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"Version\s+(\d+\.\d+\.\d+)").expect("valid regex"));
 
-/// Resolve both tools, preferring an explicit override, then `PATH`, then
-/// well-known install locations, and finally the app-managed download directory.
+/// Resolve both tools, preferring override, then `PATH`, known locations, then the managed download directory.
 pub async fn resolve(
     adb_override: Option<&str>,
     scrcpy_override: Option<&str>,
@@ -101,8 +98,7 @@ pub fn managed_root(managed_dir: &Path) -> PathBuf {
     managed_dir.join("tools")
 }
 
-/// The upstream package name for a tool inside the managed root. adb ships in
-/// Google's `platform-tools`, scrcpy in its own directory.
+/// The upstream package name inside the managed root: adb in `platform-tools`, scrcpy in its own directory.
 pub fn managed_slot(name: &str) -> &'static str {
     if name == "adb" {
         "platform-tools"
@@ -111,8 +107,7 @@ pub fn managed_slot(name: &str) -> &'static str {
     }
 }
 
-/// The newest managed binary for `name`, scanning version subdirectories newest
-/// first. Returns `None` when the app has never downloaded this tool.
+/// The newest managed binary for `name`, scanning version subdirectories newest first.
 pub fn managed_binary(managed_dir: &Path, name: &str) -> Option<PathBuf> {
     let base = managed_root(managed_dir).join(managed_slot(name));
     let exe = format!("{name}{EXE_SUFFIX}");
@@ -142,8 +137,7 @@ fn dir_version(dir: &Path) -> String {
         .to_string()
 }
 
-/// The platform-tools release version reported by `adb --version` (e.g. `37.0.1`),
-/// used to compare against Google's published revision.
+/// The platform-tools release from `adb --version` (e.g. `37.0.1`), comparable to Google's revision.
 pub async fn platform_tools_version(adb_path: &str) -> Option<String> {
     let output = process::run(adb_path, &["version".to_string()], VERSION_TIMEOUT)
         .await
@@ -167,12 +161,9 @@ async fn version_of(name: &str, path: &std::path::Path, args: &[&str]) -> Option
     preferred_version(name, &output.text())
 }
 
-/// The human-meaningful version from a tool's `--version` banner.
-///
-/// `adb` prints its ADB **protocol** version first (`Android Debug Bridge
-/// version 1.0.41` - a constant) and the **platform-tools release** second
-/// (`Version 36.0.0-…`). The release is what matches upstream and the update
-/// check, so prefer it. Everything else uses the first version token.
+/// The meaningful version from a tool's `--version` banner. adb prints its constant protocol
+/// version first and the platform-tools release second; the release is what matches upstream, so
+/// prefer it. Everything else uses the first version token.
 fn preferred_version(name: &str, text: &str) -> Option<String> {
     if name == "adb" {
         if let Some(version) = platform_tools_version_of(text) {
@@ -240,10 +231,7 @@ fn known_locations(name: &str) -> Vec<PathBuf> {
     paths
 }
 
-/// Search `%LOCALAPPDATA%\Microsoft\WinGet\Packages` for `<name>.exe`.
-///
-/// winget extracts portable packages into a versioned subfolder without a
-/// `Links` shim, so the binary is only reachable by scanning.
+/// Search `%LOCALAPPDATA%\Microsoft\WinGet\Packages` for `<name>.exe`; portable winget packages have no shim.
 #[cfg(windows)]
 fn winget_package_binaries(name: &str) -> Vec<PathBuf> {
     let Some(local) = env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
@@ -257,8 +245,7 @@ fn winget_package_binaries(name: &str) -> Vec<PathBuf> {
     found
 }
 
-/// Find `name` (plus the platform executable suffix) under `root`, searching a
-/// few levels deep. Used to locate the binary inside an extracted archive.
+/// Find `name` plus the platform suffix under `root`, a few levels deep (for an extracted archive).
 pub fn find_binary(root: &Path, name: &str) -> Option<PathBuf> {
     let exe = format!("{name}{EXE_SUFFIX}");
     let mut found = Vec::new();
@@ -266,8 +253,7 @@ pub fn find_binary(root: &Path, name: &str) -> Option<PathBuf> {
     found.into_iter().next()
 }
 
-/// Shallow recursive search for `file_name` under `dir` (bounded by `depth`).
-/// Used for winget's un-shimmed portable packages and the app-managed folder.
+/// Shallow recursive search for `file_name` under `dir`, bounded by `depth`.
 fn find_named_files(dir: &Path, file_name: &str, depth: usize, out: &mut Vec<PathBuf>) {
     if depth == 0 || out.len() >= 4 {
         return;

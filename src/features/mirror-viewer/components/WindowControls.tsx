@@ -7,10 +7,7 @@ import { cn } from "@/lib/utils";
 const BUTTON =
   "flex size-5 items-center justify-center rounded-full text-neutral-300 transition-colors";
 
-/**
- * Minimize, maximize and close buttons for a window that draws its own chrome.
- * Only shown where there are no native controls (macOS keeps its traffic lights).
- */
+/** Minimize, maximize and close buttons for self-drawn windows; hidden where native controls exist. */
 export function WindowControls({ maximizable = false }: Readonly<{ maximizable?: boolean }>) {
   const [maximized, setMaximized] = useState(false);
 

@@ -24,10 +24,7 @@ import type {
   TouchAction,
 } from "@/types";
 
-/**
- * The ONLY place that talks to the Rust backend. Features import `ipc` and
- * never call `invoke` directly, so the command surface stays in one file.
- */
+/** The only place that talks to the Rust backend; features import `ipc` and never call `invoke`. */
 export const ipc = {
   tools: {
     status: () => invoke<ToolStatus>("get_tools_status"),

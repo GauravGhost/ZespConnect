@@ -4,10 +4,7 @@ import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from "@/app/navigation";
 import { useAppStore } from "@/app/store";
 import { cn } from "@/lib/utils";
 
-/**
- * Material 3 navigation rail item: a pill indicator behind the icon with the
- * label underneath. Much narrower than a drawer, so content keeps the width.
- */
+/** Material 3 navigation rail item: pill indicator behind the icon, label underneath. */
 function RailButton({ item }: { item: NavItem }) {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);

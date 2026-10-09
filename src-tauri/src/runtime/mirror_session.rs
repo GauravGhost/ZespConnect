@@ -1,12 +1,6 @@
-//! In-app mirror sessions.
-//!
-//! We run the scrcpy *server* ourselves (see `services::scrcpy_server`) and relay
-//! its H.264 output to a Tauri window over an IPC channel, so the window belongs
-//! to Zesp Connect instead of being a separate `scrcpy` OS window.
-//!
-//! The tunnel is a reverse adb tunnel (scrcpy's default): we listen on a loopback
-//! port, `adb reverse` maps the device's abstract socket to it, and the server
-//! connects back. That avoids the forward-mode dummy byte and the port race.
+//! In-app mirror sessions: we run the scrcpy server and relay its H.264 output to a Tauri
+//! window over an IPC channel, using a reverse adb tunnel (scrcpy's default) so the window
+//! belongs to Zesp Connect instead of being a separate scrcpy OS window.
 
 use std::path::Path;
 use std::time::Duration;
@@ -80,8 +74,7 @@ fn parse_header(bytes: &[u8; FRAME_HEADER]) -> Packet {
     }
 }
 
-/// The message forwarded to the webview: `[flags][pts][payload]`, where `flags`
-/// bit 0 marks a key frame and bit 1 a codec-config packet.
+/// The message forwarded to the webview: `[flags][pts][payload]` (bit 0 = key frame, bit 1 = config).
 fn encode_message(config: bool, key: bool, pts: u64, payload: &[u8]) -> Vec<u8> {
     let mut flags = 0u8;
     if key {
@@ -98,9 +91,7 @@ fn encode_message(config: bool, key: bool, pts: u64, payload: &[u8]) -> Vec<u8> 
     out
 }
 
-/// Write-only handle to a session's control socket. Messages are queued to a
-/// dedicated writer task so callers never touch the socket. Cloning the handle
-/// keeps messages ordered: they all funnel through the one writer task.
+/// Write-only handle to a session's control socket; messages funnel through one writer task, so clones stay ordered.
 #[derive(Clone)]
 pub struct ControlChannel {
     sender: mpsc::UnboundedSender<Vec<u8>>,
@@ -126,8 +117,7 @@ fn spawn_control(mut stream: TcpStream) -> ControlChannel {
     ControlChannel { sender }
 }
 
-/// Start a session and return once the server is streaming. The stream itself
-/// continues in a background task until it ends or the session is stopped.
+/// Start a session and return once the server is streaming; the stream continues in a background task.
 pub async fn start(
     app: &AppHandle,
     id: u64,
@@ -154,30 +144,22 @@ pub async fn start(
 
     let (options, kind, virtual_display) = session_options(&adb_bin, &spec).await?;
 
-    // Desktop mode: refuse unsupported phones, and wake the phone so apps opened
-    // on the desktop draw. Its own screen is switched off once streaming, unless
-    // the user was using the phone (see `watch_lock`).
+    // Desktop mode wakes the phone so apps draw; its screen is switched off once streaming (see `watch_lock`).
     let screen_was_on = if kind == MirrorKind::Desktop {
         scrcpy::prepare_desktop(&adb_bin, &spec.serial).await?
     } else {
         false
     };
 
-    // On a virtual display the app is launched over the control socket. Where
-    // that is unsafe (Android 12-13), foreground the app and mirror the main
-    // display instead.
+    // On a virtual display the app is launched over the control socket; where that is unsafe we mirror the main one.
     if kind == MirrorKind::ScreenApp {
         if let Some(package) = spec.package.as_deref() {
             apps::launch(&tools, &spec.serial, package).await?;
         }
     }
 
-    // An app on a virtual display only draws - and so only produces video - once
-    // it is actually launched. The server learns the new display's id a moment
-    // after the sockets open and gives up waiting after a second, so a single
-    // early START_APP is regularly dropped ("No known display id") and the
-    // decoration-less display then stays empty and emits no frames at all. Send it
-    // repeatedly until the stream is live (the app is drawing).
+    // An app only produces video once launched, and the server drops an early START_APP
+    // ("No known display id"), so it is resent below until the stream is live.
     let start_app = if virtual_display {
         spec.package
             .as_deref()
@@ -218,8 +200,7 @@ pub async fn start(
 
     let mut child = process::spawn_captured(&adb_bin, &args, &log_path, &[])?;
 
-    // The server opens the sockets in order: video, then (audio), then control.
-    // Both must be accepted or the server blocks before it starts streaming.
+    // The server opens video, then (audio), then control; accept both or it blocks before streaming.
     let streams = match accept_streams(&listener, &mut child, &log_path).await {
         Ok(streams) => streams,
         Err(error) => {
@@ -253,13 +234,10 @@ pub async fn start(
     app.state::<AppState>()
         .set_session(info.clone(), stop_tx, control_channel.clone());
 
-    // Tell every window the session is live so the app list can flip its button to
-    // "close"; the registration above is the moment it becomes open.
+    // Tell every window the session is live so the app list can flip its button to "close".
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
 
-    // Launch the app on its virtual display; the server only knows the display a
-    // moment after the sockets open (and gives up after a second), so retry until
-    // the app is drawing (the stream is live) or the session ends.
+    // Resend START_APP until the app is drawing (stream live) or the session ends.
     if let Some(message) = start_app {
         let control = control_channel.clone();
         let handle = app.clone();
@@ -276,8 +254,7 @@ pub async fn start(
         });
     }
 
-    // Desktop mode only shows once the phone is unlocked; watch the lock screen
-    // and switch the phone's own screen to match (see `watch_lock`).
+    // Desktop mode only shows once unlocked; watch the lock screen (see `watch_lock`).
     if kind == MirrorKind::Desktop {
         tauri::async_runtime::spawn(watch_lock(
             app.clone(),
@@ -308,23 +285,11 @@ pub async fn start(
     Ok(info)
 }
 
-/// Follow a desktop session's lock screen until the session ends.
-///
-/// Android hides the desktop while the phone is locked, so: while locked the
-/// window asks the user to unlock (locking with the power button is how they put
-/// the phone away, so it is never woken back up). Once unlocked, the phone's own
-/// screen goes dark unless the user turned it on from the window, and a fresh key
-/// frame is requested so the desktop appears at once.
-///
-/// A session opened while the phone was in use (screen on *and* unlocked) starts
-/// with the toggle on, so the phone is not switched off under the user. A screen
-/// that was only lit on the lock screen does not count: the first check clears
-/// the seeded toggle then. Everything after follows the toggle as usual.
-///
-/// While unlocked it also presses HOME when the desktop launcher has lost input
-/// focus on two checks in a row (a brief gap is normal mid-transition): that is
-/// what the user would do to get the desktop answering clicks again, and it
-/// dismisses the "not responding" dialog if Android already raised one.
+/// Follow a desktop session's lock screen until it ends. Android hides the desktop while the
+/// phone is locked, so the phone screen is switched to match and a fresh key frame requested on
+/// unlock (see the seeded toggle for sessions opened while the phone was in use). Presses HOME
+/// when the launcher loses input focus twice in a row, which also dismisses a "not responding"
+/// dialog.
 async fn watch_lock(
     app: AppHandle,
     id: u64,
@@ -345,9 +310,7 @@ async fn watch_lock(
                         if !app.state::<AppState>().phone_screen_on(id) {
                             let _ = control.send(control::set_display_power(false));
                         }
-                        // Only once the capture is up: before that the server's
-                        // surface capture has no control yet and RESET_VIDEO
-                        // throws, killing the whole session (no frames at all).
+                        // Only once capture is up: RESET_VIDEO before that throws and kills the session.
                         if app.state::<AppState>().is_streaming(id) {
                             let _ = control.send(control::reset_video());
                         }
@@ -382,9 +345,7 @@ async fn watch_lock(
     }
 }
 
-/// Leave the phone as the user had it when a desktop session ends: if they turned
-/// its screen on to use it alongside the desktop it stays on and unlocked; if it
-/// was dark it is put to sleep, so it locks like a phone set aside.
+/// Leave the phone as the user had it: if its screen was on it stays on, otherwise it is put to sleep.
 async fn finish_desktop(adb_bin: &str, serial: &str, phone_screen_on: bool) {
     if !phone_screen_on {
         scrcpy::sleep_phone(adb_bin, serial).await;
@@ -394,8 +355,7 @@ async fn finish_desktop(adb_bin: &str, serial: &str, phone_screen_on: bool) {
 pub fn stop(app: &AppHandle, id: u64) {
     let state = app.state::<AppState>();
     if let Some(handle) = state.take_session(id) {
-        // The supervisor clears the rest of the session's state once it has torn
-        // down; clearing it here would lose the phone-screen choice it reads then.
+        // The supervisor clears the rest once it tears down; clearing here would lose the phone-screen choice.
         let _ = handle.stop.send(());
     } else {
         // Drop a spec that never became a session (window closed before starting).
@@ -409,9 +369,7 @@ pub fn stop_all(app: &AppHandle) {
     }
 }
 
-/// Translate the requested mirror into the server's options, downgrading an app
-/// window to a main-display mirror on Android versions where a virtual display is
-/// unsafe (see `scrcpy::virtual_display_safe`).
+/// Translate the requested mirror into server options, downgrading an app window where a virtual display is unsafe.
 async fn session_options(
     adb_bin: &str,
     spec: &MirrorSessionSpec,
@@ -457,8 +415,7 @@ async fn session_options(
             .options
             .fps
             .map(|value| value.clamp(1, scrcpy::MAX_FPS_LIMIT)),
-        // The UI always sends its phone-sized default, so a desktop raises it to
-        // its own floor to keep a large, text-heavy screen crisp.
+        // The UI sends a phone-sized default; a desktop raises it to its own floor for a crisp screen.
         bit_rate: spec
             .options
             .bitrate
@@ -474,17 +431,14 @@ async fn session_options(
         camera_facing: spec.options.camera_facing.clone(),
         camera_zoom: spec.options.camera_zoom,
         camera_torch: spec.options.camera_torch,
-        // Desktop needs scrcpy's cleanup to restore the phone's screen timeout
-        // and power it off on close, and cleanup only runs with `stay_awake`.
+        // scrcpy's cleanup (which restores the screen timeout on close) only runs with `stay_awake`.
         stay_awake: spec.options.stay_awake || desktop,
     };
 
     Ok((options, kind, virtual_display))
 }
 
-/// Accept the video and control connections, watching the server so a bad
-/// version or option fails fast with the server's own message instead of a
-/// silent timeout.
+/// Accept the video and control connections, watching the server so a bad version fails fast.
 async fn accept_streams(
     listener: &TcpListener,
     child: &mut Child,
@@ -522,8 +476,7 @@ async fn accept(listener: &TcpListener, child: &mut Child, log_path: &Path) -> R
     }
 }
 
-/// Read the video socket and forward each access unit to the webview until the
-/// stream ends, the server exits, or the session is stopped.
+/// Read the video socket and forward each access unit until the stream ends or the session stops.
 async fn stream_video(
     app: AppHandle,
     id: u64,
@@ -534,9 +487,7 @@ async fn stream_video(
 ) {
     let mut reader = BufReader::with_capacity(READ_BUFFER, video);
     let mut payload: Vec<u8> = Vec::new();
-    // The first forwarded packet means the capture is up, which is what unlocks
-    // the control messages that would otherwise crash the server if sent early
-    // (see `watch_lock` and the app-launch retry).
+    // The first forwarded packet means capture is up, which unlocks the control messages sent early.
     let mut announced = false;
 
     let reading = async {

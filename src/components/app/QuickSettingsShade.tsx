@@ -166,10 +166,7 @@ function ShadeMessage({
   );
 }
 
-/**
- * The phone mockup on Overview, rendered as the Android quick-settings shade.
- * Every tile, slider and the power menu drive the real device.
- */
+/** The Overview phone mockup, rendered as the Android quick-settings shade; tiles drive the real device. */
 export function QuickSettingsShade({ device }: { device: Device }) {
   const serial = device.serial;
   const now = useClock();

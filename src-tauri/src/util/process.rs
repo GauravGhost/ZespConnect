@@ -1,7 +1,5 @@
-//! Process helpers: run a child to completion, or spawn a detached one.
-//!
-//! Always spawns with an argv array - never a shell string - so nothing the
-//! UI passes through can be interpreted by a shell.
+//! Process helpers: run a child to completion, or spawn a detached one. Always spawns with an
+//! argv array (never a shell string), so nothing from the UI can be shell-interpreted.
 
 use std::process::Stdio;
 use std::time::Duration;
@@ -63,8 +61,7 @@ pub async fn run(program: &str, args: &[String], timeout: Duration) -> Result<Pr
     })
 }
 
-/// Spawn a detached process whose stdout/stderr are captured into `log_path`.
-/// Returns the child's pid. The caller is responsible for tracking it.
+/// Spawn a detached process logging to `log_path`; returns the pid for the caller to track.
 pub fn spawn_detached(program: &str, args: &[String], log_path: &std::path::Path) -> Result<u32> {
     let (program, args) = platform::prepare(program, args);
     let display = program.clone();
@@ -85,10 +82,8 @@ pub fn spawn_detached(program: &str, args: &[String], log_path: &std::path::Path
     Ok(child.id())
 }
 
-/// Spawn a process whose stdout/stderr are captured into `log_path`, returning
-/// the child so the caller can await its exit (and optionally kill it). Used for
-/// long-lived scrcpy windows. `kill_on_drop(false)` keeps the window alive if the
-/// task that owns the child is dropped.
+/// Spawn a process logging to `log_path`, returning the child so the caller can await or kill it.
+/// `kill_on_drop(false)` keeps a long-lived scrcpy window alive if its owning task is dropped.
 pub fn spawn_captured(
     program: &str,
     args: &[String],
@@ -127,11 +122,9 @@ pub fn read_log_tail(path: &std::path::Path, max_lines: usize) -> String {
     }
 }
 
-/// The most informative line from a failed process's log: the first line that
-/// looks like an error, otherwise the first non-empty line.
-///
-/// A Java stack trace puts its message *before* the frames, so a tail is useless
-/// for the scrcpy server - the exception is the first line, not the last.
+/// The most informative line from a failed process's log: the first that looks like an error,
+/// otherwise the first non-empty. A Java stack trace puts its message before the frames, so a tail
+/// is useless for the scrcpy server.
 pub fn read_log_error(path: &std::path::Path) -> String {
     let Ok(contents) = std::fs::read_to_string(path) else {
         return String::new();

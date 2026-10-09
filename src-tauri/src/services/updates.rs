@@ -1,8 +1,5 @@
-//! Look up the latest upstream versions of adb (Android platform-tools) and
-//! scrcpy, so the UI can say "update available" instead of guessing.
-//!
-//! Pure helpers (version comparison, asset naming) are unit-tested; the network
-//! calls are thin wrappers over the upstream APIs.
+//! Look up the latest upstream adb (platform-tools) and scrcpy versions so the UI can say
+//! "update available". Pure helpers are unit-tested; the network calls wrap the upstream APIs.
 
 use std::cmp::Ordering;
 use std::time::Duration;
@@ -14,9 +11,7 @@ use serde::Deserialize;
 use crate::error::{AppError, Result};
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
-/// Large binary downloads must not be bounded by a *total* request timeout -
-/// that aborts a big file part-way on a slow link. Bound the connection and
-/// each read instead.
+/// Large downloads must not be bounded by a total timeout (which aborts mid-file); bound connect and each read.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const READ_TIMEOUT: Duration = Duration::from_secs(120);
 const USER_AGENT: &str = concat!("ZespConnect/", env!("CARGO_PKG_VERSION"));
@@ -34,8 +29,7 @@ static PLATFORM_TOOLS_REVISION_RE: Lazy<Regex> = Lazy::new(|| {
     .expect("valid regex")
 });
 
-/// The latest versions published upstream. A source that failed has no version
-/// but carries an `*_error` explaining why.
+/// The latest upstream versions; a failed source has no version but carries an `*_error`.
 #[derive(Debug, Clone, Default)]
 pub struct Latest {
     pub scrcpy: Option<String>,
@@ -57,8 +51,7 @@ struct GithubAsset {
     browser_download_url: String,
 }
 
-/// Fetch both latest versions concurrently. A failure of one source does not
-/// hide the other; each carries its own error.
+/// Fetch both latest versions concurrently; one source failing does not hide the other.
 pub async fn fetch_latest() -> Latest {
     let client = match http_client() {
         Ok(client) => client,
@@ -91,8 +84,7 @@ pub async fn fetch_latest() -> Latest {
     }
 }
 
-/// Resolve everything needed to download the latest scrcpy for this OS/arch:
-/// the version string and the archive URL.
+/// Resolve the latest scrcpy version and archive URL for this OS/arch.
 pub async fn scrcpy_download() -> Result<(String, String)> {
     let client = http_client()?;
     let release = scrcpy_release(&client).await?;
@@ -119,8 +111,7 @@ pub async fn scrcpy_download() -> Result<(String, String)> {
     Ok((version, url))
 }
 
-/// Resolve the latest platform-tools (adb) version and its download URL. The
-/// URL is version-agnostic; the version comes from Google's repository manifest.
+/// Resolve the latest platform-tools (adb) version and download URL.
 pub async fn platform_tools_download() -> Result<(String, String)> {
     let client = http_client()?;
     let version = latest_platform_tools(&client).await?;
@@ -138,16 +129,14 @@ pub async fn platform_tools_download() -> Result<(String, String)> {
     Ok((version, url))
 }
 
-/// True when `latest` is strictly newer than `installed`. Unknown installed
-/// version (`None`) is treated as "cannot tell", i.e. not outdated.
+/// True when `latest` is strictly newer than `installed`; an unknown installed version is not outdated.
 pub fn is_outdated(installed: Option<&str>, latest: &str) -> bool {
     installed
         .map(|current| compare(current, latest) == Ordering::Less)
         .unwrap_or(false)
 }
 
-/// Numeric, dot-separated version comparison. Non-numeric tails are ignored
-/// (`35.0.2-android-tools` compares as `35.0.2`).
+/// Numeric, dot-separated comparison; non-numeric tails are ignored (`35.0.2-android-tools` -> `35.0.2`).
 pub fn compare(a: &str, b: &str) -> Ordering {
     let (left, right) = (parse_parts(a), parse_parts(b));
     let len = left.len().max(right.len());
@@ -162,8 +151,7 @@ pub fn compare(a: &str, b: &str) -> Ordering {
     Ordering::Equal
 }
 
-/// The upstream asset name for a platform, or `None` when upstream publishes no
-/// build for it (notably Linux/aarch64).
+/// The upstream asset name for a platform, or `None` when none is published (notably Linux/aarch64).
 pub fn asset_name(os: &str, arch: &str, version: &str) -> Option<String> {
     let name = match (os, arch) {
         ("macos", "aarch64") => format!("scrcpy-macos-aarch64-v{version}.tar.gz"),
@@ -197,8 +185,7 @@ fn platform_tools_revision(xml: &str) -> Option<String> {
     Some(format!("{major}.{minor}.{micro}"))
 }
 
-/// Build the shared HTTP client (timeout + User-Agent, both required by GitHub).
-/// For small metadata requests only - use [`download_client`] for binaries.
+/// The shared HTTP client for small metadata requests (use [`download_client`] for binaries).
 pub fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(HTTP_TIMEOUT)
@@ -207,9 +194,7 @@ pub fn http_client() -> Result<reqwest::Client> {
         .map_err(|e| AppError::Other(format!("could not start HTTP client: {e}")))
 }
 
-/// Client for large binary downloads. A total request timeout would abort a
-/// multi-megabyte archive part-way on a slow connection, so only the connect
-/// and per-read stalls are bounded.
+/// Client for large downloads: only the connect and per-read stalls are bounded, not the total time.
 pub fn download_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)

@@ -1,8 +1,6 @@
-//! Installed-app listing, name resolution with a disk cache, and app actions.
-//!
-//! Name pipeline (mirrors the master plan): on-disk cache → `scrcpy
-//! --list-apps` (real names) → cached fallback → `adb shell pm list packages`.
-//! No Tauri types here; every parser is pure and unit-tested against fixtures.
+//! Installed-app listing, name resolution with a disk cache, and app actions. Name pipeline:
+//! on-disk cache -> `scrcpy --list-apps` (real names) -> cached fallback -> `pm list packages`.
+//! Every parser is pure and unit-tested against fixtures.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -19,8 +17,7 @@ const PM_TIMEOUT: Duration = Duration::from_secs(30);
 const ACTION_TIMEOUT: Duration = Duration::from_secs(30);
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// Everything, including system apps; we filter on the way out so the cache is
-/// complete and chip toggles never refetch.
+/// Everything including system apps; filtering happens on the way out so the cache stays complete.
 const LIST_PACKAGES: &str = "pm list packages -f";
 const LIST_APPS_MARKER: &str = "List of apps";
 
@@ -41,12 +38,9 @@ type AppCache = HashMap<String, Vec<AppInfo>>;
 // Parsers
 // ---------------------------------------------------------------------------
 
-/// Parse `scrcpy --list-apps` output.
-///
-/// Everything after the `List of apps` marker is one app per line: an optional
-/// `INFO:` log prefix, then `*` for a system app (or `-`/space for a user app),
-/// then the label and the package in either order - the token that matches the
-/// package-id grammar is the package, the rest is the label.
+/// Parse `scrcpy --list-apps` output. After the `List of apps` marker each line is one app: an
+/// optional `INFO:` prefix, `*` for system (or `-`/space for user), then label and package in
+/// either order - the token matching the package-id grammar is the package.
 pub fn parse_scrcpy_apps(text: &str) -> Vec<AppInfo> {
     let mut apps = Vec::new();
     let mut started = false;
@@ -105,10 +99,8 @@ pub fn parse_scrcpy_apps(text: &str) -> Vec<AppInfo> {
     apps
 }
 
-/// Parse `pm list packages -f` output (`package:/path/base.apk=com.example`).
-///
-/// Split APKs add extra lines per package; the first (base) line wins, and its
-/// path decides whether the package is a system app.
+/// Parse `pm list packages -f` (`package:/path/base.apk=com.example`). Split APKs add extra
+/// lines per package; the first (base) line wins and its path decides the system flag.
 pub fn parse_pm_packages(text: &str) -> Vec<AppInfo> {
     let mut apps = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -295,8 +287,7 @@ pub async fn launch(tools: &ToolStatus, serial: &str, package: &str) -> Result<(
     Ok(())
 }
 
-/// Remove an app: a clean `adb uninstall` for user apps, else scoped to user 0
-/// for system / updated-system packages.
+/// Remove an app: `adb uninstall` for user apps, else `pm uninstall --user 0` for system packages.
 pub async fn uninstall(tools: &ToolStatus, serial: &str, package: &str) -> Result<()> {
     let adb_path = adb::adb_path(tools)?;
 

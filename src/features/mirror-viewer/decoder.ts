@@ -1,7 +1,6 @@
 /**
- * H.264 Annex-B decoder built on WebCodecs, fed by the framing the Rust side
- * sends over the IPC channel: `[flags][8-byte PTS][payload]`, where `flags` bit 0
- * marks a key frame and bit 1 a codec-config (SPS/PPS) packet.
+ * H.264 Annex-B decoder over WebCodecs. Frames arrive as `[flags][8-byte PTS][payload]`,
+ * where `flags` bit 0 marks a key frame and bit 1 a codec-config (SPS/PPS) packet.
  */
 
 const FLAG_KEY = 0x1;
@@ -9,23 +8,16 @@ const FLAG_CONFIG = 0x2;
 const HEADER_LEN = 9;
 
 /**
- * How many decode requests may be outstanding before we stop feeding delta
- * frames. A mirror is a live stream: when the decoder falls behind - which it
- * does while the window is being resized and the GPU is busy re-rasterizing -
- * we want the newest picture, not a growing backlog of stale ones. An unbounded
- * queue is what eventually stalls a hardware decoder, and a stalled decoder
- * produces no `error`, so the canvas just goes quiet and black.
+ * Decode requests allowed outstanding before we drop deltas and jump to the newest
+ * picture. An unbounded backlog is what eventually stalls a hardware decoder, which
+ * then produces no `error` - the canvas just goes quiet and black.
  */
 const MAX_DECODE_QUEUE = 8;
 
 export interface DecoderHandlers {
   onFrame: (frame: VideoFrame) => void;
   onError: (error: Error) => void;
-  /**
-   * The decoder dropped frames and is waiting for a key frame. The encoder only
-   * sends one when the stream starts (or the picture changes a lot), so a still
-   * screen - a desktop at rest - would otherwise stay frozen on a stale picture.
-   */
+  /** Decoder dropped frames and waits for a key frame, which the encoder sends only on change. */
   onNeedKeyframe?: () => void;
 }
 
@@ -59,24 +51,17 @@ export class H264Decoder {
 
     const key = (flags & FLAG_KEY) !== 0;
 
-    // A decoder may only be created or resumed on a key frame: its very first
-    // chunk must be one, and after dropping frames the reference chain is broken.
-    // The stream does not guarantee config/key/delta ordering, and feeding a delta
-    // here is what produces the garbled, tiled picture on a cold start.
+    // A decoder may only start or resume on a key frame, so a delta here garbles a cold start.
     if (!key && (this.decoder === null || this.needsKeyframe)) return;
 
-    // Backed up: throw the backlog away and resync at the next key frame, so the
-    // picture jumps to "now" instead of replaying stale frames and staying behind.
+    // Backed up: drop the backlog and resync at the next key frame to jump to "now".
     if (!key && this.pending > MAX_DECODE_QUEUE) {
       this.reset();
       return;
     }
 
     if (!this.ensureDecoder(this.config ?? payload)) {
-      // No codec config (SPS/PPS) yet, so the decoder cannot start and every frame
-      // would be dropped - the "Starting mirror…" hang with no error. Ask for a
-      // fresh key frame, whose payload carries the config, instead of waiting on a
-      // key frame the encoder sends only when the screen next changes.
+      // No SPS/PPS config yet, so the decoder cannot start; request a key frame that carries it.
       this.needsKeyframe = true;
       this.handlers.onNeedKeyframe?.();
       return;
@@ -97,11 +82,7 @@ export class H264Decoder {
     }
   }
 
-  /**
-   * Drop the decoder and wait for the next key frame. Used when it has gone
-   * quiet (no output while frames keep arriving), which otherwise freezes the
-   * canvas on the last picture - or leaves it black.
-   */
+  /** Drop the decoder and wait for the next key frame (used when it has gone quiet). */
   reset(): void {
     this.teardown();
     this.needsKeyframe = true;

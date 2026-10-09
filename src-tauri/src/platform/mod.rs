@@ -58,8 +58,7 @@ pub fn configure_command(command: &mut std::process::Command) {
 #[cfg(not(windows))]
 pub fn configure_command(_command: &mut std::process::Command) {}
 
-/// Rewrite a program + args so that Windows batch shims (`.cmd`/`.bat`) run via
-/// `cmd.exe`, which cannot be spawned directly. Everything else is unchanged.
+/// Rewrite a program + args so Windows batch shims (`.cmd`/`.bat`) run via `cmd.exe`; everything else is unchanged.
 #[cfg(windows)]
 pub fn prepare(program: &str, args: &[String]) -> (String, Vec<String>) {
     let lower = program.to_lowercase();

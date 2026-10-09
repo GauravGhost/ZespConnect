@@ -1,11 +1,7 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, type DependencyList } from "react";
 
-/**
- * Subscribe to backend events for the life of the component and dispose every
- * listener on unmount (or immediately if it resolves after unmount). Register
- * listeners through the `track` helper.
- */
+/** Subscribe to backend events for the component's life; register listeners via `track`. */
 export function useBackendEvents(
   subscribe: (track: (pending: Promise<UnlistenFn>) => void) => void,
   deps: DependencyList,

@@ -5,10 +5,7 @@ import { useResolvedTheme } from "@/app/theme/useResolvedTheme";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-/**
- * Flips between Light and Dark. "System" stays available in Settings; when it
- * is active, the button shows the resolved mode and switches to the opposite.
- */
+/** Flips between Light and Dark; with "System" active it shows the resolved mode and flips it. */
 export function ThemeModeToggle() {
   const setThemeMode = useAppStore((state) => state.setThemeMode);
   const resolved = useResolvedTheme();

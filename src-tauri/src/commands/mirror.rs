@@ -1,5 +1,4 @@
-//! Mirroring commands (thin wrappers over `runtime::mirror` and
-//! `runtime::mirror_session`).
+//! Mirroring commands (thin wrappers over `runtime::mirror` and `runtime::mirror_session`).
 
 use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, LogicalSize, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -63,8 +62,7 @@ pub async fn start_app_on_screen(
     mirror::start_app(&app, &serial, &package, &label, AppDisplay::Screen).await
 }
 
-/// Open Android's desktop mode in an external scrcpy window (used when the
-/// webview cannot render it in-app).
+/// Open Android's desktop mode in an external scrcpy window (when the webview cannot render it in-app).
 #[tauri::command]
 pub async fn start_desktop(serial: String, app: AppHandle) -> Result<MirrorProcess> {
     validate_serial(&serial)?;
@@ -89,8 +87,7 @@ pub fn list_mirrors(state: State<'_, AppState>) -> Vec<MirrorProcess> {
     state.list_mirrors()
 }
 
-/// Open a mirror inside a Tauri window the app owns. The window asks for its
-/// stream separately, so a failed stream can fall back to an external window.
+/// Open a mirror inside an app-owned Tauri window; the window asks for its stream separately so a failure can fall back.
 #[tauri::command]
 pub async fn open_mirror_window(
     serial: String,
@@ -130,8 +127,7 @@ pub async fn open_mirror_window(
     } else {
         label.clone()
     };
-    // A desktop opens landscape and, unlike a phone-shaped window, can go full
-    // screen (the green button on macOS) - it is sized to fill the screen exactly.
+    // A desktop opens landscape and can go full screen; a phone-shaped window cannot.
     let (width, height) = if desktop {
         (
             mirror_window::DEFAULT_LONG_SIDE * 1.5,
@@ -154,12 +150,8 @@ pub async fn open_mirror_window(
         .inner_size(width, height)
         .min_inner_size(mirror_window::MIN_SIDE, mirror_window::MIN_SIDE)
         .maximizable(desktop);
-    // Every mirror window draws its own title bar (the title, the always-on-top
-    // pin and, on a desktop, the phone-screen toggle and window buttons; see
-    // `MirrorTitleBar`/`DesktopTitleBar`), so the native bar is dropped rather
-    // than sitting above a second, empty one. macOS keeps its traffic lights via
-    // an overlay bar; elsewhere dropping the chrome (and the shadow) also lets
-    // tao's hit-test leave every edge resizable on Windows.
+    // Every mirror window draws its own title bar, so the native one is dropped; macOS keeps
+    // its traffic lights via an overlay. On Windows, dropping the chrome also keeps edges resizable.
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
@@ -173,11 +165,8 @@ pub async fn open_mirror_window(
     Ok(id)
 }
 
-/// Fit a session's window to its video's aspect ratio once the first frame reveals
-/// the device's dimensions, and remember the ratio so later resizes stay locked to
-/// it. The video area then matches the frame exactly, so the canvas fills the
-/// window (below its title bar and, for a phone-shaped window, above its bottom
-/// gap - see `mirror_window::vertical_inset`) instead of being letterboxed.
+/// Fit a session's window to its video's aspect ratio once the first frame reveals the device
+/// size, and remember it so later resizes stay locked to it (see `mirror_window::vertical_inset`).
 #[tauri::command]
 pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle) -> Result<()> {
     if width == 0 || height == 0 {
@@ -193,9 +182,7 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     let inset = mirror_window::vertical_inset(state.session_kind(id));
     let long_side = mirror::window_long_side(&window, inset);
     state.set_aspect(id, aspect);
-    // On Windows this locks the ratio through the native resize hook so the
-    // dragged edge tracks the cursor; elsewhere it is a no-op and the window's
-    // resize handler corrects the size instead.
+    // On Windows this locks the ratio through the native resize hook; elsewhere the resize handler corrects it.
     platform::watch_aspect(&window, aspect, inset);
 
     let (width, height) =
@@ -221,10 +208,7 @@ pub async fn start_mirror_stream(
     mirror_session::start(&app, id, spec, channel).await
 }
 
-/// Inject a pointer action into a running session. `x`/`y` and `width`/`height`
-/// share the video's coordinate space, so the server can map them to the device.
-/// `button`/`buttons` (Android `BUTTON_*` masks: the one that changed, the ones
-/// held) are only sent by desktop windows, for right-click and hover.
+/// Inject a pointer action; `x`/`y` and `width`/`height` share the video's space. `button`/`buttons` are desktop-only.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn mirror_touch(
@@ -293,9 +277,7 @@ pub async fn mirror_reset_video(id: u64, state: State<'_, AppState>) -> Result<(
     session_channel(&state, id)?.send(control::reset_video())
 }
 
-/// Turn a desktop session's phone screen on (to use the phone alongside the
-/// desktop) or off. The phone stays awake and unlocked either way, so the desktop
-/// keeps running; the choice is remembered for when the phone is next unlocked.
+/// Turn a desktop session's phone screen on or off; the phone stays awake and unlocked either way.
 #[tauri::command]
 pub async fn mirror_phone_screen(id: u64, on: bool, state: State<'_, AppState>) -> Result<()> {
     let channel = session_channel(&state, id)?;
@@ -326,8 +308,7 @@ pub fn list_mirror_sessions(state: State<'_, AppState>) -> Vec<MirrorSession> {
     state.list_sessions()
 }
 
-/// Reopen a session as an external scrcpy window when in-app rendering is not
-/// available, reusing the settings captured when the window was opened.
+/// Reopen a session as an external scrcpy window when in-app rendering is unavailable.
 #[tauri::command]
 pub async fn mirror_session_fallback(id: u64, app: AppHandle) -> Result<()> {
     let spec = app

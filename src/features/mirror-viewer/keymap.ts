@@ -1,11 +1,7 @@
 /**
- * Keyboard and mouse translation for desktop-mode windows: browser
- * `KeyboardEvent.code`s to Android `KEYCODE_*`s, modifier state to Android's
- * `META_*` mask, and mouse buttons to `MotionEvent.BUTTON_*`.
- *
- * `code` is the physical key, so shortcuts work whatever the keyboard layout;
- * printable characters are sent as text instead (see `isTextKey`) so layouts,
- * accents and emoji come through as typed.
+ * Keyboard and mouse translation for desktop-mode windows: `KeyboardEvent.code` to Android
+ * `KEYCODE_*`, modifiers to `META_*`, buttons to `BUTTON_*`. `code` is physical so shortcuts
+ * are layout-independent; printable characters go as text instead (see `isTextKey`).
  */
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -88,11 +84,7 @@ export function androidMetaState(event: KeyboardEvent): number {
   return meta;
 }
 
-/**
- * Whether `event` types a character that should be sent as text: a single
- * printable character with no shortcut modifier held (Shift is part of the
- * character). Shortcuts like Ctrl+C go as keycodes instead.
- */
+/** Whether `event` types a printable character to send as text; Ctrl/Alt shortcuts go as keycodes. */
 export function isTextKey(event: KeyboardEvent): boolean {
   if (ctrlHeld(event) || event.altKey || event.metaKey) return false;
   return [...event.key].length === 1;

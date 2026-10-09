@@ -1,11 +1,8 @@
-//! Device clipboard access through the AdbClipboard helper app, plus the host
-//! clipboard via `arboard`.
-//!
-//! Android only lets a foreground app read its clipboard, so device → desktop
-//! reads go through [AdbClipboard](https://github.com/PRosenb/AdbClipboard):
-//! writing broadcasts an intent, and the last text it read is left in a plain
-//! file on the device. The desktop side uses `arboard` directly (not a webview
-//! plugin) so copying still works when the window is hidden.
+//! Device clipboard access through the AdbClipboard helper app, plus the host clipboard via
+//! `arboard`. Android only lets a foreground app read its clipboard, so device reads go through
+//! AdbClipboard (writing broadcasts an intent, the last read text is left in a plain file on the
+//! device). `arboard` is used directly (not a webview plugin) so copying works while the window is
+//! hidden.
 
 use std::time::Duration;
 

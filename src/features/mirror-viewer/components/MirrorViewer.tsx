@@ -28,10 +28,7 @@ import { MirrorTitleBar } from "./MirrorTitleBar";
 
 type Status = "connecting" | "live" | "error";
 
-/**
- * How long without a decoded frame, while data is still arriving, means the
- * decoder has stalled rather than simply gone idle (the device changed nothing).
- */
+/** No decoded frame for this long, while data still arrives, means the decoder stalled. */
 const STALL_MS = 1500;
 /** How often the stall watchdog runs. */
 const WATCHDOG_MS = 500;
@@ -66,8 +63,7 @@ export function MirrorViewer() {
     null,
   );
   const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
-  // Windows that forward a real mouse (hover and buttons), the wheel and the
-  // keyboard: desktop mode and app windows. A plain screen mirror stays touch-only.
+  // Desktop and app windows forward mouse, wheel and keyboard; a plain screen mirror is touch-only.
   const interactiveRef = useRef(DESKTOP_WINDOW);
   const pressedButtonRef = useRef(0);
   const wheelRef = useRef<{ x: number; y: number; dx: number; dy: number } | null>(null);
@@ -76,13 +72,11 @@ export function MirrorViewer() {
   const [message, setMessage] = useState<string | null>(null);
   // A desktop session fills its window like a monitor and takes mouse and keyboard.
   const [desktop, setDesktop] = useState(DESKTOP_WINDOW);
-  // App windows take the same rich input as desktop mode even though they stay
-  // phone-shaped (no title bar, rounded corners).
+  // App windows take the same rich input as desktop mode while staying phone-shaped.
   const [interactive, setInteractive] = useState(DESKTOP_WINDOW);
   // Android hides the desktop while the phone is locked (only the wallpaper draws).
   const [locked, setLocked] = useState(false);
-  // Desktop mode turns the phone's own screen off; the side toggle turns it back
-  // on to use the phone alongside the desktop.
+  // Desktop mode turns the phone screen off; the side toggle turns it back on.
   const [phoneScreen, setPhoneScreen] = useState(false);
 
   useEffect(() => {
@@ -101,8 +95,7 @@ export function MirrorViewer() {
     let lastDataAt = performance.now();
     let lastKeyframeRequestAt = -Infinity;
     const canvas = canvasRef.current;
-    // The canvas is opaque (it only ever shows video), so skipping the alpha
-    // channel lets the compositor blend it more cheaply.
+    // The canvas is opaque, so skipping alpha lets the compositor blend it cheaper.
     const context = canvas?.getContext("2d", { alpha: false }) ?? null;
 
     const decoder = new H264Decoder({
@@ -113,9 +106,8 @@ export function MirrorViewer() {
             if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
               canvas.width = frame.displayWidth;
               canvas.height = frame.displayHeight;
-              // Shape the window to the video's aspect ratio (and re-shape on
-              // rotation). A pure resolution change keeps the same ratio, so
-              // re-sizing the window would only fight the user's own resize.
+              // Shape the window to the video aspect ratio on rotation, not on a pure
+              // resolution change (which would only fight the user's own resize).
               const aspect = frame.displayWidth / frame.displayHeight;
               if (aspectRef.current === null || Math.abs(aspect - aspectRef.current) > 0.001) {
                 aspectRef.current = aspect;
@@ -127,9 +119,8 @@ export function MirrorViewer() {
             context.drawImage(frame, 0, 0, frame.displayWidth, frame.displayHeight);
           }
         } finally {
-          // Drawing can throw while the GPU surface is rebuilt during a resize. A
-          // frame left unclosed stays in the decoder's pool and, after ~16 of them,
-          // silences it for good - the "black screen with no error" symptom.
+          // Drawing can throw during a resize; an unclosed frame leaks the decoder pool and
+          // eventually silences it (the "black screen, no error" symptom).
           frame.close();
         }
 
@@ -139,8 +130,7 @@ export function MirrorViewer() {
         }
       },
       onNeedKeyframe: () => {
-        // Throttled: one fresh key frame resyncs; repeated resets would only
-        // restart the encoder over and over.
+        // Throttled: one key frame resyncs; repeated resets just restart the encoder.
         const now = performance.now();
         if (now - lastKeyframeRequestAt < KEYFRAME_REQUEST_MS) return;
         lastKeyframeRequestAt = now;
@@ -160,12 +150,8 @@ export function MirrorViewer() {
       decoder.push(payload);
     };
 
-    // A hardware decoder that goes quiet produces neither output nor an `error`.
-    // After the first frame that freezes or blacks the canvas while `status` still
-    // reads "live"; before it - a cold decoder on the first session after launch -
-    // it leaves the window stuck on "Starting mirror…" forever, because nothing
-    // ever asks for a key frame. Either way: while data keeps arriving but no frame
-    // comes out, rebuild the decoder so it resumes at the next (requested) key frame.
+    // A stalled decoder emits no error: while data keeps arriving but no frame comes
+    // out, rebuild it so it resumes at the next requested key frame.
     const watchdog = window.setInterval(() => {
       const now = performance.now();
       if (disposed) return;
@@ -228,10 +214,7 @@ export function MirrorViewer() {
     };
   }, []);
 
-  /**
-   * Queue one input message. Every kind of input (pointer, wheel, keys) goes
-   * through this one chain so the device sees them strictly in order.
-   */
+  /** Queue one input message; all input goes through this chain to keep device order. */
   const enqueue = useCallback((task: (id: number) => Promise<void>) => {
     const id = sessionRef.current;
     if (id === null) return;
@@ -277,9 +260,7 @@ export function MirrorViewer() {
     enqueue((id) => ipc.mirror.scroll(id, wheel.x, wheel.y, width, height, hscroll, vscroll));
   }, [enqueue]);
 
-  // Keyboard (desktop mode and app windows): printable characters go as text
-  // (respecting the Mac's layout), everything else - Enter, arrows, shortcuts - as
-  // Android keycodes.
+  // Keyboard: printable characters go as text, the rest (Enter, arrows, shortcuts) as keycodes.
   useEffect(() => {
     if (!interactive) return;
     const held = new Map<string, number>();
@@ -422,9 +403,8 @@ export function MirrorViewer() {
       ) : (
         <MirrorTitleBar />
       )}
-      {/* A phone window keeps a 14px bottom gap and rounded corners, like a phone;
-          a desktop fills the area under its title bar like a monitor. The window
-          is sized to include either (`mirror_window::vertical_inset`). */}
+      {/* A phone window keeps a bottom gap and rounded corners; a desktop fills the
+          area under its title bar. Sized by `mirror_window::vertical_inset`. */}
       <div
         className={cn(
           "relative flex min-h-0 flex-1 items-center justify-center",

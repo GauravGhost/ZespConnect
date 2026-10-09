@@ -1,10 +1,6 @@
-//! Aspect-ratio locking for mirror windows on Windows.
-//!
-//! tao exposes neither an aspect-ratio lock nor a `WM_SIZING` hook, so we
-//! subclass each mirror window's procedure and clamp the rectangle the user is
-//! dragging *before* Windows applies it. That is how native windows lock a resize
-//! to a ratio, and it keeps the dragged edge under the cursor - correcting the
-//! size afterwards does not, because Windows has already tracked the raw cursor.
+//! Aspect-ratio locking for mirror windows on Windows. tao exposes neither a ratio lock nor a
+//! `WM_SIZING` hook, so we subclass each window's procedure and clamp the dragged rectangle before
+//! Windows applies it, keeping the dragged edge under the cursor.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -31,8 +27,7 @@ struct Target {
 
 static TARGETS: Lazy<Mutex<HashMap<isize, Target>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// Start locking `hwnd` to `aspect`, given the window's non-client `frame` size.
-/// Subclasses the window only the first time.
+/// Start locking `hwnd` to `aspect` for the given non-client `frame`; subclasses it only the first time.
 pub fn watch(hwnd: isize, aspect: f64, frame: Frame) {
     let first = {
         let Ok(mut targets) = TARGETS.lock() else {
@@ -41,8 +36,7 @@ pub fn watch(hwnd: isize, aspect: f64, frame: Frame) {
         targets.insert(hwnd, Target { aspect, frame }).is_none()
     };
     if first {
-        // SAFETY: `subclass_proc` is a static function and the handle belongs to a
-        // live window of ours; the subclass is removed by `forget` before it closes.
+        // SAFETY: `subclass_proc` is static and the handle is a live window of ours (removed by `forget`).
         unsafe {
             let _ = SetWindowSubclass(HWND(hwnd as *mut _), Some(subclass_proc), SUBCLASS_ID, 0);
         }
@@ -83,8 +77,7 @@ unsafe extern "system" fn subclass_proc(
     unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
 }
 
-/// The rectangle to apply for a `WM_SIZING`, on the window's aspect ratio, or
-/// `None` when the window has no ratio yet or the edge is unknown.
+/// The rectangle to apply for a `WM_SIZING` on the window's aspect ratio, or `None` if unknown.
 fn corrected_rect(hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<RECT> {
     let target = TARGETS.lock().ok()?.get(&(hwnd.0 as isize)).copied()?;
     let edge = edge_from(wparam.0 as u32)?;
