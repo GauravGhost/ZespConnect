@@ -1,6 +1,7 @@
 [package]
 name = "zesp-connect"
 version = "0.1.0"
+license = "MIT"
 description = "Zesp Connect - manage Android devices over adb and scrcpy"
 edition = "2021"
 

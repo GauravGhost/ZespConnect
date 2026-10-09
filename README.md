@@ -1,224 +1,176 @@
 # Zesp Connect
 
-A cross-platform desktop app (Windows, Linux, macOS) to manage Android devices over
-**adb** and **scrcpy** - one codebase: **Tauri 2 + React + TypeScript + Rust**.
+A cross-platform desktop app for managing Android devices over **adb** and **scrcpy**.
+Mirror your screen, manage apps, transfer files, pair over Wi-Fi and run shell commands,
+all from one window on Windows, macOS and Linux.
 
-Zesp Connect lists your devices, shows real app names (not package ids), mirrors the
-screen and camera, drives quick toggles, browses files, exposes an adb console and
-handles wireless pairing - all from a single window.
+Built with [Tauri 2](https://tauri.app), React, TypeScript and Rust.
 
-> Status: **M0-M6** are implemented - the architecture skeleton, tool discovery, the push-based
-> device tracker (`adb track-devices`), device list/dedupe, the header switcher, onboarding,
-> the system tray, an installed-apps manager (real names, search/filter, launch, uninstall, clear
-> data, install APK), mirroring (screen, camera, and app windows with the Android 12-13
-> virtual-display fallback, plus a running-windows list), quick controls (toggles,
-> brightness/volume sliders, reboot), wireless debugging (QR + code pairing, connect/disconnect,
-> and a one-click USB→Wi-Fi handoff), a device file browser (upload/download, new folder, delete),
-> an adb shell console with an in-app logcat viewer and an AdbClipboard bridge, and emulator (AVD)
-> management. **M7** adds cross-platform installers (MSI/NSIS, DMG, AppImage/deb) and a
-> secrets-gated signed release workflow. Extracted app icons land in a later pass.
+![Overview](docs/screenshots/overview.png)
+
+## Features
+
+- **Device management.** Devices are detected live through `adb track-devices` (no polling).
+  USB and Wi-Fi connections to the same phone are merged into a single entry.
+- **Screen mirroring.** Mirror the display, a device camera, or a single app in its own
+  window. Sessions run inside the app with touch and keyboard input, always-on-top and
+  aspect-ratio locking. Supports Android desktop (windowing) mode.
+- **App manager.** Lists installed apps by their real names, with search and filters.
+  Launch, uninstall, clear data, or install an APK.
+- **Quick controls.** Toggle Wi-Fi, Bluetooth, mobile data, dark mode, Do Not Disturb and
+  rotation, adjust brightness and volume, and reboot, from a quick-settings style panel.
+- **Wireless debugging.** Pair with a QR code or a six-digit code, discover devices on the
+  network via mDNS, or switch a USB-connected device to Wi-Fi in one click.
+- **File browser.** Browse device storage, upload and download files, create folders, and
+  delete entries.
+- **Console.** Run `adb shell` commands, stream logcat with severity colouring, and sync
+  the clipboard through the [AdbClipboard](https://github.com/PRosenb/AdbClipboard) helper app.
+- **Emulators.** List Android Virtual Devices, see which are running, and boot them.
+- **Tool management.** Finds `adb` and `scrcpy` automatically. You can also point to custom
+  binaries, or install missing tools through your system package manager.
+- **System tray.** Quick access to devices and common actions, plus an optional launch at
+  startup.
+- **Theming.** Light and dark modes with several Material You–inspired colour presets.
 
 ## Screenshots
 
-| Overview                                   | Apps                               |
-| ------------------------------------------ | ---------------------------------- |
-| ![Overview](docs/screenshots/overview.png) | ![Apps](docs/screenshots/apps.png) |
+| Apps                               | Mirror                                 |
+| ---------------------------------- | -------------------------------------- |
+| ![Apps](docs/screenshots/apps.png) | ![Mirror](docs/screenshots/mirror.png) |
 
-| Mirror                                 | Controls                                   |
-| -------------------------------------- | ------------------------------------------ |
-| ![Mirror](docs/screenshots/mirror.png) | ![Controls](docs/screenshots/controls.png) |
+| Controls                                   | Wireless                                   |
+| ------------------------------------------ | ------------------------------------------ |
+| ![Controls](docs/screenshots/controls.png) | ![Wireless](docs/screenshots/wireless.png) |
 
-| Wireless                                   | Files                                |
-| ------------------------------------------ | ------------------------------------ |
-| ![Wireless](docs/screenshots/wireless.png) | ![Files](docs/screenshots/files.png) |
+| Files                                | Console                                  |
+| ------------------------------------ | ---------------------------------------- |
+| ![Files](docs/screenshots/files.png) | ![Console](docs/screenshots/console.png) |
 
-| Console                                  | Emulators                                    |
-| ---------------------------------------- | -------------------------------------------- |
-| ![Console](docs/screenshots/console.png) | ![Emulators](docs/screenshots/emulators.png) |
+## Installation
 
-## Requirements
+Download the installer for your platform from the
+[Releases](https://github.com/GauravGhost/Zesp-Connect/releases) page:
 
-- **Node 20+** and npm
-- **Rust** (stable) with `cargo`
-- **adb** (Android platform-tools) - required
-- **scrcpy 3.x+** - required for mirroring
+| Platform | Package                          |
+| -------- | -------------------------------- |
+| Windows  | `.msi` or `.exe`                 |
+| macOS    | `.dmg` (Apple silicon and Intel) |
+| Linux    | `.AppImage` or `.deb`            |
 
-Zesp Connect detects both tools on `PATH` and at well-known install locations, and lets
-you point it at a custom binary from the Settings screen.
+### Runtime requirements
 
-## Tool management
+- [adb](https://developer.android.com/tools/releases/platform-tools) (Android platform-tools)
+- [scrcpy](https://github.com/Genymobile/scrcpy) 3.x or later (required for mirroring)
+- USB debugging (or Wireless debugging) turned on for your device
 
-Open **Settings** to manage both binaries:
+If either tool is missing, the app walks you through installing it on first launch.
 
-- See each tool's status, resolved path, version and how it was found.
-- **Change location…** to point at your own `adb`/`scrcpy`, or **Use auto-detected** to
-  clear the override.
-- **Install** (also on the onboarding screen) installs a missing tool via your package
-  manager - winget/scoop/choco on Windows, Homebrew on macOS, apt/dnf/pacman on Linux -
-  streaming the installer output live into the UI. Installs are always user-triggered;
-  nothing runs on its own.
+## Building from source
 
-After an install or a path change the app re-scans and restarts the device tracker, so
-the new binary is used immediately.
+### Prerequisites
 
-## Wireless
+- [Node.js](https://nodejs.org) 20 or later
+- [Rust](https://www.rust-lang.org/tools/install) (stable)
+- The Tauri [system dependencies](https://tauri.app/start/prerequisites/) for your platform
 
-The **Wireless** tab pairs and connects a phone over Wi-Fi from one compact screen:
-
-- **QR pairing** - pair an Android 11+ phone by scanning a QR code generated in the app.
-- **Connect** - enter an address to connect, or add the six-digit code from the phone's
-  Wireless debugging screen to pair first. Nearby pairing/connect services are discovered
-  live via `adb mdns services`.
-- **Enable over USB** - restarts a cabled phone's debugger in TCP mode, looks up its Wi-Fi IP,
-  and connects to it in one click, so you can unplug and stay connected.
-- **Connected** - see and disconnect the Wi-Fi devices currently attached.
-
-Devices that appear as both an `ip:port` and an mDNS alias (`adb-…._adb-tls-connect._tcp`) are
-merged into a single entry, keeping the alias scrcpy requires while retaining the address.
-
-## Files, Console & Emulators
-
-- **Files** - browse the device from `/sdcard` with a breadcrumb path, **download** a file
-  (`adb pull`), **upload** host files (`adb push`), create folders and delete entries.
-- **Console** - run any `adb shell` command and see stdout, stderr and the exit code. The
-  **Logcat** tab streams the device log in-app (no external terminal) with severity colours and
-  auto-scroll. The **Clipboard** tab sends text to the device and reads it back through the free
-  [AdbClipboard](https://github.com/PRosenb/AdbClipboard) app; reads also land on your computer's
-  clipboard (via the Rust `arboard` crate).
-- **Emulators** - list the AVDs the Android SDK `emulator` knows, show which are running, and boot
-  one.
-
-Device paths are validated (absolute, no `..`, never `/`) before they reach `rm -rf`, and every
-transfer uses an adb argv array.
-
-## Development
+### Run in development
 
 ```bash
+git clone https://github.com/GauravGhost/Zesp-Connect.git
+cd Zesp-Connect
 npm install
 npm run tauri dev
 ```
 
-Build a production bundle:
+### Build a release bundle
 
 ```bash
 npm run tauri build
 ```
 
-### Testing without a phone
+The installers are written to `src-tauri/target/release/bundle/`.
 
-The app can run against the bundled fake adb:
+### Developing without a device
 
-- Windows: set the adb path to `scripts/fake-adb.cmd`
-- macOS/Linux: set the adb path to `scripts/fake-adb.sh`
+A fake `adb` script is included, so you can work on the UI without a phone. In
+**Settings → adb**, set the path to `scripts/fake-adb.sh` (macOS/Linux) or
+`scripts/fake-adb.cmd` (Windows).
 
-That returns a canned device list and device info so the UI is fully exercisable.
+## Project structure
+
+```
+src/                     React frontend
+├── app/                 App shell, store, providers, theme system
+├── components/          Shared UI components
+├── features/            One folder per feature (apps, mirror, wireless, ...)
+├── hooks/               Shared hooks and backend event subscriptions
+└── lib/ipc.ts           Typed wrappers for every backend command
+
+src-tauri/src/           Rust backend
+├── commands/            Thin Tauri command handlers
+├── services/            Domain logic and adb/scrcpy output parsers (no Tauri types)
+├── runtime/             Device tracker, mirror sessions, tool installation
+├── models/              Types shared with the frontend
+└── platform/            OS-specific window handling
+```
+
+External processes are always started with an argument array, never a shell string.
+Device paths and package names are validated before they are used.
+
+## Scripts
+
+| Command                                          | Description                            |
+| ------------------------------------------------ | -------------------------------------- |
+| `npm run tauri dev`                              | Run the app in development mode        |
+| `npm run typecheck`                              | Type-check the frontend                |
+| `npm run lint` / `lint:fix`                      | Lint with ESLint                       |
+| `npm run format` / `format:check`                | Format with Prettier                   |
+| `npm run test`                                   | Run frontend tests (Vitest)            |
+| `npm run rust:fmt` / `rust:clippy` / `rust:test` | Format, lint and test the Rust backend |
 
 ## Releasing
 
-Push a version tag to build and publish installers:
+Pushing a version tag builds installers for every platform and attaches them to a
+draft GitHub release:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-`.github/workflows/release.yml` builds on macOS (Apple silicon and Intel), Windows and
-Linux, then attaches the bundles to a **draft** GitHub release:
+The tag sets the version in `package.json`, `tauri.conf.json` and `Cargo.toml`.
 
-- **Windows** - `.msi` (WiX) and `.exe` (NSIS, per-user install)
-- **macOS** - `.dmg` (plus the `.app`)
-- **Linux** - `.AppImage` and `.deb`
-
-The tag drives the version: `package.json`, `src-tauri/tauri.conf.json` and
-`src-tauri/Cargo.toml` are synced to it before building. Review the draft and publish it
-when it looks right.
-
-### Code signing
-
-Builds are unsigned by default. Add these repository secrets to turn on signing - the
-workflow still succeeds without them, so you can start publishing immediately:
+Builds are unsigned by default. To enable code signing, add these repository secrets:
 
 | Secret                         | Platform | Purpose                                        |
 | ------------------------------ | -------- | ---------------------------------------------- |
-| `APPLE_CERTIFICATE`            | macOS    | Base64 of the Developer ID `.p12`              |
-| `APPLE_CERTIFICATE_PASSWORD`   | macOS    | Password for that `.p12`                       |
+| `APPLE_CERTIFICATE`            | macOS    | Base64-encoded Developer ID `.p12`             |
+| `APPLE_CERTIFICATE_PASSWORD`   | macOS    | Password for the `.p12`                        |
 | `APPLE_SIGNING_IDENTITY`       | macOS    | e.g. `Developer ID Application: Name (TEAMID)` |
-| `APPLE_ID`                     | macOS    | Apple ID used for notarisation                 |
-| `APPLE_PASSWORD`               | macOS    | App-specific password for that Apple ID        |
+| `APPLE_ID`                     | macOS    | Apple ID used for notarization                 |
+| `APPLE_PASSWORD`               | macOS    | App-specific password for the Apple ID         |
 | `APPLE_TEAM_ID`                | macOS    | Apple Developer team ID                        |
-| `WINDOWS_CERTIFICATE`          | Windows  | Base64 of the code-signing `.pfx`              |
-| `WINDOWS_CERTIFICATE_PASSWORD` | Windows  | Password for that `.pfx`                       |
+| `WINDOWS_CERTIFICATE`          | Windows  | Base64-encoded code-signing `.pfx`             |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Windows  | Password for the `.pfx`                        |
 
-With the Apple secrets set, the app is signed with the hardened runtime (see
-`src-tauri/Entitlements.plist`) and notarised. With the Windows secrets set, the
-certificate is imported on the runner and its thumbprint is applied to the WiX/NSIS
-bundlers. Encode a certificate with:
+## Contributing
+
+Contributions are welcome. Before you open a pull request, please make sure these pass:
 
 ```bash
-# macOS
-base64 -i certificate.p12 | pbcopy
+npm run typecheck && npm run lint && npm run format:check && npm run test
+npm run rust:fmt && npm run rust:clippy && npm run rust:test
 ```
 
-```powershell
-# Windows
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("certificate.pfx")) | Set-Clipboard
-```
+For larger changes, please open an issue first to discuss the approach. UI work should
+follow the theming guidelines in [`src/app/theme/README.md`](src/app/theme/README.md).
 
-## Scripts
+## Acknowledgements
 
-| Command                                          | What it does                            |
-| ------------------------------------------------ | --------------------------------------- |
-| `npm run typecheck`                              | TypeScript, no emit                     |
-| `npm run lint` / `lint:fix`                      | ESLint                                  |
-| `npm run format` / `format:check`                | Prettier                                |
-| `npm run test`                                   | Vitest (frontend)                       |
-| `npm run build`                                  | `tsc` + Vite build                      |
-| `npm run rust:fmt` / `rust:clippy` / `rust:test` | Rust fmt, clippy (`-D warnings`), tests |
-
-## Architecture
-
-```
-React UI ──(typed invoke / events via src/lib/ipc.ts)──> #[tauri::command] ──> services ──> adb / scrcpy
-   ▲                                                                              │
-   └──────────── events: devices:changed, mirror:exited  ◄────────────────────────┘
-```
-
-- `src/features/*` - one folder per feature (components, feature-local hooks, index). Features
-  never import each other; they share through `src/hooks/`, `src/components/`, `src/lib/` and
-  the Zustand store.
-- `src/hooks/*` - shared cross-cutting hooks: React Query wrappers and backend-event
-  subscriptions (`useBackendEvents`).
-- `src/components/app/*` - app-level pieces the shell composes (Sidebar, header, device
-  switcher, quick-settings shade).
-- `src/lib/ipc.ts` - the **only** place that calls `invoke()`; typed wrappers for the
-  whole command surface.
-- `src-tauri/src/commands/*` - thin `#[tauri::command]` functions.
-- `src-tauri/src/services/*` - the real domain logic, with **no Tauri types**, unit-tested
-  against fixtures in `src-tauri/tests/fixtures/`.
-- `src-tauri/src/runtime/*` - Tauri-coupled coordinators that need managed state or events
-  (device tracker, mirror process/session lifecycle, tool install).
-- Processes are spawned with an **argv array** (never a shell string) and with
-  `CREATE_NO_WINDOW` on Windows.
-
-## Milestones
-
-1. **M0 Scaffold** - tooling, architecture skeleton, error type, typed IPC, CI. ✅
-2. **M1 Core + devices** - tool discovery, `adb track-devices`, device list/dedupe,
-   header switcher, onboarding. ✅
-   - Settings: tool status, custom paths, and one-click package-manager install. ✅
-3. **M2 Apps** - real app names (cache → scrcpy `--list-apps` → `pm` → prettify), search/filter,
-   launch, uninstall, clear data, install APK. ✅ (icons extracted from APKs still to come)
-4. **M3 Mirroring** - screen, camera, app-window (with the Android 12-13 virtual-display
-   fallback), running windows list. ✅
-5. **M4 Controls** - quick toggles, coalesced brightness/volume sliders, reboot. ✅
-6. **M5 Wireless** - QR + code pairing, connect/disconnect, one-click USB→Wi-Fi, mdns discovery,
-   duplicate-transport merge. ✅
-7. **M6 Files, Console, Clipboard, AVDs** - file browser (`ls -la` parsing, pull/push, mkdir,
-   delete), adb shell console, in-app logcat stream, clipboard bridge to the AdbClipboard helper
-   app (host clipboard through `arboard`), AVD listing/launch. ✅
-8. **M7 Polish & release** - tray, settings, cross-platform installers (MSI/NSIS, DMG,
-   AppImage/deb), a secrets-gated signed release workflow, README screenshots. 🚧
+- [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile, which powers mirroring
+- [AdbClipboard](https://github.com/PRosenb/AdbClipboard) for clipboard access
+- [Tauri](https://tauri.app) and [shadcn/ui](https://ui.shadcn.com)
 
 ## License
 
-TBD.
+[MIT](LICENSE)
