@@ -3,9 +3,8 @@
 #[cfg(windows)]
 mod aspect;
 
-/// Lock a mirror window's resizes to the video's aspect ratio through the
-/// platform's own resize hook (Windows `WM_SIZING`), so the dragged edge tracks
-/// the cursor. A no-op elsewhere, where the caller corrects the size afterwards.
+/// Lock a mirror window's resizes to the video's aspect ratio through the platform's resize hook
+/// (Windows `WM_SIZING`), so the dragged edge tracks the cursor. A no-op elsewhere.
 #[cfg(windows)]
 pub fn watch_aspect<R: tauri::Runtime>(
     window: &tauri::WebviewWindow<R>,

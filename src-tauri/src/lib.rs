@@ -71,10 +71,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             match event {
-                // Keep a mirror window's client area on the video's aspect ratio, so
-                // resizing scales both dimensions together instead of adding padding.
+                // Keep a mirror window's client area on the video's aspect ratio when resizing.
                 tauri::WindowEvent::Resized(size) => on_mirror_resized(window, *size),
-                // Closing main hides to the tray (quit from the tray); a mirror window closes for real, stopping its session.
+                // Closing main only hides it (quit via the tray); a mirror window closes for real, stopping its session.
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     if window.label() == "main" {
                         api.prevent_close();
@@ -163,8 +162,7 @@ fn mirror_id(label: &str) -> Option<u64> {
 #[cfg(not(windows))]
 const RESIZE_TOLERANCE_PX: f64 = 2.0;
 
-/// Nudge a resized mirror window back onto its video's aspect ratio, keeping the
-/// width the user dragged and letting the height follow.
+/// Nudge a resized mirror window back onto its video's aspect ratio, keeping the dragged width.
 #[cfg(not(windows))]
 fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, height: u32, id: u64) {
     let Some(aspect) = window.app_handle().state::<AppState>().aspect(id) else {

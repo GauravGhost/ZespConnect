@@ -46,8 +46,7 @@ pub struct MirrorProcess {
     pub started: u64,
 }
 
-/// A mirror rendered inside a Tauri window the app owns (no external scrcpy
-/// window). `id` is a process-local session id, not an OS pid.
+/// A mirror rendered inside an app-owned Tauri window; `id` is a process-local session id, not an OS pid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorSession {
     pub id: u64,
@@ -56,15 +55,12 @@ pub struct MirrorSession {
     pub package: Option<String>,
     pub label: Option<String>,
     pub started: u64,
-    /// Desktop mode: whether the phone's own screen starts on (the title-bar
-    /// toggle) because the phone was in use when the session opened.
+    /// Desktop mode: whether the phone's own screen starts on because it was in use when the session opened.
     #[serde(default, rename = "phoneScreen")]
     pub phone_screen: bool,
 }
 
-/// Everything needed to start one in-app mirror session. Kept in `AppState`
-/// between opening the window and the window asking for its stream, so a failed
-/// stream can fall back to the external scrcpy window with the same settings.
+/// Everything needed to start one in-app session, kept in `AppState` so a failed stream can fall back with the same settings.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MirrorSessionSpec {
     pub serial: String,
@@ -72,15 +68,12 @@ pub struct MirrorSessionSpec {
     pub package: Option<String>,
     pub label: String,
     pub options: MirrorOptions,
-    /// The `WxH/dpi` virtual display for a desktop session, sized to the
-    /// computer's screen when the window opens. Never sent by the UI.
+    /// The `WxH/dpi` virtual display for a desktop session, sized to the computer's screen. Never sent by the UI.
     #[serde(default)]
     pub desktop_display: Option<String>,
 }
 
-/// Options for a screen-mirror or camera session, mirroring the `MirrorOptions`
-/// TypeScript interface (`src/types/index.ts`). Unknown fields are rejected so a
-/// typo in the UI fails loudly instead of silently being ignored.
+/// Options for a mirror or camera session, mirroring the TS `MirrorOptions`; unknown fields are rejected.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MirrorOptions {
