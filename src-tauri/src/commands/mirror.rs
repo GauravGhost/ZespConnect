@@ -9,7 +9,6 @@ use crate::models::{
     KeyAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec,
     TouchAction,
 };
-use crate::platform;
 use crate::runtime::mirror::{self, AppDisplay};
 use crate::runtime::{mirror_session, session_window};
 use crate::services::control::{self, Position};
@@ -134,8 +133,6 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     let inset = mirror_window::vertical_inset(state.session_kind(id));
     let long_side = mirror::window_long_side(&window, inset);
     state.set_aspect(id, aspect);
-    // On Windows this locks the ratio through the native resize hook; elsewhere the resize handler corrects it.
-    platform::watch_aspect(&window, aspect, inset);
 
     let (width, height) =
         mirror_window::pad(mirror_window::fit_size(width, height, long_side), inset);

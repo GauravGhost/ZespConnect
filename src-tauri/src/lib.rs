@@ -96,7 +96,6 @@ pub fn run() {
                         let _ = window.hide();
                         hide_from_dock_when_idle(window.app_handle(), MAIN_WINDOW);
                     } else if let Some(id) = session_window::session_id(window.label()) {
-                        platform::forget_aspect(window);
                         runtime::mirror_session::stop(window.app_handle(), id);
                         hide_from_dock_when_idle(window.app_handle(), window.label());
                     }
@@ -169,11 +168,9 @@ pub fn run() {
 }
 
 /// Sub-pixel slack allowed when correcting a window to its video's aspect ratio.
-#[cfg(not(windows))]
 const RESIZE_TOLERANCE_PX: f64 = 2.0;
 
 /// Nudge a resized mirror window back onto its video's aspect ratio, keeping the dragged width.
-#[cfg(not(windows))]
 fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, height: u32, id: u64) {
     let Some(aspect) = window.app_handle().state::<AppState>().aspect(id) else {
         return;
@@ -202,17 +199,7 @@ fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, heig
     }
 }
 
-/// On Windows the aspect ratio is enforced by the native `WM_SIZING` hook (see
-/// `platform::watch_aspect`), so the rectangle is already correct here.
-#[cfg(windows)]
-fn on_mirror_resized<R: tauri::Runtime>(
-    _window: &tauri::Window<R>,
-    _size: tauri::PhysicalSize<u32>,
-) {
-}
-
-/// Elsewhere there is no resize hook, so correct the size after the fact.
-#[cfg(not(windows))]
+/// Correct a resized mirror window back onto its video's aspect ratio after the fact.
 fn on_mirror_resized<R: tauri::Runtime>(window: &tauri::Window<R>, size: tauri::PhysicalSize<u32>) {
     if let Some(id) = session_window::session_id(window.label()) {
         enforce_aspect(window, size.width, size.height, id);
