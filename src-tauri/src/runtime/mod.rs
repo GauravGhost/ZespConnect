@@ -2,6 +2,7 @@
 //! Unlike `services/`, these modules talk to Tauri (managed state and events).
 
 pub mod clipboard_sync;
+pub mod launcher;
 pub mod logcat;
 pub mod mirror;
 pub mod mirror_session;

@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
 use crate::models::{
-    Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ReconnectTarget, ToolKind,
-    ToolStatus,
+    Device, LauncherSettings, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec,
+    ReconnectTarget, ToolKind, ToolStatus,
 };
 use crate::runtime::mirror_session::ControlChannel;
 use crate::runtime::recording::{Recordings, VideoTap};
@@ -108,6 +108,8 @@ pub struct AppState {
     clipboard_sync: DeviceLinks,
     now_playing: DeviceLinks,
     recordings: Recordings,
+    launcher_settings: RwLock<LauncherSettings>,
+    launcher_registered: AtomicBool,
 }
 
 impl AppState {
@@ -136,6 +138,8 @@ impl AppState {
             clipboard_sync: DeviceLinks::default(),
             now_playing: DeviceLinks::default(),
             recordings: Recordings::default(),
+            launcher_settings: RwLock::new(LauncherSettings::default()),
+            launcher_registered: AtomicBool::new(false),
         }
     }
 
@@ -404,6 +408,32 @@ impl AppState {
             .write()
             .map(|mut guard| guard.drain().map(|(_, handle)| handle).collect())
             .unwrap_or_default()
+    }
+
+    pub fn launcher_settings(&self) -> LauncherSettings {
+        self.launcher_settings
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_launcher_settings(&self, settings: LauncherSettings) {
+        if let Ok(mut guard) = self.launcher_settings.write() {
+            *guard = settings;
+        }
+    }
+
+    /// Whether the OS accepted the launcher hotkey this run.
+    pub fn launcher_registered(&self) -> bool {
+        self.launcher_registered.load(Ordering::SeqCst)
+    }
+
+    pub fn set_launcher_registered(&self, registered: bool) {
+        self.launcher_registered.store(registered, Ordering::SeqCst);
+    }
+
+    pub fn launcher_file(&self) -> PathBuf {
+        self.app_data_dir.join("launcher.json")
     }
 
     pub fn selected_file(&self) -> PathBuf {

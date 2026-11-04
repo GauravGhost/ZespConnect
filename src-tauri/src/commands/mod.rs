@@ -7,6 +7,7 @@ pub mod console;
 pub mod controls;
 pub mod devices;
 pub mod files;
+pub mod launcher;
 pub mod media;
 pub mod mirror;
 pub mod system;

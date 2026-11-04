@@ -11,6 +11,7 @@ pub mod util;
 use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 use crate::runtime::session_window;
 use crate::state::AppState;
@@ -52,6 +53,16 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        // Only the launcher hotkey is ever registered, so any press toggles the launcher.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        runtime::launcher::toggle(app);
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -76,6 +87,7 @@ pub fn run() {
 
             // Tray icon + menu.
             tray::build(app.handle())?;
+            runtime::launcher::init(app.handle());
 
             // Check for newer adb/scrcpy in the background; the UI polls the
             // status, so it just fills in once the request returns.
@@ -90,9 +102,18 @@ pub fn run() {
             match event {
                 // A mirror window keeps its video's aspect ratio, or resizes a display that follows it.
                 tauri::WindowEvent::Resized(size) => on_mirror_resized(window, *size),
+                // The launcher behaves like Spotlight: clicking anywhere else dismisses it.
+                tauri::WindowEvent::Focused(false)
+                    if window.label() == runtime::launcher::WINDOW =>
+                {
+                    runtime::launcher::hide(window.app_handle());
+                }
                 // Closing main only hides it (quit via the tray); a mirror window closes for real, stopping its session.
                 tauri::WindowEvent::CloseRequested { api, .. } => {
-                    if window.label() == MAIN_WINDOW {
+                    if window.label() == runtime::launcher::WINDOW {
+                        api.prevent_close();
+                        runtime::launcher::hide(window.app_handle());
+                    } else if window.label() == MAIN_WINDOW {
                         api.prevent_close();
                         let _ = window.hide();
                         hide_from_dock_when_idle(window.app_handle(), MAIN_WINDOW);
@@ -169,6 +190,10 @@ pub fn run() {
             commands::audio::set_phone_audio,
             commands::media::watch_now_playing,
             commands::media::send_media_key,
+            commands::launcher::get_launcher_status,
+            commands::launcher::set_launcher_settings,
+            commands::launcher::launcher_target,
+            commands::launcher::hide_launcher,
             commands::capture::capture_default_dirs,
             commands::capture::capture_open_folder,
             commands::capture::save_screenshot,
