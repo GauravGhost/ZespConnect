@@ -176,6 +176,12 @@ export interface FileEntry {
 /** What happened to a file dropped on a window: APKs install, anything else is copied. */
 export type SendOutcome = "installed" | "copied";
 
+/** Default folders on the computer for screenshots and recordings. */
+export interface CaptureDirs {
+  pictures: string;
+  videos: string;
+}
+
 export interface ShellResult {
   stdout: string;
   stderr: string;

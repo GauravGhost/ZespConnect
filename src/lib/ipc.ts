@@ -3,6 +3,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
   AppListResult,
   Avd,
+  CaptureDirs,
   Device,
   DeviceInfo,
   FileEntry,
@@ -190,6 +191,12 @@ export const ipc = {
     onComputer: () => invoke<string[]>("list_phone_audio"),
     setOnComputer: (serial: string, onComputer: boolean) =>
       invoke<void>("set_phone_audio", { serial, onComputer }),
+  },
+
+  capture: {
+    defaultDirs: () => invoke<CaptureDirs>("capture_default_dirs"),
+    /** Opens a capture folder, creating it first so a fresh install can open it too. */
+    openFolder: (dir: string) => invoke<void>("capture_open_folder", { dir }),
   },
 
   avd: {

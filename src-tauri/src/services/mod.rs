@@ -2,6 +2,7 @@ pub mod adb;
 pub mod apps;
 pub mod audio_out;
 pub mod avd;
+pub mod capture;
 pub mod console;
 pub mod control;
 pub mod devices;
