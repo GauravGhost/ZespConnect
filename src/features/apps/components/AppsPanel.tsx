@@ -1,12 +1,14 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Loader2, Package, RefreshCw, Search, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { useAppStore } from "@/app/store";
 import { EmptyState, NoDeviceState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActiveDevice } from "@/hooks/useDevices";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import {
   useOpenAppOnScreen,
   useOpenAppWindow,
@@ -25,8 +27,11 @@ import {
   useRefreshAppList,
   useUninstallApp,
 } from "../hooks";
+import type { AppActionHandlers } from "./AppActionsMenu";
 import { AppConfirmDialog, type AppConfirmAction } from "./AppConfirmDialog";
 import { AppRow } from "./AppRow";
+import { AppsViewToggle } from "./AppsViewToggle";
+import { AppTile } from "./AppTile";
 
 const FILTERS: { id: AppFilter; label: string }[] = [
   { id: "user", label: "User" },
@@ -35,6 +40,9 @@ const FILTERS: { id: AppFilter; label: string }[] = [
 ];
 
 const ROW_HEIGHT = 56;
+const MIN_TILE_WIDTH = 176;
+const TILE_HEIGHT = 108;
+const TILE_GAP = 12;
 
 export function AppsPanel() {
   const { device } = useActiveDevice();
@@ -42,6 +50,8 @@ export function AppsPanel() {
 
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AppFilter>("user");
+  const view = useAppStore((state) => state.appsView);
+  const setView = useAppStore((state) => state.setAppsView);
   const [confirm, setConfirm] = useState<{ app: AppInfo; action: AppConfirmAction } | null>(null);
 
   const includeSystem = filter !== "user";
@@ -70,13 +80,25 @@ export function AppsPanel() {
     [data, query, filter],
   );
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // Grid mode virtualizes whole rows of tiles, so the column count drives the row count.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const scrollWidth = useElementWidth(scrollElement);
+  const columns =
+    view === "grid"
+      ? Math.max(1, Math.floor((scrollWidth + TILE_GAP) / (MIN_TILE_WIDTH + TILE_GAP)))
+      : 1;
+  const rowHeight = view === "grid" ? TILE_HEIGHT + TILE_GAP : ROW_HEIGHT;
   const virtualizer = useVirtualizer({
-    count: apps.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10,
+    count: Math.ceil(apps.length / columns),
+    getScrollElement: () => scrollElement,
+    estimateSize: () => rowHeight,
+    paddingStart: view === "grid" ? TILE_GAP : 0,
+    overscan: view === "grid" ? 3 : 10,
   });
+
+  useEffect(() => {
+    virtualizer.measure();
+  }, [virtualizer, rowHeight]);
 
   if (!device) {
     return (
@@ -101,6 +123,21 @@ export function AppsPanel() {
     openWindow.isPending ||
     openScreen.isPending ||
     stopWindow.isPending;
+
+  const handlers: AppActionHandlers = {
+    onOpen: (target) =>
+      serial && openWindow.mutate({ serial, pkg: target.package, label: target.label }),
+    onOpenScreen: (target) =>
+      serial && openScreen.mutate({ serial, pkg: target.package, label: target.label }),
+    onStop: (target) => windowFor(target.package).forEach((window) => stopWindow.mutate(window)),
+    onLaunch: (target) => serial && launch.mutate({ serial, pkg: target.package }),
+    onClearData: (target) => setConfirm({ app: target, action: "clearData" }),
+    onUninstall: (target) => setConfirm({ app: target, action: "uninstall" }),
+  };
+
+  function itemProps(app: AppInfo) {
+    return { app, busy: rowBusy, isOpen: windowFor(app.package).length > 0, ...handlers };
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -136,6 +173,7 @@ export function AppsPanel() {
               </button>
             ))}
           </div>
+          <AppsViewToggle value={view} onChange={setView} />
           <Button
             variant="ghost"
             size="icon"
@@ -167,7 +205,7 @@ export function AppsPanel() {
         ) : null}
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-3">
+      <div ref={setScrollElement} className="min-h-0 flex-1 overflow-auto px-3">
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="text-muted-foreground size-5 animate-spin" />
@@ -192,36 +230,32 @@ export function AppsPanel() {
           </div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-            {virtualizer.getVirtualItems().map((item) => {
-              const app = apps[item.index];
-              return (
+            {virtualizer.getVirtualItems().map((item) =>
+              view === "grid" ? (
                 <div
-                  key={app.package}
+                  key={item.key}
+                  className="absolute top-0 left-0 grid w-full"
+                  style={{
+                    height: TILE_HEIGHT,
+                    gap: TILE_GAP,
+                    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                    transform: `translateY(${item.start}px)`,
+                  }}
+                >
+                  {apps.slice(item.index * columns, (item.index + 1) * columns).map((app) => (
+                    <AppTile key={app.package} {...itemProps(app)} />
+                  ))}
+                </div>
+              ) : (
+                <div
+                  key={apps[item.index].package}
                   className="absolute top-0 left-0 w-full border-b"
                   style={{ height: item.size, transform: `translateY(${item.start}px)` }}
                 >
-                  <AppRow
-                    app={app}
-                    busy={rowBusy}
-                    isOpen={windowFor(app.package).length > 0}
-                    onOpen={(target) =>
-                      serial &&
-                      openWindow.mutate({ serial, pkg: target.package, label: target.label })
-                    }
-                    onOpenScreen={(target) =>
-                      serial &&
-                      openScreen.mutate({ serial, pkg: target.package, label: target.label })
-                    }
-                    onStop={(target) =>
-                      windowFor(target.package).forEach((window) => stopWindow.mutate(window))
-                    }
-                    onLaunch={(target) => serial && launch.mutate({ serial, pkg: target.package })}
-                    onClearData={(target) => setConfirm({ app: target, action: "clearData" })}
-                    onUninstall={(target) => setConfirm({ app: target, action: "uninstall" })}
-                  />
+                  <AppRow {...itemProps(apps[item.index])} />
                 </div>
-              );
-            })}
+              ),
+            )}
           </div>
         )}
       </div>

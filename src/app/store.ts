@@ -15,6 +15,8 @@ export type TabId =
   | "emulators"
   | "settings";
 
+export type AppsView = "list" | "grid";
+
 interface AppStore {
   activeTab: TabId;
   selectedSerial: string | null;
@@ -22,11 +24,13 @@ interface AppStore {
   themeMode: ThemeMode;
   /** Latest scrcpy version whose update banner the user dismissed. */
   dismissedScrcpyUpdate: string | null;
+  appsView: AppsView;
   setActiveTab: (tab: TabId) => void;
   setSelectedSerial: (serial: string | null) => void;
   setThemeId: (id: string) => void;
   setThemeMode: (mode: ThemeMode) => void;
   dismissScrcpyUpdate: (version: string) => void;
+  setAppsView: (view: AppsView) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -37,11 +41,13 @@ export const useAppStore = create<AppStore>()(
       themeId: DEFAULT_THEME_ID,
       themeMode: "system",
       dismissedScrcpyUpdate: null,
+      appsView: "list",
       setActiveTab: (activeTab) => set({ activeTab }),
       setSelectedSerial: (selectedSerial) => set({ selectedSerial }),
       setThemeId: (themeId) => set({ themeId }),
       setThemeMode: (themeMode) => set({ themeMode }),
       dismissScrcpyUpdate: (dismissedScrcpyUpdate) => set({ dismissedScrcpyUpdate }),
+      setAppsView: (appsView) => set({ appsView }),
     }),
     {
       name: "zesp-connect-ui",
@@ -58,6 +64,7 @@ export const useAppStore = create<AppStore>()(
         themeId: state.themeId,
         themeMode: state.themeMode,
         dismissedScrcpyUpdate: state.dismissedScrcpyUpdate,
+        appsView: state.appsView,
       }),
     },
   ),

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { ComboboxInput, type ComboboxOption } from "@/components/ui/combobox-input";
 import { Label } from "@/components/ui/label";
-import { QuickTile } from "@/components/ui/quick-tile";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { DEFAULT_BITRATE_MBPS, DEFAULT_FPS } from "@/lib/mirror";
 import { cn } from "@/lib/utils";
 import type { MirrorOptions } from "@/types";
@@ -45,10 +45,13 @@ function PresetNumberField({
   const [text, setText] = useState(value === null ? "" : String(value));
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-muted-foreground text-xs font-normal">
+        {label}
+      </Label>
       <ComboboxInput
         id={id}
+        className="h-8 text-sm"
         inputMode="decimal"
         placeholder={placeholder}
         value={text}
@@ -75,11 +78,11 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
 
   if (variant === "camera") {
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Facing</Label>
-            <div className="bg-muted flex h-10 items-center gap-0.5 rounded-full p-1">
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <Label className="text-muted-foreground text-xs font-normal">Facing</Label>
+            <div className="bg-muted flex h-8 items-center gap-0.5 rounded-full p-0.5">
               {(["back", "front"] as const).map((facing) => (
                 <button
                   key={facing}
@@ -87,7 +90,7 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
                   aria-pressed={value.camera_facing === facing}
                   onClick={() => update("camera_facing", facing)}
                   className={cn(
-                    "h-full flex-1 rounded-full text-sm font-medium transition-all duration-150 ease-emphasized",
+                    "h-full flex-1 rounded-full text-xs font-medium transition-all duration-150 ease-emphasized",
                     value.camera_facing === facing
                       ? "bg-primary-container text-on-primary-container shadow-xs"
                       : "text-muted-foreground hover:text-foreground",
@@ -108,14 +111,14 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <QuickTile
+        <div className="flex flex-wrap gap-1.5">
+          <ToggleChip
             icon={Flashlight}
             label="Torch"
             checked={value.camera_torch}
             onChange={(next) => update("camera_torch", next)}
           />
-          <QuickTile
+          <ToggleChip
             icon={Volume2}
             label="Audio"
             checked={value.audio}
@@ -127,7 +130,7 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="grid grid-cols-3 gap-3">
         <PresetNumberField
           id="mirror-resolution"
@@ -155,26 +158,26 @@ export function MirrorOptionsForm({ value, onChange, variant }: MirrorOptionsFor
         />
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
-        <QuickTile
+      <div className="flex flex-wrap gap-1.5">
+        <ToggleChip
           icon={Volume2}
           label="Audio"
           checked={value.audio}
           onChange={(next) => update("audio", next)}
         />
-        <QuickTile
+        <ToggleChip
           icon={Coffee}
           label="Stay awake"
           checked={value.stay_awake}
           onChange={(next) => update("stay_awake", next)}
         />
-        <QuickTile
+        <ToggleChip
           icon={Maximize}
           label="Borderless"
           checked={value.borderless}
           onChange={(next) => update("borderless", next)}
         />
-        <QuickTile
+        <ToggleChip
           icon={Pin}
           label="Always on top"
           checked={value.always_on_top}
