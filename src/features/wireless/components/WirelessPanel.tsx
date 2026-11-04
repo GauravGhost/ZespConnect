@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -34,9 +35,9 @@ import {
   useEnableTcpip,
   useMdnsServices,
   usePairCode,
-  useRememberSavedDevices,
+  useReconnectSaved,
 } from "../hooks";
-import { useSavedWireless, type SavedWirelessDevice } from "../saved";
+import { isSavedDevice, useSavedWireless, type SavedWirelessDevice } from "../saved";
 import { PairCodeTab } from "./PairCodeTab";
 import { QrPairTab } from "./QrPairTab";
 import { UsbTab } from "./UsbTab";
@@ -48,7 +49,6 @@ export function WirelessPanel() {
   const { data: services = [] } = useMdnsServices();
   const saved = useSavedWireless((state) => state.devices);
   const forget = useSavedWireless((state) => state.forget);
-  useRememberSavedDevices();
 
   const [method, setMethod] = useState("qr");
   const [addr, setAddr] = useState("");
@@ -58,6 +58,7 @@ export function WirelessPanel() {
   const pairCode = usePairCode();
   const connect = useConnectWireless();
   const disconnect = useDisconnectWireless();
+  const reconnect = useReconnectSaved();
   const enable = useEnableTcpip();
 
   const usb = devices.filter((device) => device.transport === "usb");
@@ -142,17 +143,14 @@ export function WirelessPanel() {
               <p className="text-muted-foreground text-sm">No phones connected over Wi-Fi yet.</p>
             ) : (
               <ul className="space-y-3">
-                {wireless.map((device) => {
-                  const target = device.address ?? device.serial;
-                  return (
-                    <WirelessDeviceRow
-                      key={device.serial}
-                      device={device}
-                      busy={disconnect.isPending && disconnect.variables === target}
-                      onDisconnect={() => disconnect.mutate(target)}
-                    />
-                  );
-                })}
+                {wireless.map((device) => (
+                  <WirelessDeviceRow
+                    key={device.serial}
+                    device={device}
+                    busy={disconnect.isPending && disconnect.variables?.serial === device.serial}
+                    onDisconnect={() => disconnect.mutate(device)}
+                  />
+                ))}
               </ul>
             )}
 
@@ -175,10 +173,12 @@ export function WirelessPanel() {
                     <SavedRow
                       key={entry.serial}
                       entry={entry}
-                      connected={isConnected(entry.serial)}
-                      onConnect={() => connect.mutate(entry.address ?? entry.serial)}
+                      connected={devices.some(
+                        (device) => device.connected && isSavedDevice(entry, device),
+                      )}
+                      onConnect={() => reconnect.mutate(entry)}
                       connecting={
-                        connect.isPending && connect.variables === (entry.address ?? entry.serial)
+                        reconnect.isPending && reconnect.variables?.serial === entry.serial
                       }
                       onForget={() => forget(entry.serial)}
                     />
@@ -215,10 +215,16 @@ function SavedRow({
           <p className="text-muted-foreground truncate font-mono text-[11px]">{entry.address}</p>
         ) : null}
       </div>
-      <div className="shrink-0 text-right">
-        <p className="text-muted-foreground text-[11px]">Last connected</p>
-        <p className="text-xs">{timeAgo(entry.lastConnected)}</p>
-      </div>
+      {entry.needsPair ? (
+        <Badge variant="warning" title="The phone forgot this computer">
+          Pair again
+        </Badge>
+      ) : (
+        <div className="shrink-0 text-right">
+          <p className="text-muted-foreground text-[11px]">Last connected</p>
+          <p className="text-xs">{timeAgo(entry.lastConnected)}</p>
+        </div>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

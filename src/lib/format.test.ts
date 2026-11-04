@@ -16,6 +16,7 @@ function makeDevice(overrides: Partial<Device> = {}): Device {
     battery: 82,
     charging: true,
     address: null,
+    mdns_name: null,
     ...overrides,
   };
 }

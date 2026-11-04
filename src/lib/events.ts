@@ -1,6 +1,13 @@
 import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { Device, InstallDone, InstallProgress, MirrorProcess, MirrorSession } from "@/types";
+import type {
+  Device,
+  InstallDone,
+  InstallProgress,
+  MirrorProcess,
+  MirrorSession,
+  ReconnectEvent,
+} from "@/types";
 
 /** Typed map of the backend events emitted via `AppHandle::emit`. */
 export interface BackendEvents {
@@ -17,6 +24,9 @@ export interface BackendEvents {
   "tools:install:progress": InstallProgress;
   "tools:install:done": InstallDone;
   "tray:navigate": { tab: string };
+  "wireless:reconnected": ReconnectEvent;
+  /** A saved phone answered but no longer trusts this computer. */
+  "wireless:unpaired": ReconnectEvent;
   "tray:select-device": { serial: string };
 }
 
@@ -50,6 +60,10 @@ export const events = {
     onBackendEvent("tools:install:done", handler),
   trayNavigate: (handler: EventCallback<BackendEvents["tray:navigate"]>) =>
     onBackendEvent("tray:navigate", handler),
+  wirelessReconnected: (handler: EventCallback<ReconnectEvent>) =>
+    onBackendEvent("wireless:reconnected", handler),
+  wirelessUnpaired: (handler: EventCallback<ReconnectEvent>) =>
+    onBackendEvent("wireless:unpaired", handler),
   traySelectDevice: (handler: EventCallback<BackendEvents["tray:select-device"]>) =>
     onBackendEvent("tray:select-device", handler),
 };

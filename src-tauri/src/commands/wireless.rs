@@ -5,9 +5,10 @@ use std::time::Duration;
 use tauri::{AppHandle, State};
 
 use crate::error::{AppError, Result};
-use crate::models::{MdnsDevice, QrPayload};
-use crate::runtime::tracker;
-use crate::services::{adb, wireless};
+use crate::models::{MdnsDevice, QrPayload, ReconnectTarget};
+use crate::runtime::{reconnect, tracker};
+use crate::services::adb;
+use crate::services::wireless::{self, Reconnect};
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
@@ -132,4 +133,44 @@ pub async fn enable_wireless_tcpip(
 pub async fn list_mdns_services(state: State<'_, AppState>) -> Result<Vec<MdnsDevice>> {
     let adb_path = adb::adb_path(&state.tools())?;
     wireless::mdns_devices(&adb_path).await
+}
+
+/// Replace the saved phones the background watcher reconnects.
+#[tauri::command]
+pub fn set_reconnect_targets(targets: Vec<ReconnectTarget>, state: State<'_, AppState>) {
+    state.set_reconnect_targets(targets);
+}
+
+/// Reconnect a saved phone, following it to its current port when it has moved.
+#[tauri::command]
+pub async fn reconnect_wireless(
+    target: ReconnectTarget,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String> {
+    let adb_path = adb::adb_path(&state.tools())?;
+    let services = wireless::connect_services(&adb_path).await;
+    let address = wireless::locate(&services, &target)
+        .map(|service| format!("{}:{}", service.host, service.port))
+        .or_else(|| target.address.clone())
+        .ok_or_else(|| {
+            AppError::Other(
+                "The phone was not found. Check that Wireless debugging is on and it is on the same Wi-Fi."
+                    .into(),
+            )
+        })?;
+
+    match wireless::reconnect(&adb_path, &address).await {
+        Reconnect::Connected(address) => {
+            tracker::refresh(&app).await;
+            Ok(address)
+        }
+        Reconnect::Unpaired => {
+            reconnect::emit_unpaired(&app, &target);
+            Err(AppError::Other(
+                "The phone no longer trusts this computer. Pair it again.".into(),
+            ))
+        }
+        Reconnect::Unavailable(message) => Err(AppError::CommandFailed(message)),
+    }
 }

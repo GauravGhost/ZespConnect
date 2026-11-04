@@ -52,6 +52,7 @@ flate2 = "1"
 # The computer's clipboard for two-way clipboard sync (text only).
 arboard = { version = "3", default-features = false }
 cpal = "0.18"
+mdns-sd = "0.21.7"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

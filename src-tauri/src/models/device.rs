@@ -46,4 +46,6 @@ pub struct Device {
     pub battery: Option<i32>,
     pub charging: Option<bool>,
     pub address: Option<String>,
+    /// The phone's stable wireless debugging name, when it is announced over mDNS.
+    pub mdns_name: Option<String>,
 }

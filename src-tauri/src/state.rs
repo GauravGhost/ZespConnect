@@ -4,7 +4,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
 use crate::models::{
-    Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ToolKind, ToolStatus,
+    Device, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec, ReconnectTarget, ToolKind,
+    ToolStatus,
 };
 use crate::runtime::mirror_session::ControlChannel;
 use crate::util;
@@ -97,6 +98,7 @@ pub struct AppState {
     logcats: RwLock<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
     pairing: AtomicBool,
     pairing_cancel: RwLock<Option<tokio::sync::oneshot::Sender<()>>>,
+    reconnect_targets: RwLock<Vec<ReconnectTarget>>,
     selected: RwLock<Option<String>>,
     phone_audio: DeviceLinks,
     clipboard_sync: DeviceLinks,
@@ -122,6 +124,7 @@ impl AppState {
             logcats: RwLock::new(HashMap::new()),
             pairing: AtomicBool::new(false),
             pairing_cancel: RwLock::new(None),
+            reconnect_targets: RwLock::new(Vec::new()),
             selected: RwLock::new(selected),
             phone_audio: DeviceLinks::default(),
             clipboard_sync: DeviceLinks::default(),
@@ -457,6 +460,24 @@ impl AppState {
             }
         }
         rx
+    }
+
+    pub fn is_pairing(&self) -> bool {
+        self.pairing.load(Ordering::SeqCst)
+    }
+
+    /// Saved wireless phones to bring back when they reappear on the network.
+    pub fn reconnect_targets(&self) -> Vec<ReconnectTarget> {
+        self.reconnect_targets
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_reconnect_targets(&self, targets: Vec<ReconnectTarget>) {
+        if let Ok(mut guard) = self.reconnect_targets.write() {
+            *guard = targets;
+        }
     }
 
     pub fn cancel_pairing(&self) {

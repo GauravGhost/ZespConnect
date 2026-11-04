@@ -13,7 +13,7 @@ import { FilesPanel } from "@/features/files";
 import { MirrorPanel } from "@/features/mirror";
 import { DependencyCheck } from "@/features/onboarding";
 import { SettingsPanel } from "@/features/settings";
-import { WirelessPanel } from "@/features/wireless";
+import { useWirelessReconnect, WirelessPanel } from "@/features/wireless";
 import { useToolsStatus } from "@/hooks/useTools";
 import { useTrayNavigation } from "@/hooks/useTray";
 
@@ -55,6 +55,7 @@ function Main() {
 
 export default function App() {
   useTrayNavigation();
+  useWirelessReconnect();
   const selectedSerial = useAppStore((s) => s.selectedSerial);
 
   return (

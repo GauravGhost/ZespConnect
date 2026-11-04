@@ -10,7 +10,7 @@ use crate::models::{
     Device, DeviceInfo, DeviceState, DeviceTransport, QuickState, ToolStatus,
     DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME,
 };
-use crate::services::adb;
+use crate::services::{adb, mdns};
 
 /// Reads the music stream's volume as `volume is X in range [low..high]`; a macro so
 /// [`INFO_COMMAND`] can embed it with `concat!`.
@@ -112,6 +112,9 @@ pub fn parse_devices(text: &str) -> Vec<Device> {
             } else {
                 None
             },
+            mdns_name: serial
+                .strip_suffix(&format!(".{}", mdns::CONNECT_SERVICE))
+                .map(Into::into),
         });
     }
 
@@ -248,7 +251,28 @@ pub async fn list(tools: &ToolStatus) -> Result<Vec<Device>> {
     if !output.success {
         return Err(AppError::CommandFailed(output.text()));
     }
-    Ok(parse_devices(&output.stdout))
+    let mut devices = parse_devices(&output.stdout);
+    attach_mdns_names(&mut devices, &mdns::services());
+    Ok(devices)
+}
+
+/// Name `ip:port` transports after the connect service announced at that address.
+fn attach_mdns_names(devices: &mut [Device], services: &[mdns::MdnsService]) {
+    for device in devices
+        .iter_mut()
+        .filter(|device| device.mdns_name.is_none())
+    {
+        let Some(address) = device.address.as_deref() else {
+            continue;
+        };
+        device.mdns_name = services
+            .iter()
+            .find(|service| {
+                service.service_type == mdns::CONNECT_SERVICE
+                    && format!("{}:{}", service.host, service.port) == address
+            })
+            .map(|service| service.name.clone());
+    }
 }
 
 /// Battery + version + quick state for one device.

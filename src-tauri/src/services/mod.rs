@@ -7,6 +7,7 @@ pub mod control;
 pub mod devices;
 pub mod files;
 pub mod install;
+pub mod mdns;
 pub mod mirror_window;
 pub mod scrcpy;
 pub mod scrcpy_server;

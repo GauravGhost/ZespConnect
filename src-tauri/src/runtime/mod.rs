@@ -6,6 +6,7 @@ pub mod logcat;
 pub mod mirror;
 pub mod mirror_session;
 pub mod phone_audio;
+pub mod reconnect;
 pub mod server_link;
 pub mod session_window;
 pub mod tools;

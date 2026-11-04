@@ -10,6 +10,7 @@ import type {
   LogLine,
   MirrorAction,
   MdnsDevice,
+  ReconnectTarget,
   MirrorKind,
   MirrorOptions,
   MirrorProcess,
@@ -152,6 +153,9 @@ export const ipc = {
     enableTcpip: (serial: string, port = 5555) =>
       invoke<string>("enable_wireless_tcpip", { serial, port }),
     mdnsServices: () => invoke<MdnsDevice[]>("list_mdns_services"),
+    setReconnectTargets: (targets: ReconnectTarget[]) =>
+      invoke<void>("set_reconnect_targets", { targets }),
+    reconnect: (target: ReconnectTarget) => invoke<string>("reconnect_wireless", { target }),
   },
 
   files: {

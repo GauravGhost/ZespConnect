@@ -51,6 +51,8 @@ export interface Device {
   battery: number | null;
   charging: boolean | null;
   address: string | null;
+  /** Stable wireless debugging name announced over mDNS; survives port changes. */
+  mdns_name: string | null;
 }
 
 export interface QuickState {
@@ -200,6 +202,18 @@ export interface MdnsDevice {
   host: string;
   port: number;
   address: string;
+}
+
+/** A saved phone the backend reconnects when it reappears on the network. */
+export interface ReconnectTarget {
+  serial: string;
+  name: string | null;
+  address: string | null;
+}
+
+export interface ReconnectEvent {
+  serial: string;
+  address: string | null;
 }
 
 export interface QrPayload {

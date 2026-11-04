@@ -72,6 +72,7 @@ pub fn run() {
             let handle = app.handle().clone();
             let tracker = runtime::tracker::spawn(handle.clone());
             handle.state::<AppState>().set_tracker(tracker);
+            runtime::reconnect::spawn(handle.clone());
 
             // Tray icon + menu.
             tray::build(app.handle())?;
@@ -151,6 +152,8 @@ pub fn run() {
             commands::wireless::disconnect_wireless,
             commands::wireless::enable_wireless_tcpip,
             commands::wireless::list_mdns_services,
+            commands::wireless::set_reconnect_targets,
+            commands::wireless::reconnect_wireless,
             commands::files::list_dir,
             commands::files::pull,
             commands::files::push,

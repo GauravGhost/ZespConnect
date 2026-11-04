@@ -1,18 +1,16 @@
-//! Wireless debugging (Android 11+): pair a phone over Wi-Fi by scanning a QR code shown in the UI.
-//! Discovery is delegated to the adb server's own mDNS (`adb mdns services`): the phone advertises
-//! an `_adb-tls-pairing._tcp` service, which we locate and complete with a plain `adb pair`.
+//! Wireless debugging (Android 11+): pair a phone over Wi-Fi by scanning a QR code shown in the UI,
+//! and reconnect saved phones when they come back on a new port. Discovery merges the adb server's
+//! mDNS (`adb mdns services`) with our own browser ([`mdns`]), as either can miss a phone.
 
 use std::time::{Duration, Instant};
 
 use crate::error::{AppError, Result};
-use crate::models::{MdnsDevice, QrPayload};
+use crate::models::{Device, MdnsDevice, QrPayload, ReconnectTarget};
 use crate::services::adb;
+use crate::services::mdns::{self, MdnsService, CONNECT_SERVICE, PAIRING_SERVICE};
 use crate::util::validation::{
     parse_host_port, validate_pairing_password, validate_serial, validate_service_name,
 };
-
-const PAIRING_SERVICE: &str = "_adb-tls-pairing._tcp";
-const CONNECT_SERVICE: &str = "_adb-tls-connect._tcp";
 
 /// The port `adb tcpip` restarts adbd on by default.
 pub const DEFAULT_TCPIP_PORT: u16 = 5555;
@@ -23,15 +21,6 @@ const PAIR_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long to keep looking for the (separate) TLS connect port after pairing.
 const CONNECT_WAIT: Duration = Duration::from_secs(30);
 const POLL_INTERVAL: Duration = Duration::from_millis(1000);
-
-/// A service instance discovered by `adb mdns services`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct MdnsService {
-    name: String,
-    service_type: String,
-    host: String,
-    port: u16,
-}
 
 /// Build a fresh QR payload (random service name + numeric password) from `Uuid::new_v4()`, not the clock.
 pub fn generate() -> QrPayload {
@@ -98,11 +87,20 @@ fn parse_mdns(text: &str) -> Vec<MdnsService> {
         .collect()
 }
 
-/// One `adb mdns services` snapshot.
+/// One snapshot of `adb mdns services` merged with our own browser's services.
 async fn mdns_services(adb_path: &str) -> Result<Vec<MdnsService>> {
     let args = vec!["mdns".to_string(), "services".to_string()];
     let output = adb::run(adb_path, &args, MDNS_TIMEOUT).await?;
-    Ok(parse_mdns(&output.stdout))
+    Ok(merge(parse_mdns(&output.stdout), mdns::services()))
+}
+
+fn merge(mut services: Vec<MdnsService>, extra: Vec<MdnsService>) -> Vec<MdnsService> {
+    for service in extra {
+        if !services.contains(&service) {
+            services.push(service);
+        }
+    }
+    services
 }
 
 /// The discovered services, shaped for the UI (with a pre-joined `address`).
@@ -268,6 +266,140 @@ pub async fn disconnect(adb_path: &str, target: &str) -> Result<()> {
     validate_serial(target)?;
     adb::disconnect(adb_path, target).await?;
     Ok(())
+}
+
+/// The result of reconnecting a saved phone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Reconnect {
+    Connected(String),
+    /// The phone answered but no longer trusts this computer; only pairing again helps.
+    Unpaired,
+    Unavailable(String),
+}
+
+/// The connect services currently announced, also asking adb's mDNS (spawns an adb process).
+pub async fn connect_services(adb_path: &str) -> Vec<MdnsService> {
+    only_connect(
+        mdns_services(adb_path)
+            .await
+            .unwrap_or_else(|_| mdns::services()),
+    )
+}
+
+/// The connect services our own browser has seen; free, no process spawned.
+pub fn cached_connect_services() -> Vec<MdnsService> {
+    only_connect(mdns::services())
+}
+
+fn only_connect(services: Vec<MdnsService>) -> Vec<MdnsService> {
+    services
+        .into_iter()
+        .filter(|service| service.service_type == CONNECT_SERVICE)
+        .collect()
+}
+
+/// Where a saved phone listens now: its announcement by stable name, else any on its last IP.
+pub fn locate<'a>(
+    services: &'a [MdnsService],
+    target: &ReconnectTarget,
+) -> Option<&'a MdnsService> {
+    let by_name = target
+        .name
+        .as_deref()
+        .and_then(|name| services.iter().find(|service| service.name == name));
+    by_name.or_else(|| {
+        let host = target.address.as_deref().and_then(host_of)?;
+        services.iter().find(|service| service.host == host)
+    })
+}
+
+/// Whether a saved phone already has a working wireless transport.
+pub fn is_online(
+    devices: &[Device],
+    target: &ReconnectTarget,
+    service: Option<&MdnsService>,
+) -> bool {
+    devices
+        .iter()
+        .filter(|device| device.connected)
+        .any(|device| {
+            device.serial == target.serial
+                || (target.name.is_some() && device.mdns_name == target.name)
+                || service.is_some_and(|service| {
+                    device.address.as_deref().and_then(host_of) == Some(service.host.as_str())
+                })
+        })
+}
+
+/// A phone announced at `service` while a device still shows an older port of the same IP.
+pub fn has_stale_port(devices: &[Device], service: &MdnsService) -> bool {
+    let live = format!("{}:{}", service.host, service.port);
+    devices.iter().any(|device| {
+        device
+            .address
+            .as_deref()
+            .is_some_and(|old| old != live && host_of(old) == Some(service.host.as_str()))
+    })
+}
+
+/// Drop dead transports on old ports of `live`'s IP. Reads the raw `adb devices` list, as the
+/// merged device list folds those transports into the live one. Returns whether any were dropped.
+pub async fn drop_stale(adb_path: &str, live: &str) -> bool {
+    let Some(host) = host_of(live) else {
+        return false;
+    };
+    let Ok(output) = adb::list_devices_raw(adb_path).await else {
+        return false;
+    };
+    let mut dropped = false;
+    for serial in stale_serials(&output.stdout, host, live) {
+        dropped |= adb::disconnect(adb_path, &serial)
+            .await
+            .is_ok_and(|output| output.success);
+    }
+    dropped
+}
+
+fn stale_serials(devices_output: &str, host: &str, live: &str) -> Vec<String> {
+    devices_output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            Some((parts.next()?, parts.next()?))
+        })
+        .filter(|(serial, state)| {
+            *state != "device" && *serial != live && host_of(serial) == Some(host)
+        })
+        .map(|(serial, _)| serial.to_string())
+        .collect()
+}
+
+/// `adb connect` a saved phone at `address`, first dropping its dead transports on old ports.
+pub async fn reconnect(adb_path: &str, address: &str) -> Reconnect {
+    let Ok((host, port)) = parse_host_port(address) else {
+        return Reconnect::Unavailable(format!("Invalid address {address}"));
+    };
+    let target = format!("{host}:{port}");
+    drop_stale(adb_path, &target).await;
+
+    match adb::connect(adb_path, &target).await {
+        Ok(output) => classify_connect(&output.text(), target),
+        Err(error) => Reconnect::Unavailable(error.to_string()),
+    }
+}
+
+fn classify_connect(text: &str, target: String) -> Reconnect {
+    if connected(text) {
+        Reconnect::Connected(target)
+    } else if text.to_lowercase().contains("authenticat") {
+        Reconnect::Unpaired
+    } else {
+        Reconnect::Unavailable(format!("Could not connect to {target}: {text}"))
+    }
+}
+
+fn host_of(address: &str) -> Option<&str> {
+    address.rsplit_once(':').map(|(host, _)| host)
 }
 
 /// Restart adbd in TCP mode on a USB device, discover its Wi-Fi IP, and connect; returns the address.
@@ -441,5 +573,127 @@ adb-14141FDF600081-TnSdi9 _adb-tls-connect._tcp 192.168.86.38:33015
             "getprop fallback returns a bare address"
         );
         assert_eq!(parse_ip("ipv6 only"), None);
+    }
+
+    fn service(name: &str, host: &str, port: u16) -> MdnsService {
+        MdnsService {
+            name: name.into(),
+            service_type: CONNECT_SERVICE.into(),
+            host: host.into(),
+            port,
+        }
+    }
+
+    fn target(serial: &str, name: Option<&str>, address: Option<&str>) -> ReconnectTarget {
+        ReconnectTarget {
+            serial: serial.into(),
+            name: name.map(Into::into),
+            address: address.map(Into::into),
+        }
+    }
+
+    fn wifi_device(serial: &str, address: Option<&str>, connected: bool) -> Device {
+        let mut device = crate::services::devices::parse_devices(&format!(
+            "{serial} {} model:Pixel_8",
+            if connected { "device" } else { "offline" }
+        ))
+        .remove(0);
+        device.address = address.map(Into::into);
+        device
+    }
+
+    #[test]
+    fn locates_a_phone_on_its_new_port_by_name_then_by_ip() {
+        let services = vec![
+            service("adb-OTHER-a", "192.168.1.42", 41000),
+            service("adb-PIXEL-b", "192.168.1.60", 39123),
+        ];
+        let moved = target(
+            "adb-PIXEL-b._adb-tls-connect._tcp",
+            Some("adb-PIXEL-b"),
+            Some("192.168.1.42:37000"),
+        );
+        assert_eq!(locate(&services, &moved).unwrap().port, 39123);
+
+        let legacy = target("192.168.1.42:37000", None, Some("192.168.1.42:37000"));
+        assert_eq!(locate(&services, &legacy).unwrap().name, "adb-OTHER-a");
+
+        let gone = target("x", Some("adb-GONE-c"), None);
+        assert!(locate(&services, &gone).is_none());
+    }
+
+    #[test]
+    fn a_phone_is_online_through_any_of_its_transports() {
+        let saved = target(
+            "adb-PIXEL-b._adb-tls-connect._tcp",
+            Some("adb-PIXEL-b"),
+            None,
+        );
+        let found = service("adb-PIXEL-b", "192.168.1.60", 39123);
+
+        let by_ip = [wifi_device(
+            "192.168.1.60:39123",
+            Some("192.168.1.60:39123"),
+            true,
+        )];
+        assert!(is_online(&by_ip, &saved, Some(&found)));
+
+        let by_alias = [wifi_device("adb-PIXEL-b._adb-tls-connect._tcp", None, true)];
+        assert!(is_online(&by_alias, &saved, None));
+
+        let stale = [wifi_device(
+            "192.168.1.60:37000",
+            Some("192.168.1.60:37000"),
+            false,
+        )];
+        assert!(!is_online(&stale, &saved, Some(&found)));
+    }
+
+    #[test]
+    fn finds_only_dead_transports_on_old_ports() {
+        let output = "List of devices attached
+192.168.1.60:37000	offline
+192.168.1.60:39123	device
+192.168.1.42:37000	offline
+adb-PIXEL-b._adb-tls-connect._tcp	device
+";
+        assert_eq!(
+            stale_serials(output, "192.168.1.60", "192.168.1.60:39123"),
+            vec!["192.168.1.60:37000"]
+        );
+
+        let found = service("adb-PIXEL-b", "192.168.1.60", 39123);
+        let old = [wifi_device(
+            "adb-PIXEL-b._adb-tls-connect._tcp",
+            Some("192.168.1.60:37000"),
+            true,
+        )];
+        assert!(has_stale_port(&old, &found));
+        let current = [wifi_device(
+            "192.168.1.60:39123",
+            Some("192.168.1.60:39123"),
+            true,
+        )];
+        assert!(!has_stale_port(&current, &found));
+    }
+
+    #[test]
+    fn classifies_connect_results() {
+        let target = || "192.168.1.60:39123".to_string();
+        assert_eq!(
+            classify_connect("connected to 192.168.1.60:39123", target()),
+            Reconnect::Connected(target())
+        );
+        assert_eq!(
+            classify_connect("failed to authenticate to 192.168.1.60:39123", target()),
+            Reconnect::Unpaired
+        );
+        assert!(matches!(
+            classify_connect(
+                "failed to connect to 192.168.1.60:39123: Connection refused",
+                target()
+            ),
+            Reconnect::Unavailable(_)
+        ));
     }
 }

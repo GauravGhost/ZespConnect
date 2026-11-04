@@ -21,4 +21,4 @@ pub use mirror::{
 pub use tools::{
     InstallDone, InstallProgress, ToolInfo, ToolKind, ToolSource, ToolStatus, UpdateInfo,
 };
-pub use wireless::{MdnsDevice, QrPayload};
+pub use wireless::{MdnsDevice, QrPayload, ReconnectEvent, ReconnectTarget};
