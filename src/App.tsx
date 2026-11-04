@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { FileDropOverlay } from "@/components/app/FileDropOverlay";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
-import { FeaturesPanel } from "@/features/connected";
+import { FeaturesPanel, useRecordingResults } from "@/features/connected";
 import { ConsolePanel } from "@/features/console";
 import { OverviewPanel } from "@/features/devices";
 import { EmulatorsPanel } from "@/features/emulators";
@@ -58,6 +58,7 @@ function Main() {
 export default function App() {
   useTrayNavigation();
   useWirelessReconnect();
+  useRecordingResults();
   const selectedSerial = useAppStore((s) => s.selectedSerial);
 
   return (

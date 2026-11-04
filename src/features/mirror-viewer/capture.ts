@@ -1,11 +1,10 @@
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 
+import { announceSaved } from "@/features/connected/announce";
 import { readCaptureSettings, type ScreenshotTarget } from "@/features/connected/capture";
 import { errorMessage, ipc } from "@/lib/ipc";
 import { fileStamp } from "@/lib/format";
-import type { SavedCapture } from "@/types";
 
 export const SCREENSHOT_LABEL: Record<ScreenshotTarget, string> = {
   clipboard: "Screenshot to clipboard",
@@ -22,25 +21,6 @@ function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
       }
       blob.arrayBuffer().then((buffer) => resolve(new Uint8Array(buffer)), reject);
     }, "image/png");
-  });
-}
-
-/** Toast for a saved screenshot or recording, offering to show a computer file. */
-export function announceSaved(
-  kind: "Screenshot" | "Recording",
-  saved: SavedCapture,
-  notice?: string,
-) {
-  if (saved.onPhone) {
-    toast.success(`${kind} saved on the phone`, { description: notice });
-    return;
-  }
-  toast.success(`${kind} saved`, {
-    description: notice,
-    action: {
-      label: "Show",
-      onClick: () => void revealItemInDir(saved.location).catch(() => undefined),
-    },
   });
 }
 

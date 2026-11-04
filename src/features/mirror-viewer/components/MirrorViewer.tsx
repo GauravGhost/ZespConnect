@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { TouchAction } from "@/types";
 import { useKeyboardForwarding, useMirrorStream } from "../hooks";
 import { androidButton, androidButtons, wheelNotches } from "../keymap";
+import { useRecording } from "../recording";
 import { CaptureButtons } from "./CaptureButtons";
 import { DesktopTitleBar } from "./DesktopTitleBar";
 import { MirrorControlBar } from "./MirrorControlBar";
@@ -50,8 +51,14 @@ export function MirrorViewer() {
   const serial = session?.serial ?? null;
   // An app's Back is in its title bar, so its window has a small gap instead of a control bar.
   const controlBar = !desktop && session?.kind !== "app";
+  const recording = useRecording(sessionId);
   const capture = serial ? (
-    <CaptureButtons serial={serial} canvasRef={canvasRef} live={status === "live"} />
+    <CaptureButtons
+      serial={serial}
+      canvasRef={canvasRef}
+      live={status === "live"}
+      recording={recording}
+    />
   ) : null;
 
   useEffect(
@@ -209,6 +216,7 @@ export function MirrorViewer() {
           phoneScreen={phoneScreen}
           onTogglePhoneScreen={togglePhoneScreen}
           capture={capture}
+          recording={recording.recording}
         />
       ) : (
         <MirrorTitleBar session={session} capture={capture} />
@@ -257,7 +265,9 @@ export function MirrorViewer() {
           </div>
         ) : null}
       </div>
-      {controlBar ? <MirrorControlBar key={session?.id} session={session} /> : null}
+      {controlBar ? (
+        <MirrorControlBar key={session?.id} session={session} recording={recording.recording} />
+      ) : null}
       <FileDropOverlay serial={serial} />
     </div>
   );

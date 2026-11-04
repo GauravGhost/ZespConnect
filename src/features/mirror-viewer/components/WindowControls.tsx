@@ -5,7 +5,10 @@ import { useWindowFlag } from "../hooks";
 import { MirrorIconButton } from "./MirrorIconButton";
 
 /** Minimize, maximize and close buttons for self-drawn windows; hidden where native controls exist. */
-export function WindowControls({ maximizable = false }: Readonly<{ maximizable?: boolean }>) {
+export function WindowControls({
+  maximizable = false,
+  locked = false,
+}: Readonly<{ maximizable?: boolean; locked?: boolean }>) {
   const maximized = useWindowFlag("isMaximized", maximizable);
 
   const window = getCurrentWindow();
@@ -14,9 +17,10 @@ export function WindowControls({ maximizable = false }: Readonly<{ maximizable?:
       <MirrorIconButton label="Minimize" icon={Minus} onClick={() => void window.minimize()} />
       {maximizable ? (
         <MirrorIconButton
-          label={maximized ? "Restore" : "Maximize"}
+          label={locked ? "Off while recording" : maximized ? "Restore" : "Maximize"}
           icon={maximized ? Copy : Square}
           iconClassName="size-3"
+          disabled={locked}
           onClick={() => void window.toggleMaximize()}
         />
       ) : null}

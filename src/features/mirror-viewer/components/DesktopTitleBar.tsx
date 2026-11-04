@@ -14,11 +14,13 @@ export function DesktopTitleBar({
   phoneScreen,
   onTogglePhoneScreen,
   capture,
+  recording = false,
 }: Readonly<{
   serial: string | null;
   phoneScreen: boolean;
   onTogglePhoneScreen: () => void;
   capture?: ReactNode;
+  recording?: boolean;
 }>) {
   const title = useWindowTitle();
   const fullscreen = useWindowFlag("isFullscreen");
@@ -53,7 +55,7 @@ export function DesktopTitleBar({
       {capture}
       {serial ? <PhoneSoundButton serial={serial} /> : null}
       <AlwaysOnTopButton />
-      {IS_MAC ? null : <WindowControls maximizable />}
+      {IS_MAC ? null : <WindowControls maximizable locked={recording} />}
     </div>
   );
 }

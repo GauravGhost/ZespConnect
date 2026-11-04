@@ -4,6 +4,7 @@ import type {
   AppListResult,
   Avd,
   CaptureDirs,
+  RecordingOutcome,
   SavedCapture,
   Device,
   DeviceInfo,
@@ -214,6 +215,12 @@ export const ipc = {
           "x-dir": dir ? encodeURIComponent(dir) : "",
         },
       }),
+    /** Resolves with when recording started, in Unix milliseconds. */
+    startRecording: (id: number, target: "folder" | "phone", dir: string | null, stamp: string) =>
+      invoke<number>("start_recording", { id, target, dir, stamp }),
+    /** Resolves once the file is saved (and copied to the phone when that is the target). */
+    stopRecording: (id: number) => invoke<RecordingOutcome>("stop_recording", { id }),
+    recordingState: (id: number) => invoke<number | null>("recording_state", { id }),
   },
 
   avd: {

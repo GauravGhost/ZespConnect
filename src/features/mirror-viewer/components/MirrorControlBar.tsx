@@ -53,7 +53,10 @@ export function MirrorBackButton({ sessionId }: Readonly<{ sessionId: number }>)
  * phone window but an app's has it (its height is `mirror_window::CONTROL_BAR`), so it stays
  * even when a session has no controls.
  */
-export function MirrorControlBar({ session }: Readonly<{ session: MirrorSession | null }>) {
+export function MirrorControlBar({
+  session,
+  recording = false,
+}: Readonly<{ session: MirrorSession | null; recording?: boolean }>) {
   const [torch, setTorch] = useState(session?.torch ?? false);
   const actions = session ? menuActions(session) : [];
   const hasTorch = session?.kind === "camera" && session.cameraControls;
@@ -82,6 +85,10 @@ export function MirrorControlBar({ session }: Readonly<{ session: MirrorSession 
             <MirrorIconButton
               key={action}
               {...ITEMS[action]}
+              // A recording keeps one picture size (see `runtime::recording`).
+              {...(action === "rotate" && recording
+                ? { label: "Rotate (off while recording)", disabled: true }
+                : null)}
               className={BAR_BUTTON}
               iconClassName="size-4"
               // The toast already reports a failure.

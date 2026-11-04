@@ -183,6 +183,11 @@ export interface SavedCapture {
   onPhone: boolean;
 }
 
+export interface RecordingOutcome extends SavedCapture {
+  /** Why the recording has no sound or ended early, when it did. */
+  notice: string | null;
+}
+
 export interface CaptureDirs {
   pictures: string;
   videos: string;

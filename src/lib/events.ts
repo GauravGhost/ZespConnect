@@ -7,6 +7,7 @@ import type {
   MirrorProcess,
   MirrorSession,
   ReconnectEvent,
+  RecordingOutcome,
 } from "@/types";
 
 /** Typed map of the backend events emitted via `AppHandle::emit`. */
@@ -28,6 +29,15 @@ export interface BackendEvents {
   /** A saved phone answered but no longer trusts this computer. */
   "wireless:unpaired": ReconnectEvent;
   "tray:select-device": { serial: string };
+  "recording:changed": { id: number; recording: boolean; startedAt: number | null };
+  /** A recording ended on its own (window closed, phone lost); sent to the window that shows it. */
+  "recording:finished": {
+    id: number;
+    outcome: RecordingOutcome | null;
+    error: string | null;
+    /** The recording's window is still open and shows the result itself. */
+    inWindow: boolean;
+  };
 }
 
 function onBackendEvent<K extends keyof BackendEvents>(
@@ -66,4 +76,8 @@ export const events = {
     onBackendEvent("wireless:unpaired", handler),
   traySelectDevice: (handler: EventCallback<BackendEvents["tray:select-device"]>) =>
     onBackendEvent("tray:select-device", handler),
+  recordingChanged: (handler: EventCallback<BackendEvents["recording:changed"]>) =>
+    onBackendEvent("recording:changed", handler),
+  recordingFinished: (handler: EventCallback<BackendEvents["recording:finished"]>) =>
+    onBackendEvent("recording:finished", handler),
 };

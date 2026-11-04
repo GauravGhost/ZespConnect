@@ -84,6 +84,8 @@ struct Finished {
     id: u64,
     outcome: Option<RecordingOutcome>,
     error: Option<String>,
+    /// Whether the recording's own window is still open to show the result.
+    in_window: bool,
 }
 
 type Reply = oneshot::Sender<Result<RecordingOutcome>>;
@@ -412,12 +414,17 @@ async fn record<W: Write + Send + 'static>(
                 Ok(outcome) => (Some(outcome), None),
                 Err(error) => (None, Some(error.to_string())),
             };
+            // The window shows the result while it is open; otherwise the main window does.
+            let in_window = app
+                .get_webview_window(&session_window::label(context.id))
+                .is_some();
             let _ = app.emit(
                 EVENT_FINISHED,
                 Finished {
                     id: context.id,
                     outcome,
                     error,
+                    in_window,
                 },
             );
         }
