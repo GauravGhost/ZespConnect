@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isBareEnter, isChatApp, SEND_STROKES } from "./chatEnter";
+import { chatEnterStrokes, isChatApp, NEW_LINE_STROKES, SEND_STROKES } from "./chatEnter";
 
 const enter = (init: KeyboardEventInit = {}) =>
   new KeyboardEvent("keydown", { code: "Enter", key: "Enter", ...init });
@@ -15,21 +15,30 @@ describe("isChatApp", () => {
   });
 });
 
-describe("isBareEnter", () => {
-  it("accepts Enter and the keypad Enter", () => {
-    expect(isBareEnter(enter())).toBe(true);
-    expect(isBareEnter(enter({ code: "NumpadEnter" }))).toBe(true);
+describe("chatEnterStrokes", () => {
+  it("sends on Enter and the keypad Enter", () => {
+    expect(chatEnterStrokes(enter())).toBe(SEND_STROKES);
+    expect(chatEnterStrokes(enter({ code: "NumpadEnter" }))).toBe(SEND_STROKES);
   });
 
-  it("leaves Shift+Enter as a new line", () => {
-    expect(isBareEnter(enter({ shiftKey: true }))).toBe(false);
+  it("turns Shift+Enter into a new line, since WhatsApp sends on it", () => {
+    expect(chatEnterStrokes(enter({ shiftKey: true }))).toBe(NEW_LINE_STROKES);
   });
 
   it("leaves other modified Enters and other keys alone", () => {
-    expect(isBareEnter(enter({ ctrlKey: true }))).toBe(false);
-    expect(isBareEnter(enter({ altKey: true }))).toBe(false);
-    expect(isBareEnter(enter({ metaKey: true }))).toBe(false);
-    expect(isBareEnter(new KeyboardEvent("keydown", { code: "KeyA", key: "a" }))).toBe(false);
+    expect(chatEnterStrokes(enter({ ctrlKey: true }))).toBeNull();
+    expect(chatEnterStrokes(enter({ altKey: true }))).toBeNull();
+    expect(chatEnterStrokes(enter({ metaKey: true }))).toBeNull();
+    expect(chatEnterStrokes(new KeyboardEvent("keydown", { code: "KeyA", key: "a" }))).toBeNull();
+  });
+});
+
+describe("NEW_LINE_STROKES", () => {
+  it("presses Enter with no modifier", () => {
+    expect(NEW_LINE_STROKES).toEqual([
+      { action: "down", keycode: 66, meta: 0 },
+      { action: "up", keycode: 66, meta: 0 },
+    ]);
   });
 });
 
