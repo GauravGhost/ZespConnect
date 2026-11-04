@@ -47,6 +47,10 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app)
         }))
+        .register_asynchronous_uri_scheme_protocol(
+            services::file_stream::SCHEME,
+            runtime::file_stream::handle,
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -94,6 +98,8 @@ pub fn run() {
             let tracker = runtime::tracker::spawn(handle.clone());
             handle.state::<AppState>().set_tracker(tracker);
             runtime::reconnect::spawn(handle.clone());
+
+            clear_preview_cache(app.handle());
 
             // Tray icon + menu.
             tray::build(app.handle())?;
@@ -187,6 +193,7 @@ pub fn run() {
             commands::wireless::reconnect_wireless,
             commands::files::list_dir,
             commands::files::pull,
+            commands::files::open_on_computer,
             commands::files::push,
             commands::files::send_to_phone,
             commands::files::mkdir,
@@ -216,14 +223,23 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
                 // Recordings are saved (and rotation given back) before the app quits.
                 if runtime::recording::hold_exit(app) {
                     api.prevent_exit();
                 }
             }
+            tauri::RunEvent::Exit => clear_preview_cache(app),
+            _ => {}
         });
+}
+
+/// Drop the device files copied over for "open with default app".
+fn clear_preview_cache(app: &AppHandle) {
+    if let Ok(root) = commands::files::preview_cache_root(app) {
+        services::files::clear_previews(&root);
+    }
 }
 
 /// Sub-pixel slack allowed when correcting a window to its video's aspect ratio.

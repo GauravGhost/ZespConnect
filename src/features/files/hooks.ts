@@ -15,11 +15,32 @@ export function useDirectory(serial: string | null, path: string) {
   });
 }
 
+/** A small text file's contents, streamed from the device for the viewer. */
+export function useTextPreview(url: string) {
+  return useQuery({
+    queryKey: ["file-text", url],
+    queryFn: async () => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(await response.text());
+      return response.text();
+    },
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
 export function usePullFile(serial: string | null) {
   return useMutation({
     mutationFn: ({ remote, local }: { remote: string; local: string }) =>
       ipc.files.pull(serial as string, remote, local),
     onSuccess: (_result, vars) => toast.success(`Saved ${baseName(vars.local)}`),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+export function useOpenOnComputer(serial: string | null) {
+  return useMutation({
+    mutationFn: (remote: string) => ipc.files.openOnComputer(serial as string, remote),
     onError: (error) => toast.error(errorMessage(error)),
   });
 }

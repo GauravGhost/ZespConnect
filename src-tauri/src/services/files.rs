@@ -1,7 +1,7 @@
 //! Device file browsing and transfer over adb. Listing uses `ls -la <path>/` (the trailing slash
 //! follows `/sdcard`, a symlink) and parses it into [`FileEntry`]s; parsing is pure and unit-tested.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::error::{AppError, Result};
@@ -164,6 +164,53 @@ pub async fn push(tools: &ToolStatus, serial: &str, local: &str, remote: &str) -
     let args = vec!["push".to_string(), local.to_string(), remote.to_string()];
     let output = adb::run_scoped(&adb_path, serial, &args, TRANSFER_TIMEOUT).await?;
     ensure_success(&output)
+}
+
+/// Where a device file is copied to before it opens on the computer:
+/// `<cache_root>/<serial>/<name>`. Both parts are reduced to characters every host file system
+/// accepts (wireless serials contain `:`), so the result always stays inside `cache_root`.
+pub fn preview_path(cache_root: &Path, serial: &str, remote: &str) -> Result<PathBuf> {
+    let name = remote.rsplit('/').next().unwrap_or_default();
+    if name.is_empty() || name == "." || name == ".." {
+        return Err(AppError::Invalid(format!("Not a file: {remote}")));
+    }
+    Ok(cache_root
+        .join(safe_file_name(serial))
+        .join(safe_file_name(name)))
+}
+
+fn safe_file_name(value: &str) -> String {
+    value
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect()
+}
+
+/// Copy a device file to [`preview_path`] so a computer app can open it. Returns the local path.
+pub async fn pull_for_preview(
+    tools: &ToolStatus,
+    serial: &str,
+    remote: &str,
+    cache_root: &Path,
+) -> Result<PathBuf> {
+    let local = preview_path(cache_root, serial, remote)?;
+    if let Some(dir) = local.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    pull(tools, serial, remote, &local.to_string_lossy()).await?;
+    Ok(local)
+}
+
+/// Delete every preview copy. A file still open in another app may stay behind (Windows locks
+/// it); the next clear picks it up.
+pub fn clear_previews(cache_root: &Path) {
+    if cache_root.exists() {
+        let _ = std::fs::remove_dir_all(cache_root);
+    }
 }
 
 /// True when a dropped path should be installed rather than copied.
@@ -350,6 +397,17 @@ not a listing line
         );
         assert!(target_in(DROP_DIR, "/").is_err());
         assert!(target_in(DROP_DIR, "..").is_err());
+    }
+
+    #[test]
+    fn keeps_preview_copies_inside_the_cache_folder() {
+        let root = Path::new("/cache/previews");
+        assert_eq!(
+            preview_path(root, "192.168.1.5:5555", "/sdcard/DCIM/My: Photo?.jpg").unwrap(),
+            root.join("192.168.1.5_5555").join("My_ Photo_.jpg")
+        );
+        assert!(preview_path(root, "abc", "/sdcard/DCIM/").is_err());
+        assert!(preview_path(root, "abc", "/sdcard/..").is_err());
     }
 
     #[test]

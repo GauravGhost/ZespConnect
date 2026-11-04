@@ -3,7 +3,7 @@ import {
   AlertTriangle,
   ChevronRight,
   Download,
-  File as FileIcon,
+  ExternalLink,
   Folder,
   FolderPlus,
   HardDrive,
@@ -14,7 +14,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, NoDeviceState } from "@/components/app/EmptyState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,8 +39,18 @@ import { useActiveDevice } from "@/hooks/useDevices";
 import { errorMessage } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { FileEntry } from "@/types";
-import { useCreateFolder, useDeleteEntry, useDirectory, usePullFile, usePushFiles } from "../hooks";
+import {
+  useCreateFolder,
+  useDeleteEntry,
+  useDirectory,
+  useOpenOnComputer,
+  usePullFile,
+  usePushFiles,
+} from "../hooks";
 import { breadcrumbsWithin, parentWithin } from "../path";
+import { previewKind } from "../preview";
+import { FileEntryIcon } from "./FileEntryIcon";
+import { FilePreviewDialog } from "./FilePreviewDialog";
 
 const ROOT = "/sdcard";
 
@@ -52,6 +62,7 @@ export function FilesPanel() {
   const [folderOpen, setFolderOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [confirm, setConfirm] = useState<FileEntry | null>(null);
+  const [previewing, setPreviewing] = useState<FileEntry | null>(null);
 
   useEffect(() => setPath(ROOT), [serial]);
 
@@ -63,8 +74,13 @@ export function FilesPanel() {
     isFetching,
     refetch,
   } = useDirectory(serial, path);
+  const previewable = useMemo(
+    () => entries.filter((entry) => !entry.is_directory && previewKind(entry.name, entry.size)),
+    [entries],
+  );
 
   const pull = usePullFile(serial);
+  const openFile = useOpenOnComputer(serial);
   const push = usePushFiles(serial, path);
   const createFolder = useCreateFolder(serial, path);
   const remove = useDeleteEntry(serial, path);
@@ -80,6 +96,12 @@ export function FilesPanel() {
 
   const crumbs = breadcrumbsWithin(path, ROOT);
   const busy = pull.isPending || push.isPending || createFolder.isPending || remove.isPending;
+
+  function openEntry(entry: FileEntry) {
+    if (entry.is_directory) setPath(entry.path);
+    else if (previewKind(entry.name, entry.size)) setPreviewing(entry);
+    else openFile.mutate(entry.path);
+  }
 
   async function download(entry: FileEntry) {
     const destination = await save({ defaultPath: entry.name, title: "Save file" });
@@ -216,67 +238,85 @@ export function FilesPanel() {
                 </button>
               </li>
             ) : null}
-            {entries.map((entry) => (
-              <li
-                key={entry.path}
-                className="hover:bg-accent/40 flex items-center gap-3 rounded-2xl py-1 pr-1 pl-3"
-              >
-                <button
-                  type="button"
-                  disabled={!entry.is_directory}
-                  onClick={() => entry.is_directory && setPath(entry.path)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
+            {entries.map((entry) => {
+              const opening = openFile.isPending && openFile.variables === entry.path;
+              return (
+                <li
+                  key={entry.path}
+                  className="hover:bg-accent/40 flex items-center gap-3 rounded-2xl py-1 pr-1 pl-3"
                 >
-                  {entry.is_directory ? (
-                    <Folder className="text-primary size-4 shrink-0" />
-                  ) : (
-                    <FileIcon className="text-muted-foreground size-4 shrink-0" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
-                  <span
-                    className="text-muted-foreground hidden shrink-0 font-mono text-[11px] md:inline"
-                    title={entry.permissions}
+                  <button
+                    type="button"
+                    disabled={opening}
+                    onClick={() => openEntry(entry)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-progress"
                   >
-                    {entry.date}
-                  </span>
-                  <span className="text-muted-foreground w-20 shrink-0 text-right text-xs tabular-nums">
-                    {entry.is_directory ? "-" : entry.formatted_size}
-                  </span>
-                </button>
+                    {opening ? (
+                      <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" />
+                    ) : (
+                      <FileEntryIcon entry={entry} />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm">{entry.name}</span>
+                    <span
+                      className="text-muted-foreground hidden shrink-0 font-mono text-[11px] md:inline"
+                      title={entry.permissions}
+                    >
+                      {entry.date}
+                    </span>
+                    <span className="text-muted-foreground w-20 shrink-0 text-right text-xs tabular-nums">
+                      {entry.is_directory ? "-" : entry.formatted_size}
+                    </span>
+                  </button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 shrink-0"
-                      aria-label={`Actions for ${entry.name}`}
-                      disabled={busy}
-                    >
-                      <MoreVertical className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      disabled={entry.is_directory}
-                      onSelect={() => {
-                        if (!entry.is_directory) void download(entry);
-                      }}
-                    >
-                      <Download />
-                      Download
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(entry)}>
-                      <Trash2 />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </li>
-            ))}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label={`Actions for ${entry.name}`}
+                        disabled={busy}
+                      >
+                        <MoreVertical className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {entry.is_directory ? null : (
+                        <DropdownMenuItem disabled={opening} onSelect={() => openEntry(entry)}>
+                          <ExternalLink />
+                          Open
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        disabled={entry.is_directory}
+                        onSelect={() => {
+                          if (!entry.is_directory) void download(entry);
+                        }}
+                      >
+                        <Download />
+                        Download
+                      </DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(entry)}>
+                        <Trash2 />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
+
+      <FilePreviewDialog
+        serial={device.serial}
+        files={previewable}
+        current={previewing}
+        onShow={setPreviewing}
+        onOpenInDefaultApp={(entry) => openFile.mutate(entry.path)}
+        onDownload={(entry) => void download(entry)}
+      />
 
       <Dialog
         open={folderOpen}

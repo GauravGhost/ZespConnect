@@ -170,6 +170,9 @@ export const ipc = {
     listDir: (serial: string, path: string) => invoke<FileEntry[]>("list_dir", { serial, path }),
     pull: (serial: string, remote: string, local: string) =>
       invoke<void>("pull", { serial, remote, local }),
+    /** Copy a device file to the computer and open it in the default app for its type. */
+    openOnComputer: (serial: string, remote: string) =>
+      invoke<void>("open_on_computer", { serial, remote }),
     push: (serial: string, local: string, remote: string) =>
       invoke<void>("push", { serial, local, remote }),
     sendToPhone: (serial: string, path: string) =>

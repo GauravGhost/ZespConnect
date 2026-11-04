@@ -67,6 +67,22 @@ pub async fn shell(
     run_scoped(adb, serial, &args, timeout).await
 }
 
+/// `adb -s <serial> exec-out <command>`: the remote command's stdout as raw bytes (no PTY mangling).
+pub async fn exec_out(
+    adb: &str,
+    serial: &str,
+    command: &str,
+    timeout: Duration,
+) -> Result<Vec<u8>> {
+    let args = [
+        "-s".to_string(),
+        serial.to_string(),
+        "exec-out".to_string(),
+        command.to_string(),
+    ];
+    process::read_stdout(adb, &args, timeout).await
+}
+
 pub async fn push(
     adb: &str,
     serial: &str,

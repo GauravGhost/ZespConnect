@@ -87,6 +87,26 @@ pub async fn run(program: &str, args: &[String], timeout: Duration) -> Result<Pr
     })
 }
 
+/// Run `program args` to completion and return its raw stdout; a failed exit is an error carrying stderr.
+pub async fn read_stdout(program: &str, args: &[String], timeout: Duration) -> Result<Vec<u8>> {
+    let child = base_command(program, args)
+        .spawn()
+        .map_err(|e| AppError::CommandFailed(format!("Could not start {program}: {e}")))?;
+
+    let output = tokio::time::timeout(timeout, child.wait_with_output())
+        .await
+        .map_err(|_| AppError::CommandFailed(format!("{program} timed out after {timeout:?}")))?
+        .map_err(|e| AppError::CommandFailed(e.to_string()))?;
+
+    if output.status.success() {
+        Ok(output.stdout)
+    } else {
+        Err(AppError::CommandFailed(
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        ))
+    }
+}
+
 /// Spawn a detached process logging to `log_path`; returns the pid for the caller to track.
 pub fn spawn_detached(program: &str, args: &[String], log_path: &Path) -> Result<u32> {
     let mut command = logged_command(program, args, log_path)?;

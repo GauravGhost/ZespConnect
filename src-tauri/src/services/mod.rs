@@ -6,6 +6,7 @@ pub mod capture;
 pub mod console;
 pub mod control;
 pub mod devices;
+pub mod file_stream;
 pub mod files;
 pub mod fmp4;
 pub mod install;
