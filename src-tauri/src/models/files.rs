@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+/// What happened to a file dropped on a mirror window.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SendOutcome {
+    Installed,
+    Copied,
+}
+
 /// One entry parsed from `adb shell ls -la`, shaped for the file browser.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {

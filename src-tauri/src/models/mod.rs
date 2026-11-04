@@ -13,7 +13,7 @@ pub use avd::Avd;
 pub use console::{LogLine, LogStream, ShellResult};
 pub use controls::{DeviceInfo, QuickState, RebootMode, DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME};
 pub use device::{Device, DeviceState, DeviceTransport};
-pub use files::FileEntry;
+pub use files::{FileEntry, SendOutcome};
 pub use mirror::{
     KeyAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec,
     TouchAction,

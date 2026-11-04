@@ -7,6 +7,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 
+import { FileDropOverlay } from "@/components/app/FileDropOverlay";
 import { ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { TouchAction } from "@/types";
@@ -188,7 +189,7 @@ export function MirrorViewer() {
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-neutral-950">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-neutral-950">
       {desktop ? (
         <DesktopTitleBar
           serial={serial}
@@ -242,6 +243,7 @@ export function MirrorViewer() {
           </div>
         ) : null}
       </div>
+      <FileDropOverlay serial={serial} />
     </div>
   );
 }

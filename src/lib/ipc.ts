@@ -17,6 +17,7 @@ import type {
   QuickState,
   QuickToggleKey,
   RebootMode,
+  SendOutcome,
   SerializedAppError,
   ShellResult,
   ToolKind,
@@ -156,6 +157,8 @@ export const ipc = {
       invoke<void>("pull", { serial, remote, local }),
     push: (serial: string, local: string, remote: string) =>
       invoke<void>("push", { serial, local, remote }),
+    sendToPhone: (serial: string, path: string) =>
+      invoke<SendOutcome>("send_to_phone", { serial, path }),
     mkdir: (serial: string, path: string) => invoke<void>("mkdir", { serial, path }),
     delete: (serial: string, path: string) => invoke<void>("delete", { serial, path }),
   },

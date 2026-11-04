@@ -153,6 +153,7 @@ pub fn run() {
             commands::files::list_dir,
             commands::files::pull,
             commands::files::push,
+            commands::files::send_to_phone,
             commands::files::mkdir,
             commands::files::delete,
             commands::console::shell_exec,

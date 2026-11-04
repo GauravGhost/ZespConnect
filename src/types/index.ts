@@ -153,6 +153,9 @@ export interface FileEntry {
   permissions: string;
 }
 
+/** What happened to a file dropped on a window: APKs install, anything else is copied. */
+export type SendOutcome = "installed" | "copied";
+
 export interface ShellResult {
   stdout: string;
   stderr: string;

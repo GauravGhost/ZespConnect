@@ -1,6 +1,7 @@
 //! Device file browsing and transfer over adb. Listing uses `ls -la <path>/` (the trailing slash
 //! follows `/sdcard`, a symlink) and parses it into [`FileEntry`]s; parsing is pure and unit-tested.
 
+use std::path::Path;
 use std::time::Duration;
 
 use crate::error::{AppError, Result};
@@ -12,6 +13,9 @@ use crate::util::validation::{shell_quote, validate_remote_path};
 const LIST_TIMEOUT: Duration = Duration::from_secs(20);
 const MUTATE_TIMEOUT: Duration = Duration::from_secs(20);
 const TRANSFER_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// Where files dropped on a mirror window land, so it is clear they came from Zesp Connect.
+pub const DROP_DIR: &str = "/sdcard/Download/ZespConnect";
 
 // ---------------------------------------------------------------------------
 // Parsers
@@ -162,6 +166,63 @@ pub async fn push(tools: &ToolStatus, serial: &str, local: &str, remote: &str) -
     ensure_success(&output)
 }
 
+/// True when a dropped path should be installed rather than copied.
+pub fn is_apk(local: &str) -> bool {
+    Path::new(local)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("apk"))
+}
+
+/// The device path a dropped file or folder ends up at inside [`DROP_DIR`].
+fn drop_target(local: &str) -> Result<String> {
+    let name = Path::new(local)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| AppError::Invalid(format!("Not a file: {local}")))?;
+    let target = format!("{DROP_DIR}/{name}");
+    validate_remote_path(&target)?;
+    Ok(target)
+}
+
+/// A `file://` URI for the media scanner, percent-encoding everything but unreserved characters and `/`.
+fn file_uri(remote: &str) -> String {
+    let mut uri = String::from("file://");
+    for byte in remote.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'-' | b'_' | b'.' | b'~') {
+            uri.push(byte as char);
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    uri
+}
+
+/// Copy a dropped file or folder into [`DROP_DIR`], then ask the media scanner to index a file
+/// so photos and videos show in the gallery. The scan is best effort: the copy already succeeded.
+pub async fn send_to_drop_dir(tools: &ToolStatus, serial: &str, local: &str) -> Result<()> {
+    let target = drop_target(local)?;
+    create_dir(tools, serial, DROP_DIR).await?;
+
+    // Pushing into the folder (trailing slash) keeps a dropped folder's own name.
+    let adb_path = adb::adb_path(tools)?;
+    let args = vec![
+        "push".to_string(),
+        local.to_string(),
+        format!("{DROP_DIR}/"),
+    ];
+    let output = adb::run_scoped(&adb_path, serial, &args, TRANSFER_TIMEOUT).await?;
+    ensure_success(&output)?;
+
+    if Path::new(local).is_file() {
+        let command = format!(
+            "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d {}",
+            shell_quote(&file_uri(&target))
+        );
+        let _ = adb::shell(&adb_path, serial, &command, MUTATE_TIMEOUT).await;
+    }
+    Ok(())
+}
+
 pub async fn create_dir(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
     validate_remote_path(path)?;
     let adb_path = adb::adb_path(tools)?;
@@ -258,5 +319,35 @@ not a listing line
     fn joins_paths_without_doubling_the_separator() {
         assert_eq!(join_path("/sdcard", "DCIM"), "/sdcard/DCIM");
         assert_eq!(join_path("/sdcard/", "DCIM"), "/sdcard/DCIM");
+    }
+
+    #[test]
+    fn recognises_apks_by_extension() {
+        assert!(is_apk(r"C:\Downloads\app.apk"));
+        assert!(is_apk("/home/me/App.APK"));
+        assert!(!is_apk("/home/me/photo.jpg"));
+        assert!(!is_apk("/home/me/apk"));
+    }
+
+    #[test]
+    fn builds_drop_targets_from_the_file_name() {
+        assert_eq!(
+            drop_target("/home/me/My Photo.jpg").unwrap(),
+            "/sdcard/Download/ZespConnect/My Photo.jpg"
+        );
+        assert_eq!(
+            drop_target("/home/me/Holiday").unwrap(),
+            "/sdcard/Download/ZespConnect/Holiday"
+        );
+        assert!(drop_target("/").is_err());
+        assert!(drop_target("..").is_err());
+    }
+
+    #[test]
+    fn percent_encodes_scan_uris() {
+        assert_eq!(
+            file_uri("/sdcard/Download/ZespConnect/My Photo (1).jpg"),
+            "file:///sdcard/Download/ZespConnect/My%20Photo%20%281%29.jpg"
+        );
     }
 }

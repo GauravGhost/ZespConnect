@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { AppHeader } from "@/components/app/AppHeader";
 import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
+import { FileDropOverlay } from "@/components/app/FileDropOverlay";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
 import { ConsolePanel } from "@/features/console";
@@ -54,9 +55,10 @@ function Main() {
 
 export default function App() {
   useTrayNavigation();
+  const selectedSerial = useAppStore((s) => s.selectedSerial);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    <div className="relative flex h-screen w-screen overflow-hidden">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader />
@@ -64,6 +66,7 @@ export default function App() {
           <Main />
         </main>
       </div>
+      <FileDropOverlay serial={selectedSerial} />
     </div>
   );
 }
