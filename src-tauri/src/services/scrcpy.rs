@@ -285,6 +285,42 @@ pub async fn sleep_phone(adb_path: &str, serial: &str) {
     let _ = adb::shell(adb_path, serial, SLEEP_COMMAND, API_TIMEOUT).await;
 }
 
+/// Whether `cmd window user-rotation` reports auto-rotate (`free`) rather than `lock <n>`.
+fn rotation_is_free(output: &str) -> bool {
+    output.trim() == "free"
+}
+
+/// Hold the phone at its current rotation, so a recording keeps one picture size. True when
+/// auto-rotate was on and must be given back with [`unlock_rotation`].
+pub async fn lock_rotation(adb_path: &str, serial: &str) -> bool {
+    let Ok(state) = adb::shell(adb_path, serial, "cmd window user-rotation", API_TIMEOUT).await
+    else {
+        return false;
+    };
+    if !rotation_is_free(&state.stdout) {
+        return false;
+    }
+    // Without a rotation, `lock` keeps the current one.
+    adb::shell(
+        adb_path,
+        serial,
+        "cmd window user-rotation lock",
+        API_TIMEOUT,
+    )
+    .await
+    .is_ok_and(|output| output.success)
+}
+
+pub async fn unlock_rotation(adb_path: &str, serial: &str) {
+    let _ = adb::shell(
+        adb_path,
+        serial,
+        "cmd window user-rotation free",
+        API_TIMEOUT,
+    )
+    .await;
+}
+
 /// Build the argv for a desktop-mode window (decorated virtual display; phone screen off, asleep on close).
 pub fn desktop_args(serial: &str, window_title: &str, display: &str) -> Vec<String> {
     vec![
@@ -445,6 +481,19 @@ pub fn camera_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_user_rotation_state() {
+        assert!(rotation_is_free(
+            "free
+"
+        ));
+        assert!(!rotation_is_free(
+            "lock 0
+"
+        ));
+        assert!(!rotation_is_free(""));
+    }
 
     #[test]
     fn virtual_display_is_unsafe_on_android_12_to_13_and_unknown() {

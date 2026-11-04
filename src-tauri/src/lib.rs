@@ -170,6 +170,9 @@ pub fn run() {
             commands::capture::capture_default_dirs,
             commands::capture::capture_open_folder,
             commands::capture::save_screenshot,
+            commands::capture::start_recording,
+            commands::capture::stop_recording,
+            commands::capture::recording_state,
             commands::avd::list_avds,
             commands::avd::start_avd,
         ])
@@ -236,6 +239,15 @@ fn on_mirror_resized<R: tauri::Runtime>(window: &tauri::Window<R>, size: tauri::
     let Some(id) = session_window::session_id(window.label()) else {
         return;
     };
+    // A recording keeps its picture size; its window is not resizable meanwhile.
+    if window
+        .app_handle()
+        .state::<AppState>()
+        .recordings()
+        .contains(id)
+    {
+        return;
+    }
     match window.app_handle().state::<AppState>().session(id) {
         Some(session) if session.flex_display => {
             // A minimized window reports a meaningless size.

@@ -2,7 +2,7 @@
 //! window over an IPC channel, using a reverse adb tunnel (scrcpy's default) so the window
 //! belongs to Zesp Connect instead of being a separate scrcpy OS window.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, Emitter, Manager};
@@ -13,6 +13,7 @@ use tokio::sync::mpsc;
 
 use crate::error::{AppError, Result};
 use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
+use crate::runtime::recording::{VideoPacket, VideoTap};
 use crate::runtime::server_link::{self, ServerLink, Teardown};
 use crate::runtime::{mirror, phone_audio, session_window};
 use crate::services::{apps, control, scrcpy, scrcpy_server};
@@ -206,8 +207,9 @@ pub async fn start(
     // Seed the toggle before `watch_lock`, which confirms it on its first check.
     app.state::<AppState>().set_phone_screen(id, screen_was_on);
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
+    let (tap_tx, tap_rx) = tokio::sync::watch::channel(None);
     app.state::<AppState>()
-        .set_session(info.clone(), stop_tx, control_channel.clone());
+        .set_session(info.clone(), stop_tx, control_channel.clone(), tap_tx);
 
     // Tell every window the session is live so the app list can flip its button to "close".
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
@@ -245,7 +247,10 @@ pub async fn start(
         app.clone(),
         info.clone(),
         video,
-        channel,
+        VideoOut {
+            channel,
+            tap: tap_rx,
+        },
         child,
         stop_rx,
         teardown,
@@ -284,13 +289,13 @@ async fn supervise(
     app: AppHandle,
     info: MirrorSession,
     video: TcpStream,
-    channel: Channel<Response>,
+    out: VideoOut,
     mut child: Child,
     stop: tokio::sync::oneshot::Receiver<()>,
     teardown: Teardown,
 ) {
     let id = info.id;
-    stream_video(app.clone(), id, video, channel, &mut child, stop).await;
+    stream_video(app.clone(), id, video, out, &mut child, stop).await;
     // Read before `remove_session` forgets it.
     let phone_screen_on = app.state::<AppState>().phone_screen_on(id);
     let _ = child.kill().await;
@@ -457,15 +462,22 @@ async fn session_options(
     Ok((options, virtual_display))
 }
 
+/// Where a session's video goes: its window, and a recording while one runs.
+struct VideoOut {
+    channel: Channel<Response>,
+    tap: tokio::sync::watch::Receiver<Option<VideoTap>>,
+}
+
 /// Read the video socket and forward each access unit until the stream ends or the session stops.
 async fn stream_video(
     app: AppHandle,
     id: u64,
     video: TcpStream,
-    channel: Channel<Response>,
+    out: VideoOut,
     child: &mut Child,
     mut stop: tokio::sync::oneshot::Receiver<()>,
 ) {
+    let VideoOut { channel, tap } = out;
     let mut reader = BufReader::with_capacity(READ_BUFFER, video);
     let mut payload: Vec<u8> = Vec::new();
     // The first forwarded packet means capture is up, which unlocks the control messages sent early.
@@ -501,6 +513,15 @@ async fn stream_video(
                 .is_err()
             {
                 break;
+            }
+            if let Some(tap) = tap.borrow().as_ref() {
+                tap.offer(VideoPacket {
+                    arrived: Instant::now(),
+                    config,
+                    key,
+                    pts,
+                    data: payload.clone(),
+                });
             }
             if !announced {
                 announced = true;

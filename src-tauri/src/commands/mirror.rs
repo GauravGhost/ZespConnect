@@ -260,6 +260,11 @@ pub async fn mirror_action(
         ));
     }
 
+    // A recording keeps one picture size (see `runtime::recording`).
+    if action == MirrorAction::Rotate && state.recordings().contains(id) {
+        return Err(AppError::Invalid("Rotating is off while recording".into()));
+    }
+
     let channel = session_channel(&state, id)?;
     match action {
         MirrorAction::Back => {

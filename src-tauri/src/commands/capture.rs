@@ -6,6 +6,7 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::error::{AppError, Result};
+use crate::runtime::recording::{self, RecordingOutcome, RecordingTarget};
 use crate::services::capture::{self, CaptureDirs};
 use crate::services::files;
 use crate::state::AppState;
@@ -93,4 +94,27 @@ pub async fn save_screenshot(
         }
         _ => Err(AppError::Invalid("Unknown screenshot target".into())),
     }
+}
+
+/// Start recording mirror session `id`; returns when it started, in Unix milliseconds.
+#[tauri::command]
+pub async fn start_recording(
+    id: u64,
+    target: RecordingTarget,
+    dir: Option<String>,
+    stamp: String,
+    app: tauri::AppHandle,
+) -> Result<u64> {
+    recording::start(&app, id, target, dir, &stamp).await
+}
+
+#[tauri::command]
+pub async fn stop_recording(id: u64, app: tauri::AppHandle) -> Result<RecordingOutcome> {
+    recording::stop(&app, id).await
+}
+
+/// When session `id`'s recording started (Unix milliseconds), if it is recording.
+#[tauri::command]
+pub fn recording_state(id: u64, state: tauri::State<'_, AppState>) -> Option<u64> {
+    state.recordings().started_at(id)
 }

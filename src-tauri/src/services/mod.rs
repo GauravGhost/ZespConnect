@@ -11,6 +11,7 @@ pub mod fmp4;
 pub mod install;
 pub mod mdns;
 pub mod mirror_window;
+pub mod recorder;
 pub mod scrcpy;
 pub mod scrcpy_server;
 pub mod toggles;

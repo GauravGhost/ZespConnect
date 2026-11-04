@@ -8,6 +8,7 @@ use crate::models::{
     ToolStatus,
 };
 use crate::runtime::mirror_session::ControlChannel;
+use crate::runtime::recording::{Recordings, VideoTap};
 use crate::util;
 
 /// A tracked scrcpy window plus the channel that asks its watcher to stop it.
@@ -22,6 +23,8 @@ pub struct SessionHandle {
     pub info: MirrorSession,
     pub stop: tokio::sync::oneshot::Sender<()>,
     pub control: ControlChannel,
+    /// Where the video read loop copies packets while the session records.
+    pub video_tap: tokio::sync::watch::Sender<Option<VideoTap>>,
 }
 
 /// One background link per device (phone audio, clipboard sync), each stopped through its sender.
@@ -102,6 +105,7 @@ pub struct AppState {
     selected: RwLock<Option<String>>,
     phone_audio: DeviceLinks,
     clipboard_sync: DeviceLinks,
+    recordings: Recordings,
 }
 
 impl AppState {
@@ -128,6 +132,7 @@ impl AppState {
             selected: RwLock::new(selected),
             phone_audio: DeviceLinks::default(),
             clipboard_sync: DeviceLinks::default(),
+            recordings: Recordings::default(),
         }
     }
 
@@ -322,6 +327,7 @@ impl AppState {
         info: MirrorSession,
         stop: tokio::sync::oneshot::Sender<()>,
         control: ControlChannel,
+        video_tap: tokio::sync::watch::Sender<Option<VideoTap>>,
     ) {
         if let Ok(mut guard) = self.sessions.write() {
             guard.insert(
@@ -330,9 +336,27 @@ impl AppState {
                     info,
                     stop,
                     control,
+                    video_tap,
                 },
             );
         }
+    }
+
+    /// Start or stop copying a session's video; false when the session is gone.
+    pub fn set_video_tap(&self, id: u64, tap: Option<VideoTap>) -> bool {
+        self.sessions
+            .read()
+            .ok()
+            .and_then(|guard| {
+                guard
+                    .get(&id)
+                    .map(|handle| handle.video_tap.send_replace(tap))
+            })
+            .is_some()
+    }
+
+    pub fn recordings(&self) -> &Recordings {
+        &self.recordings
     }
 
     pub fn session_control(&self, id: u64) -> Option<ControlChannel> {

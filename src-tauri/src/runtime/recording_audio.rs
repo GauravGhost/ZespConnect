@@ -35,9 +35,23 @@ pub struct RecordingAudio {
     stop: oneshot::Sender<()>,
 }
 
+/// Ends a recording's sound stream.
+pub struct AudioStop(oneshot::Sender<()>);
+
+impl AudioStop {
+    pub fn stop(self) {
+        let _ = self.0.send(());
+    }
+}
+
 impl RecordingAudio {
     pub fn stop(self) {
         let _ = self.stop.send(());
+    }
+
+    /// The packets and the stop handle, for a reader that owns them separately.
+    pub fn split(self) -> (mpsc::Receiver<AudioPacket>, AudioStop) {
+        (self.packets, AudioStop(self.stop))
     }
 }
 
