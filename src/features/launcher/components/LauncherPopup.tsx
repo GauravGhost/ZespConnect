@@ -7,6 +7,7 @@ import { ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { AppInfo, LauncherTarget } from "@/types";
 import { useLauncher } from "../hooks";
+import appIcon from "../../../../app-icon.svg";
 
 /** The Spotlight-style popup: search the active phone's apps and open one in its own window. */
 export function LauncherPopup() {
@@ -82,9 +83,7 @@ function LauncherFooter() {
   return (
     <div className="text-muted-foreground flex items-center gap-4 border-t px-4 py-2.5 text-xs">
       <span className="text-foreground flex items-center gap-2 font-medium">
-        <span className="bg-primary-container text-on-primary-container flex size-5 items-center justify-center rounded-md">
-          <Smartphone className="size-3" />
-        </span>
+        <img src={appIcon} alt="" className="size-5" />
         Zesp Connect
       </span>
       <span className="ml-auto flex items-center gap-3">
