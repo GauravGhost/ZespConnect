@@ -8,6 +8,7 @@ import { useBackendEvents } from "@/hooks/useBackendEvents";
 import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
 import type { MirrorSession } from "@/types";
+import { isBareEnter, isChatApp, SEND_STROKES } from "./chatEnter";
 import { H264Decoder } from "./decoder";
 import { androidKeycode, androidMetaState, isTextKey } from "./keymap";
 import { mirrorSessionId } from "./session";
@@ -246,18 +247,33 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
   };
 }
 
-/** Forward the keyboard while `enabled`: printable characters as text, the rest as keycodes. */
+/**
+ * Forward the keyboard while `enabled`: printable characters as text, the rest as keycodes.
+ * In a chat app's window a bare Enter sends the message (see `chatEnter.ts`).
+ */
 export function useKeyboardForwarding(
   enabled: boolean,
+  appPackage: string | null,
   enqueue: (task: (id: number) => Promise<void>) => void,
 ) {
   useEffect(() => {
     if (!enabled) return;
+    const enterSends = isChatApp(appPackage);
     const held = new Map<string, number>();
     const typed = new Set<string>();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing) return;
+      if (enterSends && isBareEnter(event)) {
+        event.preventDefault();
+        typed.add(event.code);
+        // Holding Enter must not send the next message too.
+        if (event.repeat) return;
+        for (const { action, keycode, meta } of SEND_STROKES) {
+          enqueue((id) => ipc.mirror.key(id, action, keycode, 0, meta));
+        }
+        return;
+      }
       if (isTextKey(event)) {
         event.preventDefault();
         typed.add(event.code);
@@ -302,5 +318,5 @@ export function useKeyboardForwarding(
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", releaseAll);
     };
-  }, [enabled, enqueue]);
+  }, [enabled, appPackage, enqueue]);
 }

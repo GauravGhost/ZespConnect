@@ -64,6 +64,8 @@ const META_ALT_ON = 0x2;
 const META_ALT_LEFT_ON = 0x10;
 const META_CTRL_ON = 0x1000;
 const META_CTRL_LEFT_ON = 0x2000;
+/** The meta state of a left Ctrl press. */
+export const META_CTRL_LEFT = META_CTRL_ON | META_CTRL_LEFT_ON;
 const META_META_ON = 0x10000;
 const META_META_LEFT_ON = 0x20000;
 const META_CAPS_LOCK_ON = 0x100000;
@@ -78,7 +80,7 @@ export function androidMetaState(event: KeyboardEvent): number {
   let meta = 0;
   if (event.shiftKey) meta |= META_SHIFT_ON | META_SHIFT_LEFT_ON;
   if (event.altKey) meta |= META_ALT_ON | META_ALT_LEFT_ON;
-  if (ctrlHeld(event)) meta |= META_CTRL_ON | META_CTRL_LEFT_ON;
+  if (ctrlHeld(event)) meta |= META_CTRL_LEFT;
   if (!IS_MAC && event.metaKey) meta |= META_META_ON | META_META_LEFT_ON;
   if (event.getModifierState("CapsLock")) meta |= META_CAPS_LOCK_ON;
   return meta;

@@ -119,7 +119,7 @@ export function MirrorViewer() {
     enqueue((id) => ipc.mirror.scroll(id, wheel.x, wheel.y, width, height, hscroll, vscroll));
   }, [enqueue]);
 
-  useKeyboardForwarding(interactive, enqueue);
+  useKeyboardForwarding(interactive, session?.package ?? null, enqueue);
 
   const pointFor = useCallback((event: { clientX: number; clientY: number }) => {
     const canvas = canvasRef.current;
