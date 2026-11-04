@@ -16,7 +16,9 @@ pub use console::{LogLine, LogStream, ShellResult};
 pub use controls::{DeviceInfo, QuickState, RebootMode, DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME};
 pub use device::{Device, DeviceState, DeviceTransport};
 pub use files::{FileEntry, SendOutcome};
-pub use launcher::{LauncherSettings, LauncherStatus, LauncherTarget, DEFAULT_SHORTCUT};
+pub use launcher::{
+    LauncherAppsChanged, LauncherSettings, LauncherStatus, LauncherTarget, DEFAULT_SHORTCUT,
+};
 pub use media::{MediaKey, NowPlaying};
 pub use mirror::{
     KeyAction, MirrorAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession,

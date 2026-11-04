@@ -6,7 +6,8 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::error::{AppError, Result};
-use crate::models::{LauncherSettings, LauncherStatus};
+use crate::models::{AppInfo, LauncherAppsChanged, LauncherSettings, LauncherStatus};
+use crate::services::{apps, launcher};
 use crate::state::AppState;
 use crate::util;
 
@@ -14,6 +15,7 @@ use crate::util;
 pub const WINDOW: &str = "launcher";
 /// Tells the popup to reset and reload, since it is reused rather than recreated.
 const SHOWN_EVENT: &str = "launcher:shown";
+const APPS_CHANGED_EVENT: &str = "launcher:apps-changed";
 const WIDTH: f64 = 560.0;
 const HEIGHT: f64 = 420.0;
 
@@ -77,6 +79,37 @@ fn register(app: &AppHandle, settings: &LauncherSettings) -> Result<()> {
     shortcuts
         .register(parse_shortcut(&settings.shortcut)?)
         .map_err(|_| AppError::Invalid(format!("{} is in use by another app", settings.shortcut)))
+}
+
+/// The apps to offer for `serial`, from the cache when there is one. The first call per phone each
+/// run also re-reads the phone in the background, so newly installed apps show up.
+pub async fn apps(app: &AppHandle, serial: &str) -> Result<Vec<AppInfo>> {
+    let state = app.state::<AppState>();
+    let data_dir = state.app_data_dir();
+    let first_this_run = state.claim_launcher_refresh(serial);
+
+    let Some(cached) = apps::cached(&data_dir, serial) else {
+        let listed = apps::list(&state.tools(), serial, true, false, &data_dir).await?;
+        return Ok(launcher::launchable(listed.apps));
+    };
+
+    if first_this_run {
+        let app = app.clone();
+        let serial = serial.to_string();
+        tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            // A failed refresh leaves the cached list showing, which is still correct enough.
+            if let Ok(listed) = apps::list(&state.tools(), &serial, true, true, &data_dir).await {
+                let apps = launcher::launchable(listed.apps);
+                let _ = app.emit_to(
+                    WINDOW,
+                    APPS_CHANGED_EVENT,
+                    LauncherAppsChanged { serial, apps },
+                );
+            }
+        });
+    }
+    Ok(launcher::launchable(cached))
 }
 
 /// Show the popup, or hide it when it is already showing.

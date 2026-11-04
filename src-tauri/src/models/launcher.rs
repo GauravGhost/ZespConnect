@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::models::AppInfo;
+
 /// Cmd+Shift+Space on macOS, Ctrl+Shift+Space elsewhere.
 pub const DEFAULT_SHORTCUT: &str = "CommandOrControl+Shift+Space";
 
@@ -37,4 +39,11 @@ pub enum LauncherTarget {
     Offline { name: String },
     PickInTray,
     NoPhone,
+}
+
+/// A phone's refreshed app list, sent to the popup as `launcher:apps-changed`.
+#[derive(Debug, Clone, Serialize)]
+pub struct LauncherAppsChanged {
+    pub serial: String,
+    pub apps: Vec<AppInfo>,
 }

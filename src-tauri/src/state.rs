@@ -110,6 +110,7 @@ pub struct AppState {
     recordings: Recordings,
     launcher_settings: RwLock<LauncherSettings>,
     launcher_registered: AtomicBool,
+    launcher_refreshed: RwLock<HashSet<String>>,
 }
 
 impl AppState {
@@ -140,6 +141,7 @@ impl AppState {
             recordings: Recordings::default(),
             launcher_settings: RwLock::new(LauncherSettings::default()),
             launcher_registered: AtomicBool::new(false),
+            launcher_refreshed: RwLock::new(HashSet::new()),
         }
     }
 
@@ -432,6 +434,14 @@ impl AppState {
         self.launcher_registered.store(registered, Ordering::SeqCst);
     }
 
+    /// True only the first time per serial this run, so the launcher re-reads a phone's apps once.
+    pub fn claim_launcher_refresh(&self, serial: &str) -> bool {
+        self.launcher_refreshed
+            .write()
+            .map(|mut guard| guard.insert(serial.to_string()))
+            .unwrap_or(false)
+    }
+
     pub fn launcher_file(&self) -> PathBuf {
         self.app_data_dir.join("launcher.json")
     }
@@ -584,6 +594,14 @@ fn load_selected(app_data_dir: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn claim_launcher_refresh_is_true_once_per_serial() {
+        let state = AppState::new(std::env::temp_dir());
+        assert!(state.claim_launcher_refresh("a"));
+        assert!(!state.claim_launcher_refresh("a"));
+        assert!(state.claim_launcher_refresh("b"));
+    }
 
     #[test]
     fn a_device_holds_one_link_and_a_stale_finish_keeps_its_replacement() {

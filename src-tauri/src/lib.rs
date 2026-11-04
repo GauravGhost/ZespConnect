@@ -193,6 +193,7 @@ pub fn run() {
             commands::launcher::get_launcher_status,
             commands::launcher::set_launcher_settings,
             commands::launcher::launcher_target,
+            commands::launcher::launcher_apps,
             commands::launcher::hide_launcher,
             commands::capture::capture_default_dirs,
             commands::capture::capture_open_folder,
