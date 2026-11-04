@@ -31,7 +31,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { id: "mirror", label: "Mirror", icon: Smartphone, description: "Screen and camera windows" },
   { id: "wireless", label: "Wireless", icon: Wifi, description: "Pair and connect over Wi-Fi" },
   { id: "files", label: "Files", icon: FolderOpen, description: "Browse device storage" },
-  { id: "console", label: "Console", icon: Terminal, description: "Shell, logcat and clipboard" },
+  { id: "console", label: "Console", icon: Terminal, description: "Shell and logcat" },
   {
     id: "emulators",
     label: "Emulators",

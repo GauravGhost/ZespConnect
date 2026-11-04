@@ -158,8 +158,10 @@ pub fn run() {
             commands::console::shell_exec,
             commands::console::open_logcat,
             commands::console::close_logcat,
-            commands::clipboard::clipboard_send,
-            commands::clipboard::clipboard_read,
+            commands::clipboard::list_clipboard_sync,
+            commands::clipboard::set_clipboard_sync,
+            commands::audio::list_phone_audio,
+            commands::audio::set_phone_audio,
             commands::avd::list_avds,
             commands::avd::start_avd,
         ])

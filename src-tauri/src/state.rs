@@ -23,6 +23,59 @@ pub struct SessionHandle {
     pub control: ControlChannel,
 }
 
+/// One background link per device (phone audio, clipboard sync), each stopped through its sender.
+/// Every link gets an id so a link that finishes late cannot unregister its replacement.
+#[derive(Default)]
+pub struct DeviceLinks {
+    next_id: AtomicU64,
+    links: RwLock<HashMap<String, (u64, tokio::sync::oneshot::Sender<()>)>>,
+}
+
+impl DeviceLinks {
+    pub fn serials(&self) -> Vec<String> {
+        self.links
+            .read()
+            .map(|guard| guard.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn contains(&self, serial: &str) -> bool {
+        self.links
+            .read()
+            .map(|guard| guard.contains_key(serial))
+            .unwrap_or(false)
+    }
+
+    /// Register a running link and return its id, or `None` when the device already has one.
+    pub fn insert(&self, serial: &str, stop: tokio::sync::oneshot::Sender<()>) -> Option<u64> {
+        let mut guard = self.links.write().ok()?;
+        if guard.contains_key(serial) {
+            return None;
+        }
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        guard.insert(serial.to_string(), (id, stop));
+        Some(id)
+    }
+
+    /// Ask a device's link to stop; its task unregisters it once torn down.
+    pub fn stop(&self, serial: &str) {
+        if let Ok(mut guard) = self.links.write() {
+            if let Some((_, stop)) = guard.remove(serial) {
+                let _ = stop.send(());
+            }
+        }
+    }
+
+    /// Forget a link that has ended, unless it was already replaced.
+    pub fn finished(&self, serial: &str, id: u64) {
+        if let Ok(mut guard) = self.links.write() {
+            if guard.get(serial).is_some_and(|(current, _)| *current == id) {
+                guard.remove(serial);
+            }
+        }
+    }
+}
+
 /// Shared, process-wide state. Guards are only ever held for short,
 /// synchronous critical sections (never across `.await`).
 pub struct AppState {
@@ -45,6 +98,8 @@ pub struct AppState {
     pairing: AtomicBool,
     pairing_cancel: RwLock<Option<tokio::sync::oneshot::Sender<()>>>,
     selected: RwLock<Option<String>>,
+    phone_audio: DeviceLinks,
+    clipboard_sync: DeviceLinks,
 }
 
 impl AppState {
@@ -68,7 +123,19 @@ impl AppState {
             pairing: AtomicBool::new(false),
             pairing_cancel: RwLock::new(None),
             selected: RwLock::new(selected),
+            phone_audio: DeviceLinks::default(),
+            clipboard_sync: DeviceLinks::default(),
         }
+    }
+
+    /// Devices whose sound plays on the computer.
+    pub fn phone_audio(&self) -> &DeviceLinks {
+        &self.phone_audio
+    }
+
+    /// Devices whose clipboard is kept in sync with the computer's.
+    pub fn clipboard_sync(&self) -> &DeviceLinks {
+        &self.clipboard_sync
     }
 
     pub fn app_data_dir(&self) -> PathBuf {
@@ -414,4 +481,28 @@ fn load_selected(app_data_dir: &Path) -> Option<String> {
         .ok()
         .flatten()
         .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_device_holds_one_link_and_a_stale_finish_keeps_its_replacement() {
+        let links = DeviceLinks::default();
+        let (first, first_rx) = tokio::sync::oneshot::channel();
+        let id = links.insert("phone", first).unwrap();
+        let (duplicate, _) = tokio::sync::oneshot::channel();
+        assert!(links.insert("phone", duplicate).is_none());
+
+        links.stop("phone");
+        assert!(first_rx.blocking_recv().is_ok());
+        let (second, _) = tokio::sync::oneshot::channel();
+        let replacement = links.insert("phone", second).unwrap();
+
+        links.finished("phone", id);
+        assert!(links.contains("phone"));
+        links.finished("phone", replacement);
+        assert!(!links.contains("phone"));
+    }
 }

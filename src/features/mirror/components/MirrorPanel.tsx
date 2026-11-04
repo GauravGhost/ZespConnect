@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { MirrorOptions } from "@/types";
 import { MirrorOptionsForm } from "./MirrorOptionsForm";
+import { PhoneSoundCard } from "./PhoneSoundCard";
 
 const MODES = [
   { id: "screen", label: "Screen", hint: "Mirror the display in a window", icon: Monitor },
@@ -148,6 +149,8 @@ export function MirrorPanel() {
           </Button>
         </div>
       </Card>
+
+      {serial ? <PhoneSoundCard serial={serial} /> : null}
 
       <Card className="gap-3 py-4">
         <CardHeader className="px-5">

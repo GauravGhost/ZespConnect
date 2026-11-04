@@ -1,4 +1,5 @@
 pub mod apps;
+pub mod audio;
 pub mod avd;
 pub mod clipboard;
 pub mod console;

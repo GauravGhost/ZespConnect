@@ -49,8 +49,9 @@ futures-util = "0.3"
 zip = "2"
 tar = "0.4"
 flate2 = "1"
-# Host clipboard access for the console's clipboard panel (text only).
+# The computer's clipboard for two-way clipboard sync (text only).
 arboard = { version = "3", default-features = false }
+cpal = "0.18"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

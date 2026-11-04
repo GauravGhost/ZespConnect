@@ -1,28 +1,25 @@
-//! Clipboard commands (host ⇄ device, via the AdbClipboard helper app).
+//! Two-way clipboard sync with a device, through scrcpy.
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::error::Result;
-use crate::services::clipboard as clipboard_service;
+use crate::runtime::clipboard_sync;
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
+/// Devices whose clipboard is kept in sync with the computer's.
 #[tauri::command]
-pub async fn clipboard_send(
-    serial: String,
-    text: String,
-    state: State<'_, AppState>,
-) -> Result<()> {
-    validate_serial(&serial)?;
-    let tools = state.tools();
-    clipboard_service::send(&tools, &serial, &text).await
+pub fn list_clipboard_sync(state: State<'_, AppState>) -> Vec<String> {
+    state.clipboard_sync().serials()
 }
 
 #[tauri::command]
-pub async fn clipboard_read(serial: String, state: State<'_, AppState>) -> Result<String> {
+pub async fn set_clipboard_sync(serial: String, on: bool, app: AppHandle) -> Result<()> {
     validate_serial(&serial)?;
-    let tools = state.tools();
-    let text = clipboard_service::read(&tools, &serial).await?;
-    clipboard_service::copy_to_host(&text)?;
-    Ok(text)
+    if on {
+        clipboard_sync::start(&app, &serial).await
+    } else {
+        clipboard_sync::stop(&app, &serial);
+        Ok(())
+    }
 }

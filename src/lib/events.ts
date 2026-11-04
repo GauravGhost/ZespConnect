@@ -11,6 +11,8 @@ export interface BackendEvents {
   "mirror:session:exited": MirrorSession;
   /** A desktop session's phone was locked or unlocked (the desktop only shows unlocked). */
   "mirror:session:locked": { id: number; locked: boolean; phoneScreen: boolean };
+  "phone-audio:changed": { serial: string; onComputer: boolean };
+  "clipboard-sync:changed": { serial: string; on: boolean };
   "install:progress": { serial: string; package: string; progress: number; message: string };
   "tools:install:progress": InstallProgress;
   "tools:install:done": InstallDone;
@@ -36,6 +38,10 @@ export const events = {
     onBackendEvent("mirror:session:exited", handler),
   mirrorSessionLocked: (handler: EventCallback<BackendEvents["mirror:session:locked"]>) =>
     onBackendEvent("mirror:session:locked", handler),
+  phoneAudioChanged: (handler: EventCallback<BackendEvents["phone-audio:changed"]>) =>
+    onBackendEvent("phone-audio:changed", handler),
+  clipboardSyncChanged: (handler: EventCallback<BackendEvents["clipboard-sync:changed"]>) =>
+    onBackendEvent("clipboard-sync:changed", handler),
   installProgress: (handler: EventCallback<BackendEvents["install:progress"]>) =>
     onBackendEvent("install:progress", handler),
   toolsInstallProgress: (handler: EventCallback<InstallProgress>) =>

@@ -42,6 +42,7 @@ export function MirrorViewer() {
     locked,
     phoneScreen,
     setPhoneScreen,
+    serial,
   } = useMirrorStream(canvasRef);
 
   useEffect(
@@ -189,9 +190,13 @@ export function MirrorViewer() {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-neutral-950">
       {desktop ? (
-        <DesktopTitleBar phoneScreen={phoneScreen} onTogglePhoneScreen={togglePhoneScreen} />
+        <DesktopTitleBar
+          serial={serial}
+          phoneScreen={phoneScreen}
+          onTogglePhoneScreen={togglePhoneScreen}
+        />
       ) : (
-        <MirrorTitleBar />
+        <MirrorTitleBar serial={serial} />
       )}
       {/* A phone window keeps a bottom gap and rounded corners; a desktop fills the
           area under its title bar. Sized by `mirror_window::vertical_inset`. */}

@@ -2,22 +2,21 @@
 //! window over an IPC channel, using a reverse adb tunnel (scrcpy's default) so the window
 //! belongs to Zesp Connect instead of being a separate scrcpy OS window.
 
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::sync::mpsc;
 
 use crate::error::{AppError, Result};
 use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
-use crate::runtime::mirror;
-use crate::services::{adb, apps, control, scrcpy, scrcpy_server};
+use crate::runtime::server_link::{self, ServerLink, Teardown};
+use crate::runtime::{mirror, phone_audio};
+use crate::services::{apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
-use crate::util::{process, validation};
 
 const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
@@ -35,16 +34,12 @@ struct LockState {
     locked: bool,
     phone_screen: bool,
 }
-// How long to wait for the server to connect back before giving up.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
-// How often to look for a connection while also watching for a dead server.
-const ACCEPT_POLL: Duration = Duration::from_millis(200);
 const READ_BUFFER: usize = 64 * 1024;
 // A sane upper bound on a single video packet (guards against a corrupt header).
 const MAX_PACKET: usize = 32 * 1024 * 1024;
 
 /// The 12-byte per-packet frame header: 3 flag bits + 61-bit PTS + `u32` size.
-const FRAME_HEADER: usize = 12;
+pub(crate) const FRAME_HEADER: usize = 12;
 const SESSION_FLAG: u64 = 0x8000_0000_0000_0000;
 const CONFIG_FLAG: u64 = 0x4000_0000_0000_0000;
 const KEY_FLAG: u64 = 0x2000_0000_0000_0000;
@@ -52,7 +47,7 @@ const PTS_MASK: u64 = 0x1FFF_FFFF_FFFF_FFFF;
 
 // What one header on the video socket describes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Packet {
+pub(crate) enum Packet {
     Session,
     Media {
         config: bool,
@@ -62,7 +57,7 @@ enum Packet {
     },
 }
 
-fn parse_header(bytes: &[u8; FRAME_HEADER]) -> Packet {
+pub(crate) fn parse_header(bytes: &[u8; FRAME_HEADER]) -> Packet {
     let flags = u64::from_be_bytes(bytes[0..8].try_into().unwrap_or([0u8; 8]));
     if flags & SESSION_FLAG != 0 {
         return Packet::Session;
@@ -126,22 +121,9 @@ pub async fn start(
     channel: Channel<Response>,
 ) -> Result<MirrorSession> {
     let tools = app.state::<AppState>().tools();
-    let adb_bin = adb::adb_path(&tools)?;
-    let scrcpy_bin = scrcpy::scrcpy_path(&tools)?;
-
-    let version = tools
-        .scrcpy
-        .version
-        .clone()
-        .filter(|value| scrcpy_server::supported(Some(value)))
-        .ok_or_else(|| {
-            AppError::Other("This scrcpy version cannot be embedded; using a window instead".into())
-        })?;
-
-    let server = scrcpy_server::server_path(&scrcpy_bin)?;
+    let server = server_link::resolve(app)?;
+    let adb_bin = server.adb_bin.clone();
     let scid = scrcpy_server::scid();
-    let tunnel = scrcpy_server::tunnel_name(&scid);
-    let remote = scrcpy_server::remote_jar(&scid);
 
     let (options, virtual_display) = session_options(&adb_bin, &spec).await?;
     let kind = options.kind;
@@ -171,40 +153,17 @@ pub async fn start(
         None
     };
 
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .map_err(|error| AppError::Io(error.to_string()))?;
-    let port = listener
-        .local_addr()
-        .map_err(|error| AppError::Io(error.to_string()))?
-        .port();
-
-    let log_path = mirror::log_dir(app)?.join(format!("{scid}.log"));
-    let args = scrcpy_server::launch_args(&spec.serial, &remote, &version, &scid, &options);
-
-    adb::push(
-        &adb_bin,
-        &spec.serial,
-        &server.to_string_lossy(),
-        &remote,
-        adb::LONG_TIMEOUT,
-    )
-    .await?;
-    adb::reverse(&adb_bin, &spec.serial, &tunnel, port, adb::DEFAULT_TIMEOUT).await?;
-
-    let mut child = process::spawn_captured(&adb_bin, &args, &log_path, &[])?;
-
-    // The server opens video, then (audio), then control; accept both or it blocks before streaming.
-    let streams = match accept_streams(&listener, &mut child, &log_path).await {
-        Ok(streams) => streams,
-        Err(error) => {
-            let _ = child.kill().await;
-            teardown(&adb_bin, &spec.serial, &tunnel, &remote).await;
-            // Keep the log: startup failures are exactly when it matters.
-            return Err(error);
-        }
+    let options = scrcpy_server::options_args(&server.version, &scid, &options);
+    // The server opens video, then control; both must be accepted or it blocks before streaming.
+    let ServerLink {
+        child,
+        streams,
+        teardown,
+    } = server_link::open(app, &server, &spec.serial, &scid, options, 2).await?;
+    let mut streams = streams.into_iter();
+    let (Some(video), Some(control_stream)) = (streams.next(), streams.next()) else {
+        return Err(AppError::Other("The scrcpy server did not connect".into()));
     };
-    let (video, control_stream) = streams;
     let control_channel = spawn_control(control_stream);
 
     let info = MirrorSession {
@@ -225,6 +184,15 @@ pub async fn start(
 
     // Tell every window the session is live so the app list can flip its button to "close".
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
+
+    // The window's Audio option routes the phone's sound here; it stays a per-device choice after.
+    if spec.options.audio {
+        let handle = app.clone();
+        let serial = spec.serial.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = phone_audio::start(&handle, &serial).await;
+        });
+    }
 
     if let Some(message) = start_app {
         tauri::async_runtime::spawn(resend_start_app(
@@ -253,12 +221,7 @@ pub async fn start(
         channel,
         child,
         stop_rx,
-        Cleanup {
-            adb_bin,
-            tunnel,
-            remote,
-            log_path,
-        },
+        teardown,
     ));
 
     Ok(info)
@@ -277,14 +240,6 @@ async fn resend_start_app(app: AppHandle, id: u64, control: ControlChannel, mess
     }
 }
 
-/// What a finished session leaves behind on the device and on disk.
-struct Cleanup {
-    adb_bin: String,
-    tunnel: String,
-    remote: String,
-    log_path: PathBuf,
-}
-
 /// Relay the video until the session ends, then tear it down, leave the phone as the user had it,
 /// and announce the exit.
 async fn supervise(
@@ -294,25 +249,18 @@ async fn supervise(
     channel: Channel<Response>,
     mut child: Child,
     stop: tokio::sync::oneshot::Receiver<()>,
-    cleanup: Cleanup,
+    teardown: Teardown,
 ) {
     let id = info.id;
     stream_video(app.clone(), id, video, channel, &mut child, stop).await;
     // Read before `remove_session` forgets it.
     let phone_screen_on = app.state::<AppState>().phone_screen_on(id);
     let _ = child.kill().await;
-    teardown(
-        &cleanup.adb_bin,
-        &info.serial,
-        &cleanup.tunnel,
-        &cleanup.remote,
-    )
-    .await;
+    teardown.run().await;
     if info.kind == MirrorKind::Desktop {
-        finish_desktop(&cleanup.adb_bin, &info.serial, phone_screen_on).await;
+        finish_desktop(teardown.adb_bin(), &info.serial, phone_screen_on).await;
     }
     app.state::<AppState>().remove_session(id);
-    let _ = std::fs::remove_file(&cleanup.log_path);
     let _ = app.emit(EVENT_SESSION_EXITED, &info);
 }
 
@@ -470,44 +418,6 @@ async fn session_options(
     Ok((options, virtual_display))
 }
 
-/// Accept the video and control connections, watching the server so a bad version fails fast.
-async fn accept_streams(
-    listener: &TcpListener,
-    child: &mut Child,
-    log_path: &Path,
-) -> Result<(TcpStream, TcpStream)> {
-    let video = accept(listener, child, log_path).await?;
-    let control = accept(listener, child, log_path).await?;
-    Ok((video, control))
-}
-
-async fn accept(listener: &TcpListener, child: &mut Child, log_path: &Path) -> Result<TcpStream> {
-    let deadline = tokio::time::Instant::now() + CONNECT_TIMEOUT;
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Err(AppError::CommandFailed(failure_message(
-                log_path,
-                &format!("scrcpy server exited ({status})"),
-            )));
-        }
-
-        match tokio::time::timeout(ACCEPT_POLL, listener.accept()).await {
-            Ok(Ok((stream, _))) => {
-                let _ = stream.set_nodelay(true);
-                return Ok(stream);
-            }
-            Ok(Err(error)) => return Err(AppError::Io(error.to_string())),
-            Err(_) if tokio::time::Instant::now() >= deadline => {
-                return Err(AppError::CommandFailed(failure_message(
-                    log_path,
-                    "Timed out waiting for the scrcpy server",
-                )));
-            }
-            Err(_) => {}
-        }
-    }
-}
-
 /// Read the video socket and forward each access unit until the stream ends or the session stops.
 async fn stream_video(
     app: AppHandle,
@@ -564,22 +474,6 @@ async fn stream_video(
         _ = reading => {}
         _ = &mut stop => {}
         _ = child.wait() => {}
-    }
-}
-
-/// Remove the reverse tunnel and the pushed server from the device.
-async fn teardown(adb_bin: &str, serial: &str, tunnel: &str, remote: &str) {
-    let _ = adb::reverse_remove(adb_bin, serial, tunnel, adb::DEFAULT_TIMEOUT).await;
-    let command = format!("rm -f {}", validation::shell_quote(remote));
-    let _ = adb::shell(adb_bin, serial, &command, adb::DEFAULT_TIMEOUT).await;
-}
-
-fn failure_message(log_path: &Path, fallback: &str) -> String {
-    let message = process::read_log_error(log_path);
-    if message.is_empty() {
-        fallback.to_string()
-    } else {
-        message
     }
 }
 

@@ -4,12 +4,15 @@ import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useWindowFlag, useWindowTitle } from "../hooks";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
+import { PhoneSoundButton } from "./PhoneSoundButton";
 import { WindowControls } from "./WindowControls";
 
 export function DesktopTitleBar({
+  serial,
   phoneScreen,
   onTogglePhoneScreen,
 }: Readonly<{
+  serial: string | null;
   phoneScreen: boolean;
   onTogglePhoneScreen: () => void;
 }>) {
@@ -51,6 +54,7 @@ export function DesktopTitleBar({
       >
         <Smartphone className="size-3.5" />
       </button>
+      {serial ? <PhoneSoundButton serial={serial} className="h-5 w-6" /> : null}
       <AlwaysOnTopButton className="h-5 w-6" />
       {IS_MAC ? null : <WindowControls maximizable />}
     </div>

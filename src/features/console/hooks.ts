@@ -17,22 +17,6 @@ export function useShellExec(serial: string | null) {
   });
 }
 
-export function useClipboardSend(serial: string | null) {
-  return useMutation({
-    mutationFn: (text: string) => ipc.clipboard.send(serial as string, text),
-    onSuccess: () => toast.success("Sent to the device clipboard"),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-}
-
-export function useClipboardRead(serial: string | null) {
-  return useMutation({
-    mutationFn: () => ipc.clipboard.read(serial as string),
-    onSuccess: () => toast.success("Device clipboard copied to your computer"),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-}
-
 export interface LogcatController {
   lines: LogLine[];
   streaming: boolean;

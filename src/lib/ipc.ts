@@ -170,8 +170,16 @@ export const ipc = {
   },
 
   clipboard: {
-    send: (serial: string, text: string) => invoke<void>("clipboard_send", { serial, text }),
-    read: (serial: string) => invoke<string>("clipboard_read", { serial }),
+    /** Devices whose clipboard syncs with the computer's both ways. */
+    syncing: () => invoke<string[]>("list_clipboard_sync"),
+    setSync: (serial: string, on: boolean) => invoke<void>("set_clipboard_sync", { serial, on }),
+  },
+
+  audio: {
+    /** Devices whose sound plays on the computer (the phone's own speaker is silent meanwhile). */
+    onComputer: () => invoke<string[]>("list_phone_audio"),
+    setOnComputer: (serial: string, onComputer: boolean) =>
+      invoke<void>("set_phone_audio", { serial, onComputer }),
   },
 
   avd: {

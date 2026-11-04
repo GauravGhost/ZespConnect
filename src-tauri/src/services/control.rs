@@ -8,6 +8,7 @@ const TYPE_INJECT_KEYCODE: u8 = 0;
 const TYPE_INJECT_TEXT: u8 = 1;
 const TYPE_INJECT_TOUCH_EVENT: u8 = 2;
 const TYPE_INJECT_SCROLL_EVENT: u8 = 3;
+const TYPE_SET_CLIPBOARD: u8 = 9;
 const TYPE_SET_DISPLAY_POWER: u8 = 10;
 const TYPE_START_APP: u8 = 16;
 const TYPE_RESET_VIDEO: u8 = 17;
@@ -24,6 +25,15 @@ const KEY_ACTION_UP: u8 = 1;
 
 /// The server rejects longer `INJECT_TEXT` payloads (`INJECT_TEXT_MAX_LENGTH`).
 pub const INJECT_TEXT_MAX_BYTES: usize = 300;
+
+/// The server rejects longer `SET_CLIPBOARD` texts (256 KiB minus the 14-byte header).
+pub const CLIPBOARD_MAX_BYTES: usize = (1 << 18) - 14;
+
+/// `DeviceMessage.TYPE_*` values in scrcpy-server (device -> client).
+const DEVICE_CLIPBOARD: u8 = 0;
+const DEVICE_ACK_CLIPBOARD: u8 = 1;
+const DEVICE_UHID_OUTPUT: u8 = 2;
+const DEVICE_MESSAGE_MAX_BYTES: usize = 1 << 18;
 
 /// Scroll amounts travel as a 16-bit fixed-point fraction of this range.
 const SCROLL_RANGE: f32 = 16.0;
@@ -145,6 +155,71 @@ pub fn inject_text(text: &str) -> Result<Vec<u8>> {
     Ok(message)
 }
 
+/// `SET_CLIPBOARD` - `[type][u64 sequence][u8 paste][u32 length][utf8 text]`. Sequence 0 asks for
+/// no acknowledgement; text over [`CLIPBOARD_MAX_BYTES`] is cut at a character boundary.
+pub fn set_clipboard(text: &str) -> Vec<u8> {
+    let mut end = text.len().min(CLIPBOARD_MAX_BYTES);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let bytes = &text.as_bytes()[..end];
+    let mut message = Vec::with_capacity(14 + bytes.len());
+    message.push(TYPE_SET_CLIPBOARD);
+    message.extend_from_slice(&0u64.to_be_bytes());
+    message.push(0);
+    message.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+    message.extend_from_slice(bytes);
+    message
+}
+
+/// A message the server sends back on the control socket.
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeviceMessage {
+    Clipboard(String),
+    Other,
+}
+
+/// Read one device message (`DeviceMessageWriter.java`); errors on a closed or corrupt stream.
+pub async fn read_device_message<R>(reader: &mut R) -> std::io::Result<DeviceMessage>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    use std::io::{Error, ErrorKind};
+    use tokio::io::AsyncReadExt;
+
+    match reader.read_u8().await? {
+        DEVICE_CLIPBOARD => {
+            let len = reader.read_u32().await? as usize;
+            if len > DEVICE_MESSAGE_MAX_BYTES {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "clipboard message too large",
+                ));
+            }
+            let mut text = vec![0u8; len];
+            reader.read_exact(&mut text).await?;
+            Ok(DeviceMessage::Clipboard(
+                String::from_utf8_lossy(&text).into_owned(),
+            ))
+        }
+        DEVICE_ACK_CLIPBOARD => {
+            reader.read_u64().await?;
+            Ok(DeviceMessage::Other)
+        }
+        DEVICE_UHID_OUTPUT => {
+            reader.read_u16().await?;
+            let len = reader.read_u16().await? as usize;
+            let mut data = vec![0u8; len];
+            reader.read_exact(&mut data).await?;
+            Ok(DeviceMessage::Other)
+        }
+        kind => Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("unknown device message {kind}"),
+        )),
+    }
+}
+
 /// `RESET_VIDEO` - `[type]`. Restarts the capture/encoder so the next packets are a fresh config and key frame.
 pub fn reset_video() -> Vec<u8> {
     vec![TYPE_RESET_VIDEO]
@@ -242,6 +317,51 @@ mod tests {
         assert!(inject_text("").is_err());
         assert!(inject_text(&"a".repeat(INJECT_TEXT_MAX_BYTES)).is_ok());
         assert!(inject_text(&"a".repeat(INJECT_TEXT_MAX_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn set_clipboard_has_no_sequence_and_no_paste() {
+        let message = set_clipboard("hé");
+        assert_eq!(message[0], TYPE_SET_CLIPBOARD);
+        assert_eq!(&message[1..9], &0u64.to_be_bytes());
+        assert_eq!(message[9], 0);
+        assert_eq!(&message[10..14], &3u32.to_be_bytes());
+        assert_eq!(&message[14..], "hé".as_bytes());
+    }
+
+    #[test]
+    fn set_clipboard_cuts_long_text_on_a_character_boundary() {
+        let text = format!("{}é", "a".repeat(CLIPBOARD_MAX_BYTES - 1));
+        let message = set_clipboard(&text);
+        assert_eq!(message.len() - 14, CLIPBOARD_MAX_BYTES - 1);
+    }
+
+    #[tokio::test]
+    async fn reads_clipboard_and_skips_other_device_messages() {
+        let mut bytes = vec![DEVICE_ACK_CLIPBOARD];
+        bytes.extend_from_slice(&7u64.to_be_bytes());
+        bytes.push(DEVICE_UHID_OUTPUT);
+        bytes.extend_from_slice(&1u16.to_be_bytes());
+        bytes.extend_from_slice(&2u16.to_be_bytes());
+        bytes.extend_from_slice(&[9, 9]);
+        bytes.push(DEVICE_CLIPBOARD);
+        bytes.extend_from_slice(&5u32.to_be_bytes());
+        bytes.extend_from_slice(b"hello");
+
+        let mut reader = bytes.as_slice();
+        assert_eq!(
+            read_device_message(&mut reader).await.unwrap(),
+            DeviceMessage::Other
+        );
+        assert_eq!(
+            read_device_message(&mut reader).await.unwrap(),
+            DeviceMessage::Other
+        );
+        assert_eq!(
+            read_device_message(&mut reader).await.unwrap(),
+            DeviceMessage::Clipboard("hello".into())
+        );
+        assert!(read_device_message(&mut reader).await.is_err());
     }
 
     #[test]

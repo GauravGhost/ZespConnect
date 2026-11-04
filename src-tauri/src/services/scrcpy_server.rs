@@ -157,13 +157,64 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
     args
 }
 
-/// The full `adb` argv that starts the server for one session.
+/// Audio-only server: the phone's whole output as raw PCM ([`PCM_RATE`] Hz, [`PCM_CHANNELS`]
+/// channels, s16le). The `output` source silences the phone's own speaker while it runs.
+/// The stream meta stays on so the first 4 bytes tell whether capture started (see [`AudioStart`]).
+pub fn audio_args(version: &str, scid: &str) -> Vec<String> {
+    vec![
+        format!("scid={scid}"),
+        "video=false".to_string(),
+        "control=false".to_string(),
+        "audio_codec=raw".to_string(),
+        "audio_source=output".to_string(),
+        "send_device_meta=false".to_string(),
+        "send_dummy_byte=false".to_string(),
+        "send_frame_meta=true".to_string(),
+        format!("{}=true", meta_option(version)),
+        "cleanup=false".to_string(),
+    ]
+}
+
+/// Control-only server that reports every phone clipboard change as a device message.
+pub fn clipboard_args(scid: &str) -> Vec<String> {
+    vec![
+        format!("scid={scid}"),
+        "video=false".to_string(),
+        "audio=false".to_string(),
+        "clipboard_autosync=true".to_string(),
+        "send_device_meta=false".to_string(),
+        "send_dummy_byte=false".to_string(),
+        "cleanup=false".to_string(),
+    ]
+}
+
+pub const PCM_RATE: u32 = 48_000;
+pub const PCM_CHANNELS: u16 = 2;
+const RAW_CODEC_ID: u32 = 0x0072_6177;
+
+/// What the 4-byte codec id that opens an audio stream says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioStart {
+    Streaming,
+    /// The phone could not capture (before Android 11, or Android 11 while locked).
+    Unavailable,
+    Failed,
+}
+
+pub fn audio_start(codec_id: u32) -> AudioStart {
+    match codec_id {
+        RAW_CODEC_ID => AudioStart::Streaming,
+        0 => AudioStart::Unavailable,
+        _ => AudioStart::Failed,
+    }
+}
+
+/// The full `adb` argv that starts the server with the given `key=value` options.
 pub fn launch_args(
     serial: &str,
     remote_jar: &str,
     version: &str,
-    scid: &str,
-    opts: &ServerOptions,
+    options: Vec<String>,
 ) -> Vec<String> {
     let mut args = vec![
         "-s".to_string(),
@@ -175,7 +226,7 @@ pub fn launch_args(
         "com.genymobile.scrcpy.Server".to_string(),
         version.to_string(),
     ];
-    args.extend(options_args(version, scid, opts));
+    args.extend(options);
     args
 }
 
@@ -314,8 +365,7 @@ mod tests {
             "SERIAL",
             "/data/local/tmp/x.jar",
             "4.0",
-            "abcd1234",
-            &options(MirrorKind::Mirror),
+            options_args("4.0", "abcd1234", &options(MirrorKind::Mirror)),
         );
 
         assert_eq!(args[0], "-s");
@@ -327,6 +377,38 @@ mod tests {
         assert_eq!(args[6], "com.genymobile.scrcpy.Server");
         assert_eq!(args[7], "4.0");
         assert!(args.contains(&"scid=abcd1234".to_string()));
+    }
+
+    #[test]
+    fn audio_server_streams_raw_output_with_its_codec_header() {
+        let args = audio_args("4.1", "abcd1234");
+        for expected in [
+            "video=false",
+            "control=false",
+            "audio_codec=raw",
+            "audio_source=output",
+            "send_stream_meta=true",
+            "send_frame_meta=true",
+        ] {
+            assert!(args.contains(&expected.to_string()), "missing {expected}");
+        }
+        assert!(audio_args("3.3", "s").contains(&"send_codec_meta=true".to_string()));
+    }
+
+    #[test]
+    fn clipboard_server_is_control_only_with_autosync() {
+        let args = clipboard_args("abcd1234");
+        assert!(args.contains(&"video=false".to_string()));
+        assert!(args.contains(&"audio=false".to_string()));
+        assert!(args.contains(&"clipboard_autosync=true".to_string()));
+        assert!(!args.iter().any(|a| a.starts_with("control=")));
+    }
+
+    #[test]
+    fn reads_the_audio_codec_header() {
+        assert_eq!(audio_start(0x0072_6177), AudioStart::Streaming);
+        assert_eq!(audio_start(0), AudioStart::Unavailable);
+        assert_eq!(audio_start(1), AudioStart::Failed);
     }
 
     #[test]

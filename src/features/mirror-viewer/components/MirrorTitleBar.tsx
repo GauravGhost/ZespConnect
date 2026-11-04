@@ -2,9 +2,10 @@ import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useWindowTitle } from "../hooks";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
+import { PhoneSoundButton } from "./PhoneSoundButton";
 import { WindowControls } from "./WindowControls";
 
-export function MirrorTitleBar() {
+export function MirrorTitleBar({ serial }: Readonly<{ serial: string | null }>) {
   const title = useWindowTitle();
 
   return (
@@ -21,6 +22,7 @@ export function MirrorTitleBar() {
       >
         {title}
       </span>
+      {serial ? <PhoneSoundButton serial={serial} className="size-5" /> : null}
       <AlwaysOnTopButton className="size-5" />
       {IS_MAC ? null : <WindowControls />}
     </div>

@@ -15,6 +15,10 @@ Built with [Tauri 2](https://tauri.app), React, TypeScript and Rust.
 - **Screen mirroring.** Mirror the display, a device camera, or a single app in its own
   window. Sessions run inside the app with touch and keyboard input, always-on-top and
   aspect-ratio locking. Supports Android desktop (windowing) mode.
+- **Connected features.** Switched per device from the Overview:
+  - **Clipboard sync** - copy on the phone or the computer and paste on the other (text).
+  - **Phone sound** - play the phone's sound on the phone or on the computer, also from the
+    Mirror screen and any mirror window's title bar. Needs Android 11 or later.
 - **App manager.** Lists installed apps by their real names, with search and filters.
   Launch, uninstall, clear data, or install an APK.
 - **Quick controls.** Toggle Wi-Fi, Bluetooth, mobile data, dark mode, Do Not Disturb and
@@ -23,8 +27,7 @@ Built with [Tauri 2](https://tauri.app), React, TypeScript and Rust.
   network via mDNS, or switch a USB-connected device to Wi-Fi in one click.
 - **File browser.** Browse device storage, upload and download files, create folders, and
   delete entries.
-- **Console.** Run `adb shell` commands, stream logcat with severity colouring, and sync
-  the clipboard through the [AdbClipboard](https://github.com/PRosenb/AdbClipboard) helper app.
+- **Console.** Run `adb shell` commands and stream logcat with severity colouring.
 - **Emulators.** List Android Virtual Devices, see which are running, and boot them.
 - **Tool management.** Finds `adb` and `scrcpy` automatically. You can also point to custom
   binaries, or install missing tools through your system package manager.
@@ -72,6 +75,7 @@ If either tool is missing, the app walks you through installing it on first laun
 - [Node.js](https://nodejs.org) 20 or later
 - [Rust](https://www.rust-lang.org/tools/install) (stable)
 - The Tauri [system dependencies](https://tauri.app/start/prerequisites/) for your platform
+- On Linux, the ALSA headers for phone sound (`libasound2-dev` on Debian/Ubuntu)
 
 ### Run in development
 
@@ -167,8 +171,8 @@ follow the theming guidelines in [`src/app/theme/README.md`](src/app/theme/READM
 
 ## Acknowledgements
 
-- [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile, which powers mirroring
-- [AdbClipboard](https://github.com/PRosenb/AdbClipboard) for clipboard access
+- [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile, which powers mirroring, phone
+  sound and clipboard sync
 - [Tauri](https://tauri.app) and [shadcn/ui](https://ui.shadcn.com)
 
 ## License
