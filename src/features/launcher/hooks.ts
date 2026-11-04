@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { openAppWindow } from "@/hooks/useMirrors";
 import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
 import type { AppInfo, LauncherTarget } from "@/types";
@@ -83,7 +84,7 @@ export function useLauncher() {
     setOpening(true);
     setError(null);
     try {
-      await ipc.mirror.startAppWindow(target.serial, selected.package, selected.label);
+      await openAppWindow({ serial: target.serial, pkg: selected.package, label: selected.label });
       rememberRecent(target.serial, selected.package);
       await ipc.launcher.hide();
     } catch (cause) {

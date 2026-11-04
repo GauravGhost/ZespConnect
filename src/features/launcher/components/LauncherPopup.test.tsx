@@ -10,15 +10,18 @@ const launcher = vi.hoisted(() => ({
   apps: vi.fn(),
   hide: vi.fn(),
   startAppWindow: vi.fn(),
+  openWindow: vi.fn(),
 }));
 
 vi.mock("@/lib/ipc", () => ({
   errorMessage: (error: unknown) => String(error),
   ipc: {
     launcher: { target: launcher.target, apps: launcher.apps, hide: launcher.hide },
-    mirror: { startAppWindow: launcher.startAppWindow },
+    mirror: { startAppWindow: launcher.startAppWindow, openWindow: launcher.openWindow },
   },
 }));
+
+vi.mock("@/lib/webcodecs", () => ({ supportsInAppMirror: () => true }));
 
 vi.mock("@/lib/events", () => ({
   events: {
@@ -62,17 +65,25 @@ describe("LauncherPopup", () => {
     launcher.hide.mockResolvedValue(undefined);
   });
 
-  it("opens the highlighted app and hides", async () => {
-    launcher.startAppWindow.mockResolvedValue({});
+  it("opens the highlighted app in an in-app window, like the Apps page, and hides", async () => {
+    launcher.openWindow.mockResolvedValue(1);
     const input = await renderReady();
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "Enter" });
     await vi.waitFor(() => expect(launcher.hide).toHaveBeenCalled());
-    expect(launcher.startAppWindow).toHaveBeenCalledWith("phone", "pkg.weather", "Weather");
+    expect(launcher.openWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serial: "phone",
+        kind: "app",
+        package: "pkg.weather",
+        label: "Weather",
+      }),
+    );
+    expect(launcher.startAppWindow).not.toHaveBeenCalled();
   });
 
   it("keeps the popup open and shows the error when opening fails", async () => {
-    launcher.startAppWindow.mockRejectedValue("Device is offline");
+    launcher.openWindow.mockRejectedValue("Device is offline");
     const input = await renderReady();
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await screen.findByText("Device is offline")).toBeInTheDocument();
@@ -83,7 +94,7 @@ describe("LauncherPopup", () => {
     const input = await renderReady();
     fireEvent.change(input, { target: { value: "zzz" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(launcher.startAppWindow).not.toHaveBeenCalled();
+    expect(launcher.openWindow).not.toHaveBeenCalled();
   });
 
   it("clears the previous list and query as soon as it is shown again", async () => {
@@ -94,7 +105,7 @@ describe("LauncherPopup", () => {
     expect(screen.queryByText("WhatsApp")).not.toBeInTheDocument();
     expect(input).toHaveValue("");
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(launcher.startAppWindow).not.toHaveBeenCalled();
+    expect(launcher.openWindow).not.toHaveBeenCalled();
   });
 
   it("says no phone is connected when the selected phone is offline", async () => {

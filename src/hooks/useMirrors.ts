@@ -109,13 +109,15 @@ function useWindowMutation<TVars>(mutationFn: (vars: TVars) => Promise<unknown>)
   });
 }
 
-/** Open an app in its own window on the laptop. */
-export function useOpenAppWindow() {
-  return useWindowMutation(({ serial, pkg, label }: OpenAppVars) =>
-    openMirror(serial, "app", pkg, label, DEFAULT_MIRROR_OPTIONS, () =>
-      ipc.mirror.startAppWindow(serial, pkg, label),
-    ),
+/** Open an app in its own window on the laptop, in-app when possible, else with scrcpy. */
+export function openAppWindow({ serial, pkg, label }: OpenAppVars): Promise<unknown> {
+  return openMirror(serial, "app", pkg, label, DEFAULT_MIRROR_OPTIONS, () =>
+    ipc.mirror.startAppWindow(serial, pkg, label),
   );
+}
+
+export function useOpenAppWindow() {
+  return useWindowMutation(openAppWindow);
 }
 
 /** Mirror the main display with the app in the foreground. */
