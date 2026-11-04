@@ -169,17 +169,19 @@ function ActionTile({
       disabled={disabled || busy}
       title={hint}
       className={cn(
-        "group bg-muted/60 hover:bg-muted flex min-w-0 items-center gap-2.5 rounded-[1.25rem] p-2 text-left outline-none",
+        "group bg-muted/60 hover:bg-muted @container min-w-0 rounded-[1.25rem] p-2 text-left outline-none",
         "transition-all duration-150 ease-emphasized active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
-      <span className="bg-background text-primary flex size-8 shrink-0 items-center justify-center rounded-full shadow-xs">
-        {busy ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium">{label}</span>
-        <span className="text-muted-foreground block truncate text-xs">{hint}</span>
+      {/* Narrow tiles stack the label under the icon so it is not cut off. */}
+      <span className="flex flex-col items-start gap-1.5 @[6.5rem]:flex-row @[6.5rem]:items-center @[6.5rem]:gap-2">
+        <span className="bg-background text-primary flex size-8 shrink-0 items-center justify-center rounded-full shadow-xs">
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
+        </span>
+        <span className="w-full min-w-0 px-1 text-[13px] leading-tight font-medium @[6.5rem]:px-0">
+          {label}
+        </span>
       </span>
     </button>
   );
