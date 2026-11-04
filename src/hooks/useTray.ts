@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { TAB_IDS } from "@/app/navigation";
 import { useAppStore, type TabId } from "@/app/store";
@@ -11,7 +12,7 @@ function isTabId(value: string): value is TabId {
   return (TAB_IDS as string[]).includes(value);
 }
 
-/** Routes system-tray menu clicks into in-app navigation. */
+/** Routes system-tray menu clicks into in-app navigation, and shows tray action failures. */
 export function useTrayNavigation() {
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const setSelectedSerial = useAppStore((s) => s.setSelectedSerial);
@@ -30,6 +31,7 @@ export function useTrayNavigation() {
           setActiveTab("overview");
         }),
       );
+      track(events.trayError((event) => toast.error(event.payload.message)));
     },
     [setActiveTab, setSelectedSerial],
   );

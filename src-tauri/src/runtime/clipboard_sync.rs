@@ -32,6 +32,7 @@ struct Changed<'a> {
 
 fn announce(app: &AppHandle, serial: &str, on: bool) {
     let _ = app.emit(EVENT_CHANGED, Changed { serial, on });
+    crate::tray::sync(app);
 }
 
 pub async fn start(app: &AppHandle, serial: &str) -> Result<()> {

@@ -36,6 +36,8 @@ export interface BackendEvents {
   /** A saved phone answered but no longer trusts this computer. */
   "wireless:unpaired": ReconnectEvent;
   "tray:select-device": { serial: string };
+  /** A tray action failed; the main window is shown so the message can be read. */
+  "tray:error": { message: string };
   "recording:changed": { id: number; recording: boolean; startedAt: number | null };
   /** A recording ended on its own (window closed, phone lost); sent to the window that shows it. */
   "recording:finished": {
@@ -88,6 +90,8 @@ export const events = {
     onBackendEvent("wireless:unpaired", handler),
   traySelectDevice: (handler: EventCallback<BackendEvents["tray:select-device"]>) =>
     onBackendEvent("tray:select-device", handler),
+  trayError: (handler: EventCallback<BackendEvents["tray:error"]>) =>
+    onBackendEvent("tray:error", handler),
   recordingChanged: (handler: EventCallback<BackendEvents["recording:changed"]>) =>
     onBackendEvent("recording:changed", handler),
   recordingFinished: (handler: EventCallback<BackendEvents["recording:finished"]>) =>

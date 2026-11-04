@@ -37,6 +37,7 @@ fn announce(app: &AppHandle, serial: &str, on_computer: bool) {
             on_computer,
         },
     );
+    crate::tray::sync(app);
 }
 
 /// Play the device's sound on the computer; returns once sound is flowing.
