@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type {
+  AppInfo,
   AppListResult,
   Avd,
   CaptureDirs,
@@ -10,6 +11,9 @@ import type {
   DeviceInfo,
   FileEntry,
   KeyAction,
+  LauncherSettings,
+  LauncherStatus,
+  LauncherTarget,
   LogLine,
   MediaKey,
   MirrorAction,
@@ -200,6 +204,16 @@ export const ipc = {
     /** Report what `serial` plays through `now-playing:changed`; `null` stops watching. */
     watch: (serial: string | null) => invoke<void>("watch_now_playing", { serial }),
     sendKey: (serial: string, key: MediaKey) => invoke<void>("send_media_key", { serial, key }),
+  },
+
+  launcher: {
+    status: () => invoke<LauncherStatus>("get_launcher_status"),
+    /** Fails, keeping the previous hotkey, when the OS refuses the new one. */
+    save: (settings: LauncherSettings) =>
+      invoke<LauncherStatus>("set_launcher_settings", { settings }),
+    target: () => invoke<LauncherTarget>("launcher_target"),
+    apps: (serial: string) => invoke<AppInfo[]>("launcher_apps", { serial }),
+    hide: () => invoke<void>("hide_launcher"),
   },
 
   capture: {

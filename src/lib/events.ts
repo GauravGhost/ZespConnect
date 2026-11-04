@@ -1,6 +1,7 @@
 import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type {
+  AppInfo,
   Device,
   InstallDone,
   InstallProgress,
@@ -23,6 +24,10 @@ export interface BackendEvents {
   "phone-audio:changed": { serial: string; onComputer: boolean };
   "clipboard-sync:changed": { serial: string; on: boolean };
   "now-playing:changed": { serial: string; nowPlaying: NowPlaying | null };
+  /** The launcher popup was shown again and should reset. */
+  "launcher:shown": null;
+  /** A phone's app list was re-read while the launcher showed the cached one. */
+  "launcher:apps-changed": { serial: string; apps: AppInfo[] };
   "install:progress": { serial: string; package: string; progress: number; message: string };
   "tools:install:progress": InstallProgress;
   "tools:install:done": InstallDone;
@@ -66,6 +71,9 @@ export const events = {
     onBackendEvent("clipboard-sync:changed", handler),
   nowPlayingChanged: (handler: EventCallback<BackendEvents["now-playing:changed"]>) =>
     onBackendEvent("now-playing:changed", handler),
+  launcherShown: (handler: EventCallback<null>) => onBackendEvent("launcher:shown", handler),
+  launcherAppsChanged: (handler: EventCallback<BackendEvents["launcher:apps-changed"]>) =>
+    onBackendEvent("launcher:apps-changed", handler),
   installProgress: (handler: EventCallback<BackendEvents["install:progress"]>) =>
     onBackendEvent("install:progress", handler),
   toolsInstallProgress: (handler: EventCallback<InstallProgress>) =>

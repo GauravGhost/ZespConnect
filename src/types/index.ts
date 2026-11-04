@@ -204,6 +204,25 @@ export interface NowPlaying {
 
 export type MediaKey = "playPause" | "next" | "previous";
 
+/** The app launcher's saved settings. */
+export interface LauncherSettings {
+  enabled: boolean;
+  /** A hotkey string such as `CommandOrControl+Shift+Space`. */
+  shortcut: string;
+}
+
+export interface LauncherStatus extends LauncherSettings {
+  /** False when the hotkey is enabled but another app holds it. */
+  registered: boolean;
+}
+
+/** The phone the launcher popup acts on. */
+export type LauncherTarget =
+  | { kind: "ready"; serial: string; name: string }
+  | { kind: "offline"; name: string }
+  | { kind: "pickInTray" }
+  | { kind: "noPhone" };
+
 export interface CaptureDirs {
   pictures: string;
   videos: string;
