@@ -1,4 +1,5 @@
 import { Smartphone } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -12,10 +13,12 @@ export function DesktopTitleBar({
   serial,
   phoneScreen,
   onTogglePhoneScreen,
+  capture,
 }: Readonly<{
   serial: string | null;
   phoneScreen: boolean;
   onTogglePhoneScreen: () => void;
+  capture?: ReactNode;
 }>) {
   const title = useWindowTitle();
   const fullscreen = useWindowFlag("isFullscreen");
@@ -47,6 +50,7 @@ export function DesktopTitleBar({
         pressed={phoneScreen}
         onClick={onTogglePhoneScreen}
       />
+      {capture}
       {serial ? <PhoneSoundButton serial={serial} /> : null}
       <AlwaysOnTopButton />
       {IS_MAC ? null : <WindowControls maximizable />}

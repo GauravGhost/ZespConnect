@@ -173,13 +173,13 @@ pub fn is_apk(local: &str) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("apk"))
 }
 
-/// The device path a dropped file or folder ends up at inside [`DROP_DIR`].
-fn drop_target(local: &str) -> Result<String> {
+/// The device path a file or folder ends up at inside the device folder `dir`.
+fn target_in(dir: &str, local: &str) -> Result<String> {
     let name = Path::new(local)
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| AppError::Invalid(format!("Not a file: {local}")))?;
-    let target = format!("{DROP_DIR}/{name}");
+    let target = format!("{dir}/{name}");
     validate_remote_path(&target)?;
     Ok(target)
 }
@@ -197,19 +197,28 @@ fn file_uri(remote: &str) -> String {
     uri
 }
 
-/// Copy a dropped file or folder into [`DROP_DIR`], then ask the media scanner to index a file
-/// so photos and videos show in the gallery. The scan is best effort: the copy already succeeded.
+/// Copy a dropped file or folder into [`DROP_DIR`] (see [`send_to_media_dir`]).
 pub async fn send_to_drop_dir(tools: &ToolStatus, serial: &str, local: &str) -> Result<()> {
-    let target = drop_target(local)?;
-    create_dir(tools, serial, DROP_DIR).await?;
+    send_to_media_dir(tools, serial, local, DROP_DIR)
+        .await
+        .map(|_| ())
+}
 
-    // Pushing into the folder (trailing slash) keeps a dropped folder's own name.
+/// Copy a file or folder into the device folder `dir`, then ask the media scanner to index a
+/// file so photos and videos show in the gallery. The scan is best effort: the copy already
+/// succeeded. Returns the device path.
+pub async fn send_to_media_dir(
+    tools: &ToolStatus,
+    serial: &str,
+    local: &str,
+    dir: &str,
+) -> Result<String> {
+    let target = target_in(dir, local)?;
+    create_dir(tools, serial, dir).await?;
+
+    // Pushing into the folder (trailing slash) keeps a folder's own name.
     let adb_path = adb::adb_path(tools)?;
-    let args = vec![
-        "push".to_string(),
-        local.to_string(),
-        format!("{DROP_DIR}/"),
-    ];
+    let args = vec!["push".to_string(), local.to_string(), format!("{dir}/")];
     let output = adb::run_scoped(&adb_path, serial, &args, TRANSFER_TIMEOUT).await?;
     ensure_success(&output)?;
 
@@ -220,7 +229,7 @@ pub async fn send_to_drop_dir(tools: &ToolStatus, serial: &str, local: &str) -> 
         );
         let _ = adb::shell(&adb_path, serial, &command, MUTATE_TIMEOUT).await;
     }
-    Ok(())
+    Ok(target)
 }
 
 pub async fn create_dir(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
@@ -332,15 +341,15 @@ not a listing line
     #[test]
     fn builds_drop_targets_from_the_file_name() {
         assert_eq!(
-            drop_target("/home/me/My Photo.jpg").unwrap(),
+            target_in(DROP_DIR, "/home/me/My Photo.jpg").unwrap(),
             "/sdcard/Download/ZespConnect/My Photo.jpg"
         );
         assert_eq!(
-            drop_target("/home/me/Holiday").unwrap(),
+            target_in(DROP_DIR, "/home/me/Holiday").unwrap(),
             "/sdcard/Download/ZespConnect/Holiday"
         );
-        assert!(drop_target("/").is_err());
-        assert!(drop_target("..").is_err());
+        assert!(target_in(DROP_DIR, "/").is_err());
+        assert!(target_in(DROP_DIR, "..").is_err());
     }
 
     #[test]

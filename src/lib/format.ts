@@ -53,3 +53,18 @@ export function stateLabel(state: Device["state"]): string {
       return "Unknown";
   }
 }
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+/** Local time as `yyyy-MM-dd_HH-mm-ss`, safe in file names. */
+export function fileStamp(date: Date): string {
+  const day = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  const time = `${pad2(date.getHours())}-${pad2(date.getMinutes())}-${pad2(date.getSeconds())}`;
+  return `${day}_${time}`;
+}
+
+/** `m:ss` for a recording timer; minutes keep counting past an hour. */
+export function formatElapsed(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  return `${Math.floor(seconds / 60)}:${pad2(seconds % 60)}`;
+}

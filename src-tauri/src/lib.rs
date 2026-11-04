@@ -169,6 +169,7 @@ pub fn run() {
             commands::audio::set_phone_audio,
             commands::capture::capture_default_dirs,
             commands::capture::capture_open_folder,
+            commands::capture::save_screenshot,
             commands::avd::list_avds,
             commands::avd::start_avd,
         ])

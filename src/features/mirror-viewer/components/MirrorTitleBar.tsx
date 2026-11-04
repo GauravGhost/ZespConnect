@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import type { MirrorSession } from "@/types";
@@ -8,7 +10,10 @@ import { MirrorBackButton } from "./MirrorControlBar";
 import { PhoneSoundButton } from "./PhoneSoundButton";
 import { WindowControls } from "./WindowControls";
 
-export function MirrorTitleBar({ session }: Readonly<{ session: MirrorSession | null }>) {
+export function MirrorTitleBar({
+  session,
+  capture,
+}: Readonly<{ session: MirrorSession | null; capture?: ReactNode }>) {
   const title = useWindowTitle();
 
   return (
@@ -26,6 +31,7 @@ export function MirrorTitleBar({ session }: Readonly<{ session: MirrorSession | 
       >
         {title}
       </span>
+      {capture}
       {session ? <PhoneSoundButton serial={session.serial} /> : null}
       <AlwaysOnTopButton />
       {IS_MAC ? null : <WindowControls />}

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { TouchAction } from "@/types";
 import { useKeyboardForwarding, useMirrorStream } from "../hooks";
 import { androidButton, androidButtons, wheelNotches } from "../keymap";
+import { CaptureButtons } from "./CaptureButtons";
 import { DesktopTitleBar } from "./DesktopTitleBar";
 import { MirrorControlBar } from "./MirrorControlBar";
 import { MirrorTitleBar } from "./MirrorTitleBar";
@@ -49,6 +50,9 @@ export function MirrorViewer() {
   const serial = session?.serial ?? null;
   // An app's Back is in its title bar, so its window has a small gap instead of a control bar.
   const controlBar = !desktop && session?.kind !== "app";
+  const capture = serial ? (
+    <CaptureButtons serial={serial} canvasRef={canvasRef} live={status === "live"} />
+  ) : null;
 
   useEffect(
     () => () => {
@@ -204,9 +208,10 @@ export function MirrorViewer() {
           serial={serial}
           phoneScreen={phoneScreen}
           onTogglePhoneScreen={togglePhoneScreen}
+          capture={capture}
         />
       ) : (
-        <MirrorTitleBar session={session} />
+        <MirrorTitleBar session={session} capture={capture} />
       )}
       {/* A phone window keeps a control bar (an app a small gap) below rounded corners; a
           desktop fills the area under its title bar. Sized by `mirror_window::vertical_inset`. */}

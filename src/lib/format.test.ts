@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deviceIdentity, stateLabel, transportLabel } from "@/lib/format";
+import { deviceIdentity, fileStamp, formatElapsed, stateLabel, transportLabel } from "@/lib/format";
 import type { Device } from "@/types";
 
 function makeDevice(overrides: Partial<Device> = {}): Device {
@@ -36,5 +36,19 @@ describe("format", () => {
     expect(transportLabel(makeDevice({ transport: "usb" }))).toBe("USB");
     expect(stateLabel("unauthorized")).toBe("Unauthorized");
     expect(stateLabel("device")).toBe("Connected");
+  });
+});
+
+describe("fileStamp", () => {
+  it("formats local time for file names", () => {
+    expect(fileStamp(new Date(2026, 10, 4, 9, 5, 7))).toBe("2026-11-04_09-05-07");
+  });
+});
+
+describe("formatElapsed", () => {
+  it("shows minutes and seconds", () => {
+    expect(formatElapsed(0)).toBe("0:00");
+    expect(formatElapsed(42_000)).toBe("0:42");
+    expect(formatElapsed(3_725_000)).toBe("62:05");
   });
 });

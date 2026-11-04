@@ -183,6 +183,14 @@ impl AppState {
             .unwrap_or_default()
     }
 
+    /// A connected device's model and SDK level, for file names and feature checks.
+    pub fn device(&self, serial: &str) -> Option<Device> {
+        self.devices
+            .read()
+            .ok()
+            .and_then(|guard| guard.iter().find(|device| device.serial == serial).cloned())
+    }
+
     pub fn set_devices(&self, devices: Vec<Device>) {
         if let Ok(mut guard) = self.devices.write() {
             *guard = devices;

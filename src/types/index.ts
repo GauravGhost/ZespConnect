@@ -177,6 +177,12 @@ export interface FileEntry {
 export type SendOutcome = "installed" | "copied";
 
 /** Default folders on the computer for screenshots and recordings. */
+/** Where a screenshot or recording ended up: a computer path, or a device path when `onPhone`. */
+export interface SavedCapture {
+  location: string;
+  onPhone: boolean;
+}
+
 export interface CaptureDirs {
   pictures: string;
   videos: string;

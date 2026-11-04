@@ -4,6 +4,7 @@ import type {
   AppListResult,
   Avd,
   CaptureDirs,
+  SavedCapture,
   Device,
   DeviceInfo,
   FileEntry,
@@ -197,6 +198,22 @@ export const ipc = {
     defaultDirs: () => invoke<CaptureDirs>("capture_default_dirs"),
     /** Opens a capture folder, creating it first so a fresh install can open it too. */
     openFolder: (dir: string) => invoke<void>("capture_open_folder", { dir }),
+    /** The PNG goes as the raw body; IPC headers are ASCII, so the folder is URI-encoded. */
+    saveScreenshot: (
+      serial: string,
+      png: Uint8Array,
+      target: "folder" | "phone",
+      dir: string | null,
+      stamp: string,
+    ) =>
+      invoke<SavedCapture>("save_screenshot", png, {
+        headers: {
+          "x-serial": serial,
+          "x-target": target,
+          "x-stamp": stamp,
+          "x-dir": dir ? encodeURIComponent(dir) : "",
+        },
+      }),
   },
 
   avd: {
