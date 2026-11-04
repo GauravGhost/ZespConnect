@@ -1,6 +1,7 @@
 import { PlugZap } from "lucide-react";
 
 import { NoDeviceState } from "@/components/app/EmptyState";
+import { LauncherSettings } from "@/features/launcher";
 import { useActiveDevice } from "@/hooks/useDevices";
 import { CaptureSettings } from "./CaptureSettings";
 import { ConnectedFeatures } from "./ConnectedFeatures";
@@ -18,6 +19,7 @@ export function FeaturesPanel() {
           description="Connect an Android device to sync its clipboard or play its sound here."
         />
       )}
+      <LauncherSettings />
       <CaptureSettings />
     </div>
   );
