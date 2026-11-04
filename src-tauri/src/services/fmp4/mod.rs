@@ -144,13 +144,17 @@ impl Track {
         });
     }
 
-    fn release_held(&mut self) {
+    /// Give the held last sample a duration: up to `end` (in ticks) when that is later than a
+    /// normal frame, as on a screen that stopped changing, otherwise the previous duration.
+    fn release_held(&mut self, end: Option<u64>) {
         if let Some(last) = self.held.take() {
-            let duration = if self.last_duration > 0 {
+            let usual = if self.last_duration > 0 {
                 self.last_duration
             } else {
                 self.fallback_duration
             };
+            let until_end = end.map_or(0, |end| end.saturating_sub(last.time));
+            let duration = u32::try_from(until_end).unwrap_or(u32::MAX).max(usual);
             self.complete(last, duration);
         }
     }
@@ -212,11 +216,21 @@ impl<W: Write> Fmp4Writer<W> {
     }
 
     /// Write out everything still buffered and hand back the output.
-    pub fn finish(mut self) -> io::Result<W> {
-        self.video.release_held();
+    pub fn finish(self) -> io::Result<W> {
+        self.finish_inner(None)
+    }
+
+    /// Like [`Self::finish`], with the last video frame lasting until `end_us`.
+    pub fn finish_at(self, end_us: u64) -> io::Result<W> {
+        self.finish_inner(Some(end_us))
+    }
+
+    fn finish_inner(mut self, end_us: Option<u64>) -> io::Result<W> {
+        self.video
+            .release_held(end_us.map(|end| to_ticks(end, VIDEO_TIMESCALE)));
         self.write_video()?;
         if let Some(track) = self.audio.as_mut() {
-            track.release_held();
+            track.release_held(None);
         }
         self.write_audio()?;
         Ok(self.out)

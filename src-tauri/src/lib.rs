@@ -176,8 +176,16 @@ pub fn run() {
             commands::avd::list_avds,
             commands::avd::start_avd,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                // Recordings are saved (and rotation given back) before the app quits.
+                if runtime::recording::hold_exit(app) {
+                    api.prevent_exit();
+                }
+            }
+        });
 }
 
 /// Sub-pixel slack allowed when correcting a window to its video's aspect ratio.

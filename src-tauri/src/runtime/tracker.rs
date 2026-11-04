@@ -45,6 +45,7 @@ pub async fn refresh(app: &AppHandle) {
         let _ = app.emit(EVENT_DEVICES_CHANGED, &list);
         crate::tray::sync(app);
         crate::runtime::reconnect::devices_changed();
+        crate::runtime::recording::devices_changed(app, &list);
     }
 }
 

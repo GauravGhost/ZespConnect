@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::error::{AppError, Result};
-use crate::models::MirrorKind;
+use crate::models::{Device, MirrorKind};
 use crate::runtime::recording_audio::{self, AudioPacket, RecordingAudio, RECORDING_AUDIO_MIN_SDK};
 use crate::runtime::session_window;
 use crate::services::recorder::{Ended, RecorderCore};
@@ -98,13 +98,87 @@ enum Entry {
     },
 }
 
+/// What to do with a request to quit the app.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExitPlan {
+    Allow,
+    /// Hold the exit and save these sessions' recordings first.
+    Finish(Vec<u64>),
+    /// Already saving them; the exit follows on its own.
+    Hold,
+}
+
+/// A phone whose auto-rotate could not be given back (it was gone), by serial and mDNS name.
+struct PendingUnlock {
+    serial: String,
+    mdns_name: Option<String>,
+}
+
 /// Recordings by session id; a session records at most once at a time.
 #[derive(Default)]
 pub struct Recordings {
     entries: Mutex<HashMap<u64, Entry>>,
+    pending_unlocks: Mutex<Vec<PendingUnlock>>,
+    exiting: AtomicBool,
+    exit_ready: AtomicBool,
 }
 
 impl Recordings {
+    /// Remember to turn auto-rotate back on once the phone is reachable again.
+    fn defer_unlock(&self, serial: &str, mdns_name: Option<&str>) {
+        if let Ok(mut pending) = self.pending_unlocks.lock() {
+            pending.push(PendingUnlock {
+                serial: serial.to_string(),
+                mdns_name: mdns_name.map(str::to_string),
+            });
+        }
+    }
+
+    /// Serials (as connected now) of phones waiting for their auto-rotate, forgetting them.
+    pub fn take_ready_unlocks(&self, devices: &[Device]) -> Vec<String> {
+        let Ok(mut pending) = self.pending_unlocks.lock() else {
+            return Vec::new();
+        };
+        let mut ready = Vec::new();
+        pending.retain(|phone| {
+            let back = devices.iter().find(|device| {
+                device.state.is_connected()
+                    && (device.serial == phone.serial
+                        || (phone.mdns_name.is_some() && device.mdns_name == phone.mdns_name))
+            });
+            match back {
+                Some(device) => {
+                    ready.push(device.serial.clone());
+                    false
+                }
+                None => true,
+            }
+        });
+        ready
+    }
+
+    pub fn plan_exit(&self) -> ExitPlan {
+        if self.exit_ready.load(Ordering::SeqCst) {
+            return ExitPlan::Allow;
+        }
+        let ids: Vec<u64> = self
+            .entries
+            .lock()
+            .map(|guard| guard.keys().copied().collect())
+            .unwrap_or_default();
+        if ids.is_empty() {
+            ExitPlan::Allow
+        } else if self.exiting.swap(true, Ordering::SeqCst) {
+            ExitPlan::Hold
+        } else {
+            ExitPlan::Finish(ids)
+        }
+    }
+
+    fn ready_to_exit(&self) {
+        self.exit_ready.store(true, Ordering::SeqCst);
+    }
+
     /// Claim a session for a new recording; false when it already records or is starting one.
     fn begin(&self, id: u64) -> bool {
         let Ok(mut guard) = self.entries.lock() else {
@@ -172,6 +246,7 @@ fn unix_millis() -> u64 {
 struct Context {
     id: u64,
     serial: String,
+    mdns_name: Option<String>,
     kind: MirrorKind,
     adb_bin: String,
     path: PathBuf,
@@ -215,6 +290,7 @@ async fn prepare(
         .filter(|_| state.is_streaming(id))
         .ok_or_else(|| AppError::Invalid("Wait for the picture to appear first".into()))?;
     let device = state.device(&session.serial);
+    let mdns_name = device.as_ref().and_then(|device| device.mdns_name.clone());
     let model = device
         .as_ref()
         .map(|device| device.model.clone())
@@ -253,6 +329,7 @@ async fn prepare(
     let context = Context {
         id,
         serial: session.serial.clone(),
+        mdns_name,
         kind: session.kind,
         adb_bin,
         path,
@@ -306,6 +383,47 @@ async fn prepare(
     Ok(started_at)
 }
 
+/// Give auto-rotate back to phones that left while recording, now that they are back.
+pub fn devices_changed(app: &AppHandle, devices: &[Device]) {
+    let ready = app
+        .state::<AppState>()
+        .recordings()
+        .take_ready_unlocks(devices);
+    if ready.is_empty() {
+        return;
+    }
+    let Ok(adb_bin) = adb::adb_path(&app.state::<AppState>().tools()) else {
+        return;
+    };
+    tauri::async_runtime::spawn(async move {
+        for serial in ready {
+            scrcpy::unlock_rotation(&adb_bin, &serial).await;
+        }
+    });
+}
+
+/// How long quitting waits for one recording to be saved (a phone copy can be slow).
+const EXIT_SAVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// On quit, save running recordings first; true when the exit has to wait for that.
+pub fn hold_exit(app: &AppHandle) -> bool {
+    match app.state::<AppState>().recordings().plan_exit() {
+        ExitPlan::Allow => false,
+        ExitPlan::Hold => true,
+        ExitPlan::Finish(ids) => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                for id in ids {
+                    let _ = tokio::time::timeout(EXIT_SAVE_TIMEOUT, stop(&app, id)).await;
+                }
+                app.state::<AppState>().recordings().ready_to_exit();
+                app.exit(0);
+            });
+            true
+        }
+    }
+}
+
 /// Stop session `id`'s recording and wait until its file is saved.
 pub async fn stop(app: &AppHandle, id: u64) -> Result<RecordingOutcome> {
     let stop = app
@@ -319,6 +437,11 @@ pub async fn stop(app: &AppHandle, id: u64) -> Result<RecordingOutcome> {
     outcome
         .await
         .map_err(|_| AppError::Other("The recording ended unexpectedly".into()))?
+}
+
+/// A Stop clicked while the recording was already ending still gets its result.
+fn late_reply(reply: Option<Reply>, stop: &mut oneshot::Receiver<Reply>) -> Option<Reply> {
+    reply.or_else(|| stop.try_recv().ok())
 }
 
 async fn next_audio(audio: &mut Option<mpsc::Receiver<AudioPacket>>) -> Option<AudioPacket> {
@@ -385,6 +508,8 @@ async fn record<W: Write + Send + 'static>(
         }
     }
 
+    // Before the slower clean-up, so the file ends when the recording did.
+    let stopped = Instant::now();
     let state = app.state::<AppState>();
     state.set_video_tap(context.id, None);
     if let Some(stopper) = audio_stop {
@@ -394,7 +519,7 @@ async fn record<W: Write + Send + 'static>(
     if let Some(failure) = failure {
         context.notice = Some(failure);
     }
-    let result = save(&app, &context, core).await;
+    let result = save(&app, &context, core, stopped).await;
 
     state.recordings().remove(context.id);
     let _ = app.emit(
@@ -405,7 +530,7 @@ async fn record<W: Write + Send + 'static>(
             started_at: None,
         },
     );
-    match reply {
+    match late_reply(reply, &mut stop) {
         Some(reply) => {
             let _ = reply.send(result);
         }
@@ -436,9 +561,10 @@ async fn save<W: Write>(
     app: &AppHandle,
     context: &Context,
     core: RecorderCore<BufWriter<W>>,
+    stopped: Instant,
 ) -> Result<RecordingOutcome> {
     let finished = core
-        .finish()
+        .finish(stopped)
         .and_then(|written| written.map(|mut out| out.flush()).transpose());
     match finished {
         Ok(Some(())) => {}
@@ -480,8 +606,12 @@ async fn save<W: Write>(
 
 /// Give back what a recording held: the phone's rotation and the window's resizing.
 async fn restore(app: &AppHandle, context: &Context) {
-    if context.rotation_locked {
-        scrcpy::unlock_rotation(&context.adb_bin, &context.serial).await;
+    if context.rotation_locked && !scrcpy::unlock_rotation(&context.adb_bin, &context.serial).await
+    {
+        // The phone is gone; give auto-rotate back when it returns (see `devices_changed`).
+        app.state::<AppState>()
+            .recordings()
+            .defer_unlock(&context.serial, context.mdns_name.as_deref());
     }
     lock_window(app, context.id, false, context.kind);
 }
@@ -500,6 +630,7 @@ fn lock_window(app: &AppHandle, id: u64, locked: bool, kind: MirrorKind) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{DeviceState, DeviceTransport};
 
     #[test]
     fn second_start_is_rejected() {
@@ -517,6 +648,67 @@ mod tests {
         assert!(recordings.take_stop(7).is_none());
         recordings.remove(7);
         assert!(recordings.begin(7));
+    }
+
+    fn device(serial: &str, mdns: Option<&str>, state: DeviceState) -> Device {
+        Device {
+            serial: serial.into(),
+            display_name: "Pixel".into(),
+            model: "Pixel".into(),
+            android_version: None,
+            sdk: None,
+            transport: DeviceTransport::Wifi,
+            state,
+            connected: state == DeviceState::Device,
+            battery: None,
+            charging: None,
+            address: None,
+            mdns_name: mdns.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn deferred_unlock_waits_for_the_phone() {
+        let recordings = Recordings::default();
+        recordings.defer_unlock("10.0.0.5:4000", Some("adb-ABC"));
+        let offline = [device(
+            "10.0.0.5:4000",
+            Some("adb-ABC"),
+            DeviceState::Offline,
+        )];
+        assert!(recordings.take_ready_unlocks(&offline).is_empty());
+        // Back over Wi-Fi on a new port: matched by its mDNS name.
+        let back = [device(
+            "10.0.0.5:4100",
+            Some("adb-ABC"),
+            DeviceState::Device,
+        )];
+        assert_eq!(recordings.take_ready_unlocks(&back), ["10.0.0.5:4100"]);
+        assert!(recordings.take_ready_unlocks(&back).is_empty());
+    }
+
+    #[test]
+    fn exit_waits_for_recordings_once() {
+        let recordings = Recordings::default();
+        assert_eq!(recordings.plan_exit(), ExitPlan::Allow);
+        assert!(recordings.begin(3));
+        assert_eq!(recordings.plan_exit(), ExitPlan::Finish(vec![3]));
+        // A second exit request while they finish just waits.
+        assert_eq!(recordings.plan_exit(), ExitPlan::Hold);
+        recordings.ready_to_exit();
+        assert_eq!(recordings.plan_exit(), ExitPlan::Allow);
+    }
+
+    #[test]
+    fn late_stop_still_gets_the_result() {
+        let (stop, mut stop_rx) = oneshot::channel::<Reply>();
+        let (reply, _outcome) = oneshot::channel();
+        // Stop clicked after the loop ended on its own (window closed, size changed).
+        stop.send(reply).unwrap();
+        assert!(late_reply(None, &mut stop_rx).is_some());
+
+        let (_stop, mut idle_rx) = oneshot::channel::<Reply>();
+        assert!(late_reply(None, &mut idle_rx).is_none());
     }
 
     #[test]

@@ -33,15 +33,41 @@ pub fn file_name(model: &str, serial: &str, stamp: &str, ext: &str) -> String {
     format!("Zesp_{safe}_{stamp}.{ext}")
 }
 
-/// Write `bytes` to `dir/name`, creating the folder; returns the full path.
+/// Most `_<n>` suffixes tried before giving up on a free name.
+const MAX_NAME_TRIES: u32 = 100;
+
+/// Write `bytes` to a new file in `dir` named `name`, or `name_2`, `name_3`... when taken
+/// (two captures in the same second); creates the folder and returns the full path.
 pub fn save_to_folder(dir: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
     let failed = |error: std::io::Error| {
         AppError::Io(format!("Could not save to {}: {error}", dir.display()))
     };
     std::fs::create_dir_all(dir).map_err(failed)?;
-    let path = dir.join(name);
-    std::fs::write(&path, bytes).map_err(failed)?;
-    Ok(path)
+    let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
+    for attempt in 1..=MAX_NAME_TRIES {
+        let candidate = match attempt {
+            1 => name.to_string(),
+            n if ext.is_empty() => format!("{stem}_{n}"),
+            n => format!("{stem}_{n}.{ext}"),
+        };
+        let path = dir.join(candidate);
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                std::io::Write::write_all(&mut file, bytes).map_err(failed)?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(failed(error)),
+        }
+    }
+    Err(AppError::Io(format!(
+        "Could not find a free file name in {}",
+        dir.display()
+    )))
 }
 
 /// Undo `encodeURIComponent`, which carries non-ASCII paths through ASCII-only IPC headers.
@@ -127,6 +153,18 @@ mod tests {
         let root = scratch("missing");
         let path = save_to_folder(&root.join("a").join("b"), "shot.png", b"png").unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), b"png");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn save_never_overwrites() {
+        let root = scratch("twice");
+        let first = save_to_folder(&root, "Zesp_a.png", b"one").unwrap();
+        let second = save_to_folder(&root, "Zesp_a.png", b"two").unwrap();
+        assert_ne!(first, second);
+        assert!(second.ends_with("Zesp_a_2.png"));
+        assert_eq!(std::fs::read(&first).unwrap(), b"one");
+        assert_eq!(std::fs::read(&second).unwrap(), b"two");
         let _ = std::fs::remove_dir_all(root);
     }
 

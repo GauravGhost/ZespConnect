@@ -113,9 +113,12 @@ impl<W: Write> RecorderCore<W> {
         }
     }
 
-    /// Close the file; `None` when no video frame was ever written.
-    pub fn finish(self) -> io::Result<Option<W>> {
-        self.writer.map(Fmp4Writer::finish).transpose()
+    /// Close the file at `stopped`; `None` when no video frame was ever written.
+    pub fn finish(self, stopped: Instant) -> io::Result<Option<W>> {
+        let end_us = self.offset_us(stopped);
+        self.writer
+            .map(|writer| writer.finish_at(end_us))
+            .transpose()
     }
 
     fn on_config(&mut self, data: &[u8]) -> Option<Ended> {
@@ -206,13 +209,13 @@ mod tests {
             .unwrap();
         // Nothing usable yet: a delta before config, a key before config, a delta after.
         assert!(RecorderCore::new(Vec::new(), None)
-            .finish()
+            .finish(base)
             .unwrap()
             .is_none());
 
         core.push_video(ms(base, 5), false, true, 20, &frame(true))
             .unwrap();
-        let file = core.finish().unwrap().expect("a file");
+        let file = core.finish(base).unwrap().expect("a file");
         assert_eq!(count(&file, b"moof"), 1);
         assert_eq!(decode_times(&file, 1), [0]);
     }
@@ -254,7 +257,7 @@ mod tests {
             .unwrap();
         core.push_audio(ms(base, 40), 900_000, &[0x21]).unwrap();
         core.push_audio(ms(base, 61), 921_333, &[0x21]).unwrap();
-        let file = core.finish().unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap();
         assert_eq!(decode_times(&file, 1), [0]);
         // 40 ms at 48 kHz.
         assert_eq!(decode_times(&file, 2), [1920]);
@@ -269,7 +272,7 @@ mod tests {
             .unwrap();
         core.push_video(ms(base, 10), false, true, 0, &frame(true))
             .unwrap();
-        let file = core.finish().unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap();
         assert!(decode_times(&file, 2).is_empty());
     }
 
@@ -290,7 +293,7 @@ mod tests {
             .unwrap();
         core.push_video(ms(base, 533), false, false, 33_333, &frame(false))
             .unwrap();
-        let file = core.finish().unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap();
         // One fragment; the samples after the reset keep moving forward from 500 ms.
         let trun = file
             .windows(4)
@@ -307,6 +310,27 @@ mod tests {
     }
 
     #[test]
+    fn last_frame_lasts_until_stop() {
+        let base = Instant::now();
+        let mut core = RecorderCore::new(Vec::new(), None);
+        core.push_video(base, true, false, 0, &config(&SPS_720P))
+            .unwrap();
+        core.push_video(base, false, true, 0, &frame(true)).unwrap();
+        // Nothing changes on screen for 30 s, so nothing more arrives.
+        let file = core
+            .finish(base + Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        let trun = file
+            .windows(4)
+            .position(|window| window == b"trun")
+            .unwrap();
+        let at = trun + 4 + 4 + 8;
+        let duration = u32::from_be_bytes(file[at..at + 4].try_into().unwrap());
+        assert_eq!(duration, 30 * 90_000);
+    }
+
+    #[test]
     fn video_only_when_audio_fails() {
         let base = Instant::now();
         let mut core = RecorderCore::new(Vec::new(), None);
@@ -315,7 +339,7 @@ mod tests {
             .unwrap();
         core.push_video(base, false, true, 0, &frame(true)).unwrap();
         core.push_audio(ms(base, 5), 0, &[0x21]).unwrap();
-        let file = core.finish().unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap();
         assert_eq!(count(&file, b"trak"), 1);
     }
 
@@ -364,7 +388,7 @@ mod tests {
                 core.push_audio(arrived, pts, &data).unwrap();
             }
         }
-        let file = core.finish().unwrap().expect("video was recorded");
+        let file = core.finish(base).unwrap().expect("video was recorded");
         std::fs::write(std::env::var("ZESP_DUMP_OUT").unwrap(), file).unwrap();
     }
 }

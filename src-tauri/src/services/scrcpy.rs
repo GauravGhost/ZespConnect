@@ -311,14 +311,16 @@ pub async fn lock_rotation(adb_path: &str, serial: &str) -> bool {
     .is_ok_and(|output| output.success)
 }
 
-pub async fn unlock_rotation(adb_path: &str, serial: &str) {
-    let _ = adb::shell(
+/// Turn auto-rotate back on; false when the phone could not be reached.
+pub async fn unlock_rotation(adb_path: &str, serial: &str) -> bool {
+    adb::shell(
         adb_path,
         serial,
         "cmd window user-rotation free",
         API_TIMEOUT,
     )
-    .await;
+    .await
+    .is_ok_and(|output| output.success)
 }
 
 /// Build the argv for a desktop-mode window (decorated virtual display; phone screen off, asleep on close).
