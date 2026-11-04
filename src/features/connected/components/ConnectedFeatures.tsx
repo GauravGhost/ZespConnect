@@ -5,7 +5,6 @@ import { PhoneSoundToggle } from "@/components/app/PhoneSoundToggle";
 import { Switch } from "@/components/ui/switch";
 import { useClipboardSync, usePhoneAudio } from "@/hooks/useDeviceLinks";
 import type { Device } from "@/types";
-import { NowPlayingRow } from "./NowPlayingRow";
 
 /** Ongoing links with the phone, each switched on or off per device. */
 export function ConnectedFeatures({ device }: { device: Device }) {
@@ -37,7 +36,6 @@ export function ConnectedFeatures({ device }: { device: Device }) {
         >
           <PhoneSoundToggle onComputer={audio.on} disabled={audio.pending} onChange={audio.set} />
         </FeatureRow>
-        <NowPlayingRow serial={device.serial} />
       </div>
     </Section>
   );

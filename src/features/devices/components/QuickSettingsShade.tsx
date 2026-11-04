@@ -51,6 +51,7 @@ import {
   useSetToggle,
   useSetVolume,
 } from "../hooks";
+import { MediaCard } from "./MediaCard";
 import { PhoneFrame } from "./PhoneFrame";
 
 const TOGGLES: { key: QuickToggleKey; label: string; icon: LucideIcon }[] = [
@@ -196,11 +197,37 @@ export function QuickSettingsShade({ device }: { device: Device }) {
             {now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
           </p>
         </div>
-        {device.android_version ? (
-          <span className="bg-muted/80 text-muted-foreground rounded-full px-2.5 py-1 text-[11px] font-medium">
-            Android {device.android_version}
-          </span>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {device.android_version ? (
+            <span className="bg-muted/80 text-muted-foreground rounded-full px-2.5 py-1 text-[11px] font-medium">
+              Android {device.android_version}
+            </span>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                size="icon"
+                className="size-8 shrink-0"
+                aria-label="Power menu"
+                title="Power menu"
+                disabled={reboot.isPending}
+              >
+                <Power className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel>Power</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {REBOOT_MODES.map(({ mode, label, icon: Icon }) => (
+                <DropdownMenuItem key={mode} onSelect={() => setRebootMode(mode)}>
+                  <Icon />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {isLoading && !data ? (
@@ -235,6 +262,8 @@ export function QuickSettingsShade({ device }: { device: Device }) {
             ))}
           </div>
 
+          <MediaCard serial={serial} />
+
           <ShadeSlider
             label="Media volume"
             icon={Volume2}
@@ -244,33 +273,6 @@ export function QuickSettingsShade({ device }: { device: Device }) {
           />
         </div>
       )}
-
-      <div className="flex items-center justify-end gap-2 px-5 pt-2 pb-1">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="size-8 shrink-0"
-              aria-label="Power menu"
-              title="Power menu"
-              disabled={reboot.isPending}
-            >
-              <Power className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="top" className="w-44">
-            <DropdownMenuLabel>Power</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {REBOOT_MODES.map(({ mode, label, icon: Icon }) => (
-              <DropdownMenuItem key={mode} onSelect={() => setRebootMode(mode)}>
-                <Icon />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
 
       <Dialog open={rebootMode !== null} onOpenChange={(open) => !open && setRebootMode(null)}>
         <DialogContent>
