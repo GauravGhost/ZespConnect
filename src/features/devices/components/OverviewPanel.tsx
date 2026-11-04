@@ -7,13 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useActiveDevice, useDeviceInfo } from "@/hooks/useDevices";
 import type { Device } from "@/types";
-import {
-  ConnectedFeatures,
-  DeviceHero,
-  DeviceStats,
-  DeviceWindows,
-  QuickActions,
-} from "./DeviceSummary";
+import { DeviceHero, DeviceStats, DeviceWindows, QuickActions } from "./DeviceSummary";
 import { PhoneFrame } from "./PhoneFrame";
 import { QuickSettingsShade } from "./QuickSettingsShade";
 
@@ -236,7 +230,6 @@ export function OverviewPanel() {
       <DeviceHero device={device} />
       {stats}
       <QuickActions device={device} />
-      <ConnectedFeatures device={device} />
       <DeviceWindows device={device} className="flex-1" />
     </OverviewLayout>
   );

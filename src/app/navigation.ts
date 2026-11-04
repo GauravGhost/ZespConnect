@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   AppWindow,
+  Blocks,
   FolderOpen,
   Gamepad2,
   LayoutDashboard,
@@ -26,6 +27,12 @@ export const PRIMARY_NAV: NavItem[] = [
     label: "Overview",
     icon: LayoutDashboard,
     description: "Device status and quick settings",
+  },
+  {
+    id: "features",
+    label: "Features",
+    icon: Blocks,
+    description: "Connected features, screenshots and recordings",
   },
   { id: "apps", label: "Apps", icon: AppWindow, description: "Installed packages" },
   { id: "mirror", label: "Mirror", icon: Smartphone, description: "Screen and camera windows" },

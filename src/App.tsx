@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { FileDropOverlay } from "@/components/app/FileDropOverlay";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
+import { FeaturesPanel } from "@/features/connected";
 import { ConsolePanel } from "@/features/console";
 import { OverviewPanel } from "@/features/devices";
 import { EmulatorsPanel } from "@/features/emulators";
@@ -19,6 +20,7 @@ import { useTrayNavigation } from "@/hooks/useTray";
 
 function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "overview") return <OverviewPanel />;
+  if (tab === "features") return <FeaturesPanel />;
   if (tab === "apps") return <AppsPanel />;
   if (tab === "mirror") return <MirrorPanel />;
   if (tab === "wireless") return <WirelessPanel />;

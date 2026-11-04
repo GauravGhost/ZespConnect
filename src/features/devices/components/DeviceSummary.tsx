@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   AppWindow,
-  ArrowLeftRight,
   Camera,
   Cable,
   Cpu,
@@ -13,18 +12,15 @@ import {
   Smartphone,
   Terminal,
   Upload,
-  Volume2,
   Wifi,
   X,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useAppStore } from "@/app/store";
-import { PhoneSoundToggle } from "@/components/app/PhoneSoundToggle";
+import { Section } from "@/components/app/FeatureSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { useClipboardSync, usePhoneAudio } from "@/hooks/useDeviceLinks";
 import { useInstallApk } from "@/hooks/useInstallApk";
 import { useDeviceInfo } from "@/hooks/useDevices";
 import {
@@ -43,35 +39,6 @@ import type { Device } from "@/types";
 
 /** The first Android SDK with desktop windowing on connected displays (Android 16). */
 const MIN_DESKTOP_SDK = 36;
-
-function Section({
-  title,
-  action,
-  children,
-  className,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section
-      className={cn(
-        "bg-card flex flex-col gap-3 rounded-[1.75rem] border border-border/60 p-4 shadow-sm",
-        className,
-      )}
-    >
-      <div className="flex min-h-6 items-center justify-between gap-2">
-        <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function DeviceHero({ device }: { device: Device }) {
   const connected = device.state === "device";
@@ -219,70 +186,6 @@ function ActionTile({
 }
 
 /** One connected feature: what it does on the left, its control on the right. */
-function FeatureRow({
-  icon: Icon,
-  label,
-  hint,
-  busy,
-  htmlFor,
-  children,
-}: {
-  icon: LucideIcon;
-  label: string;
-  hint: string;
-  busy: boolean;
-  htmlFor?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="bg-muted/60 flex items-center gap-2.5 rounded-[1.25rem] p-2">
-      <span className="bg-background text-primary flex size-8 shrink-0 items-center justify-center rounded-full shadow-xs">
-        {busy ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
-      </span>
-      <label htmlFor={htmlFor} className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{label}</span>
-        <span className="text-muted-foreground block truncate text-xs">{hint}</span>
-      </label>
-      {children}
-    </div>
-  );
-}
-
-/** Ongoing links with the phone, each switched on or off per device. */
-export function ConnectedFeatures({ device }: { device: Device }) {
-  const clipboard = useClipboardSync(device.serial);
-  const audio = usePhoneAudio(device.serial);
-
-  return (
-    <Section title="Connected features">
-      <div className="flex flex-col gap-2">
-        <FeatureRow
-          icon={ArrowLeftRight}
-          label="Clipboard sync"
-          hint="Copy on one, paste on the other (text)"
-          busy={clipboard.pending}
-          htmlFor="feature-clipboard-sync"
-        >
-          <Switch
-            id="feature-clipboard-sync"
-            checked={clipboard.on}
-            disabled={clipboard.pending}
-            onCheckedChange={clipboard.set}
-          />
-        </FeatureRow>
-        <FeatureRow
-          icon={Volume2}
-          label="Phone sound"
-          hint={audio.on ? "The phone's speaker is silent" : "Where the phone's sound plays"}
-          busy={audio.pending}
-        >
-          <PhoneSoundToggle onComputer={audio.on} disabled={audio.pending} onChange={audio.set} />
-        </FeatureRow>
-      </div>
-    </Section>
-  );
-}
-
 export function QuickActions({ device }: { device: Device }) {
   const serial = device.serial;
   const setActiveTab = useAppStore((s) => s.setActiveTab);

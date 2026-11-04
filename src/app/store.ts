@@ -5,7 +5,15 @@ import { DEFAULT_THEME_ID } from "@/app/theme/presets";
 import type { ThemeMode } from "@/app/theme/types";
 
 export type TabId =
-  "overview" | "apps" | "mirror" | "wireless" | "files" | "console" | "emulators" | "settings";
+  | "overview"
+  | "features"
+  | "apps"
+  | "mirror"
+  | "wireless"
+  | "files"
+  | "console"
+  | "emulators"
+  | "settings";
 
 interface AppStore {
   activeTab: TabId;
