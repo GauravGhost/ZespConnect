@@ -188,6 +188,11 @@ fn write_cache(path: &Path, serial: &str, apps: &[AppInfo]) {
     let _ = util::write_json(path, &cache);
 }
 
+/// A device's cached apps as stored, with each app's original `label_source`.
+pub fn cached(app_data_dir: &Path, serial: &str) -> Option<Vec<AppInfo>> {
+    read_cache(&cache_file(app_data_dir), serial)
+}
+
 /// A device's cached app names by package, for naming an app without scanning the phone.
 pub fn cached_labels(app_data_dir: &Path, serial: &str) -> HashMap<String, String> {
     read_cache(&cache_file(app_data_dir), serial)

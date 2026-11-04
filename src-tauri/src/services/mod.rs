@@ -9,6 +9,7 @@ pub mod devices;
 pub mod files;
 pub mod fmp4;
 pub mod install;
+pub mod launcher;
 pub mod mdns;
 pub mod media_session;
 pub mod mirror_window;
