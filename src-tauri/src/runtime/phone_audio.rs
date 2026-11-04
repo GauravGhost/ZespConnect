@@ -113,7 +113,7 @@ async fn begin(
             "The phone did not start sending its sound",
         )));
     }
-    match scrcpy_server::audio_start(u32::from_be_bytes(codec)) {
+    match scrcpy_server::audio_start(u32::from_be_bytes(codec), scrcpy_server::RAW_CODEC_ID) {
         AudioStart::Streaming => {}
         AudioStart::Unavailable => return Err(AppError::Invalid(
             "The phone could not share its sound. It needs Android 11 or newer, and Android 11 \

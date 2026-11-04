@@ -180,6 +180,24 @@ pub fn audio_args(version: &str, scid: &str) -> Vec<String> {
     ]
 }
 
+/// Audio-only server for a recording: AAC straight from the phone's encoder, captured from app
+/// playback and duplicated, so the phone keeps playing its sound (Android 13+).
+pub fn recording_audio_args(version: &str, scid: &str) -> Vec<String> {
+    vec![
+        format!("scid={scid}"),
+        "video=false".to_string(),
+        "control=false".to_string(),
+        "audio_codec=aac".to_string(),
+        "audio_source=playback".to_string(),
+        "audio_dup=true".to_string(),
+        "send_device_meta=false".to_string(),
+        "send_dummy_byte=false".to_string(),
+        "send_frame_meta=true".to_string(),
+        format!("{}=true", meta_option(version)),
+        "cleanup=false".to_string(),
+    ]
+}
+
 /// Control-only server that reports every phone clipboard change as a device message.
 pub fn clipboard_args(scid: &str) -> Vec<String> {
     vec![
@@ -195,7 +213,8 @@ pub fn clipboard_args(scid: &str) -> Vec<String> {
 
 pub const PCM_RATE: u32 = 48_000;
 pub const PCM_CHANNELS: u16 = 2;
-const RAW_CODEC_ID: u32 = 0x0072_6177;
+pub const RAW_CODEC_ID: u32 = 0x0072_6177;
+pub const AAC_CODEC_ID: u32 = 0x0061_6163;
 
 /// What the 4-byte codec id that opens an audio stream says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,10 +225,11 @@ pub enum AudioStart {
     Failed,
 }
 
-pub fn audio_start(codec_id: u32) -> AudioStart {
+/// Read the codec id against the codec the server was asked for.
+pub fn audio_start(codec_id: u32, expected: u32) -> AudioStart {
     match codec_id {
-        RAW_CODEC_ID => AudioStart::Streaming,
         0 => AudioStart::Unavailable,
+        id if id == expected => AudioStart::Streaming,
         _ => AudioStart::Failed,
     }
 }
@@ -424,9 +444,31 @@ mod tests {
 
     #[test]
     fn reads_the_audio_codec_header() {
-        assert_eq!(audio_start(0x0072_6177), AudioStart::Streaming);
-        assert_eq!(audio_start(0), AudioStart::Unavailable);
-        assert_eq!(audio_start(1), AudioStart::Failed);
+        assert_eq!(
+            audio_start(0x0072_6177, RAW_CODEC_ID),
+            AudioStart::Streaming
+        );
+        assert_eq!(audio_start(0, RAW_CODEC_ID), AudioStart::Unavailable);
+        assert_eq!(audio_start(1, RAW_CODEC_ID), AudioStart::Failed);
+    }
+
+    #[test]
+    fn recording_audio_start_rejects_raw_and_unavailable() {
+        assert_eq!(audio_start(RAW_CODEC_ID, AAC_CODEC_ID), AudioStart::Failed);
+        assert_eq!(audio_start(0, AAC_CODEC_ID), AudioStart::Unavailable);
+        assert_eq!(
+            audio_start(AAC_CODEC_ID, AAC_CODEC_ID),
+            AudioStart::Streaming
+        );
+    }
+
+    #[test]
+    fn recording_audio_args_use_aac_playback_dup() {
+        let args = recording_audio_args("4.1", "abcd1234");
+        assert!(args.contains(&"audio_codec=aac".to_string()));
+        assert!(args.contains(&"audio_source=playback".to_string()));
+        assert!(args.contains(&"audio_dup=true".to_string()));
+        assert!(!args.contains(&"audio_source=output".to_string()));
     }
 
     #[test]
