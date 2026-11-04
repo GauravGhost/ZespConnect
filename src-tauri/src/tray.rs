@@ -56,14 +56,18 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             }
         });
 
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
-    }
-
-    // macOS menu-bar icons look best when they follow the system theme.
+    // macOS draws template icons from their alpha channel only, so the menu bar needs a
+    // transparent outline glyph; the full-color app icon would render as a solid square.
     #[cfg(target_os = "macos")]
     {
-        builder = builder.icon_as_template(true);
+        builder = builder
+            .icon(tauri::include_image!("icons/tray.png"))
+            .icon_as_template(true);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
     }
 
     builder.build(app)?;
