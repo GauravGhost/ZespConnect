@@ -15,7 +15,7 @@ export function FeaturesPanel() {
       ) : (
         <NoDeviceState
           icon={PlugZap}
-          description="Connect an Android device to sync its clipboard or play its sound here."
+          description="Connect an Android device to sync its clipboard, play its sound here or control its music."
         />
       )}
       <CaptureSettings />

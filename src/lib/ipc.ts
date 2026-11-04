@@ -11,6 +11,7 @@ import type {
   FileEntry,
   KeyAction,
   LogLine,
+  MediaKey,
   MirrorAction,
   MdnsDevice,
   ReconnectTarget,
@@ -193,6 +194,12 @@ export const ipc = {
     onComputer: () => invoke<string[]>("list_phone_audio"),
     setOnComputer: (serial: string, onComputer: boolean) =>
       invoke<void>("set_phone_audio", { serial, onComputer }),
+  },
+
+  media: {
+    /** Report what `serial` plays through `now-playing:changed`; `null` stops watching. */
+    watch: (serial: string | null) => invoke<void>("watch_now_playing", { serial }),
+    sendKey: (serial: string, key: MediaKey) => invoke<void>("send_media_key", { serial, key }),
   },
 
   capture: {

@@ -6,6 +6,7 @@ import type {
   InstallProgress,
   MirrorProcess,
   MirrorSession,
+  NowPlaying,
   ReconnectEvent,
   RecordingOutcome,
 } from "@/types";
@@ -21,6 +22,7 @@ export interface BackendEvents {
   "mirror:session:locked": { id: number; locked: boolean; phoneScreen: boolean };
   "phone-audio:changed": { serial: string; onComputer: boolean };
   "clipboard-sync:changed": { serial: string; on: boolean };
+  "now-playing:changed": { serial: string; nowPlaying: NowPlaying | null };
   "install:progress": { serial: string; package: string; progress: number; message: string };
   "tools:install:progress": InstallProgress;
   "tools:install:done": InstallDone;
@@ -62,6 +64,8 @@ export const events = {
     onBackendEvent("phone-audio:changed", handler),
   clipboardSyncChanged: (handler: EventCallback<BackendEvents["clipboard-sync:changed"]>) =>
     onBackendEvent("clipboard-sync:changed", handler),
+  nowPlayingChanged: (handler: EventCallback<BackendEvents["now-playing:changed"]>) =>
+    onBackendEvent("now-playing:changed", handler),
   installProgress: (handler: EventCallback<BackendEvents["install:progress"]>) =>
     onBackendEvent("install:progress", handler),
   toolsInstallProgress: (handler: EventCallback<InstallProgress>) =>

@@ -188,6 +188,22 @@ export interface RecordingOutcome extends SavedCapture {
   notice: string | null;
 }
 
+/** What a phone's foreground media session is playing. */
+export interface NowPlaying {
+  package: string;
+  /** The app's display name. */
+  app: string;
+  title: string;
+  artist: string | null;
+  playing: boolean;
+  canPrevious: boolean;
+  canNext: boolean;
+  /** The app's own message when playback failed. */
+  error: string | null;
+}
+
+export type MediaKey = "playPause" | "next" | "previous";
+
 export interface CaptureDirs {
   pictures: string;
   videos: string;
