@@ -43,7 +43,7 @@ export function QrPairDialog() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-9"
+            className="size-8 rounded-lg"
             aria-label="Pair with QR code"
             onClick={() => onOpenChange(true)}
           >

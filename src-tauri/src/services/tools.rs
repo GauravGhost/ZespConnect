@@ -57,6 +57,7 @@ async fn resolve_tool(
     let override_path = override_path
         .map(PathBuf::from)
         .filter(|candidate| candidate.is_file());
+    let managed_path = managed_binary(managed_dir, tool);
 
     let (path, source) = if let Some(path) = override_path {
         (path, ToolSource::Override)
@@ -67,7 +68,7 @@ async fn resolve_tool(
         .find(|path| path.is_file())
     {
         (path, ToolSource::Known)
-    } else if let Some(path) = managed_binary(managed_dir, tool) {
+    } else if let Some(path) = managed_path.clone() {
         // A copy the app downloaded for itself (no override set).
         (path, ToolSource::Known)
     } else {
@@ -79,6 +80,7 @@ async fn resolve_tool(
         version: version_of(tool, &path, version_args).await,
         path: Some(path.to_string_lossy().to_string()),
         source,
+        managed_path: managed_path.map(|path| path.to_string_lossy().to_string()),
     }
 }
 

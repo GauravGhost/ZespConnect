@@ -19,7 +19,7 @@ export function ThemeModeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          className="size-9"
+          className="size-8 rounded-lg"
           aria-label={label}
           onClick={() => setThemeMode(next)}
         >

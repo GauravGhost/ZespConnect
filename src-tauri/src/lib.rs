@@ -77,6 +77,13 @@ pub fn run() {
             // The main window starts hidden, so start without a Dock icon until it is shown.
             platform::hide_from_dock(app.handle());
 
+            // The UI draws the main window's title bar. macOS keeps the native frame for its
+            // traffic lights (an overlay title bar, set in tauri.conf.json); elsewhere it is dropped.
+            #[cfg(not(target_os = "macos"))]
+            if let Some(main) = app.get_webview_window(MAIN_WINDOW) {
+                main.set_decorations(false)?;
+            }
+
             // Resolve tools synchronously so the first paint shows the real status.
             let status =
                 tauri::async_runtime::block_on(runtime::tools::resolve(&app.state::<AppState>()));

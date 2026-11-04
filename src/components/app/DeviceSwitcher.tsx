@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,16 +41,16 @@ export function DeviceSwitcher({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="secondary"
+          variant="outline"
           size="sm"
-          className="h-9 gap-2 pr-2.5 pl-3"
+          className="h-8 gap-2 rounded-lg border-sidebar-border bg-background/40 pr-2 pl-3 text-[13px]"
           disabled={devices.length === 0}
         >
           {device ? <StatusDot state={device.state} /> : null}
           <span className="max-w-[16rem] truncate">
             {device ? deviceIdentity(device) : "No device"}
           </span>
-          <ChevronDown className="text-muted-foreground" />
+          <ChevronsUpDown className="text-muted-foreground size-3.5" />
         </Button>
       </DropdownMenuTrigger>
 

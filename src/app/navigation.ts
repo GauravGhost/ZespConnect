@@ -19,42 +19,112 @@ export interface NavItem {
   icon: LucideIcon;
   /** One-line context shown next to the page title in the header. */
   description: string;
+  /** Key pressed with Cmd (macOS) or Ctrl to open the tab. */
+  shortcutKey: string;
 }
 
-export const PRIMARY_NAV: NavItem[] = [
+export interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+export const NAV_GROUPS: NavGroup[] = [
   {
-    id: "overview",
-    label: "Overview",
-    icon: LayoutDashboard,
-    description: "Device status and quick settings",
+    label: "Device",
+    items: [
+      {
+        id: "overview",
+        label: "Overview",
+        icon: LayoutDashboard,
+        description: "Device status and quick settings",
+        shortcutKey: "1",
+      },
+      {
+        id: "features",
+        label: "Features",
+        icon: Blocks,
+        description: "Connected features, screenshots and recordings",
+        shortcutKey: "2",
+      },
+      {
+        id: "apps",
+        label: "Apps",
+        icon: AppWindow,
+        description: "Installed packages",
+        shortcutKey: "3",
+      },
+      {
+        id: "mirror",
+        label: "Mirror",
+        icon: Smartphone,
+        description: "Screen and camera windows",
+        shortcutKey: "4",
+      },
+      {
+        id: "files",
+        label: "Files",
+        icon: FolderOpen,
+        description: "Browse device storage",
+        shortcutKey: "5",
+      },
+    ],
   },
   {
-    id: "features",
-    label: "Features",
-    icon: Blocks,
-    description: "Connected features, screenshots and recordings",
-  },
-  { id: "apps", label: "Apps", icon: AppWindow, description: "Installed packages" },
-  { id: "mirror", label: "Mirror", icon: Smartphone, description: "Screen and camera windows" },
-  { id: "wireless", label: "Wireless", icon: Wifi, description: "Pair and connect over Wi-Fi" },
-  { id: "files", label: "Files", icon: FolderOpen, description: "Browse device storage" },
-  { id: "console", label: "Console", icon: Terminal, description: "Shell and logcat" },
-  {
-    id: "emulators",
-    label: "Emulators",
-    icon: Gamepad2,
-    description: "Android Virtual Devices on this computer",
+    label: "Tools",
+    items: [
+      {
+        id: "console",
+        label: "Console",
+        icon: Terminal,
+        description: "Shell and logcat",
+        shortcutKey: "6",
+      },
+      {
+        id: "wireless",
+        label: "Wireless",
+        icon: Wifi,
+        description: "Pair and connect over Wi-Fi",
+        shortcutKey: "7",
+      },
+      {
+        id: "emulators",
+        label: "Emulators",
+        icon: Gamepad2,
+        description: "Android Virtual Devices on this computer",
+        shortcutKey: "8",
+      },
+    ],
   },
 ];
 
-export const SECONDARY_NAV: NavItem[] = [
-  { id: "settings", label: "Settings", icon: Settings, description: "Tools and appearance" },
-];
+export const SETTINGS_NAV: NavItem = {
+  id: "settings",
+  label: "Settings",
+  icon: Settings,
+  description: "Tools and appearance",
+  shortcutKey: ",",
+};
 
-const NAV_ITEMS: NavItem[] = [...PRIMARY_NAV, ...SECONDARY_NAV];
+const NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((group) => group.items), SETTINGS_NAV];
 
 export const TAB_IDS: TabId[] = NAV_ITEMS.map((item) => item.id);
 
 export function navItem(tab: TabId): NavItem {
   return NAV_ITEMS.find((item) => item.id === tab) ?? NAV_ITEMS[0];
+}
+
+type ShortcutPress = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">;
+
+/** The tab a key press opens, or `null` when the press is not a tab shortcut. */
+export function tabForShortcut(press: ShortcutPress, isMac: boolean): TabId | null {
+  const primary = isMac ? press.metaKey : press.ctrlKey;
+  const secondary = isMac ? press.ctrlKey : press.metaKey;
+  if (!primary || secondary || press.altKey || press.shiftKey) return null;
+
+  return NAV_ITEMS.find((item) => item.shortcutKey === press.key)?.id ?? null;
+}
+
+/** A tab shortcut as the user's keyboard labels it, such as "⌘1" or "Ctrl+1". */
+export function shortcutLabel(item: NavItem, isMac: boolean): string {
+  return `${isMac ? "⌘" : "Ctrl+"}${item.shortcutKey}`;
 }

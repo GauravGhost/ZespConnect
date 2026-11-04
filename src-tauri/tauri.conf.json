@@ -22,7 +22,10 @@
         "minHeight": 520,
         "maxWidth": 880,
         "maximizable": false,
-        "visible": false
+        "visible": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 14, "y": 24 }
       }
     ],
     "security": {

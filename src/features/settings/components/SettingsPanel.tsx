@@ -12,7 +12,7 @@ import { ToolCard } from "./ToolCard";
 
 export function SettingsPanel() {
   const { data: tools, refetch, isFetching } = useToolsStatus();
-  const { log, locate, clear, install, installing } = useToolActions();
+  const { log, locate, clear, selectManaged, install, installing } = useToolActions();
   const checkUpdates = useCheckUpdates();
 
   function runInstall(kind: ToolKind) {
@@ -67,23 +67,25 @@ export function SettingsPanel() {
         <ToolCard
           kind="adb"
           title="ADB"
-          description="Android Debug Bridge. Required to talk to your devices."
+          description="Required to talk to your devices."
           info={tools?.adb}
           update={tools?.adb_update}
           busy={installing}
           onLocate={locate}
           onClear={clear}
+          onUseManaged={selectManaged}
           onInstall={runInstall}
         />
         <ToolCard
           kind="scrcpy"
           title="scrcpy"
-          description="Screen Copy. Optional, needed for mirroring."
+          description="Optional, needed for mirroring."
           info={tools?.scrcpy}
           update={tools?.scrcpy_update}
           busy={installing}
           onLocate={locate}
           onClear={clear}
+          onUseManaged={selectManaged}
           onInstall={runInstall}
         />
       </div>

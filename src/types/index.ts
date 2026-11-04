@@ -9,6 +9,8 @@ export interface ToolInfo {
   path: string | null;
   version: string | null;
   source: ToolSource;
+  /** The copy the app downloaded itself, if any. */
+  managed_path: string | null;
 }
 
 export interface ToolStatus {

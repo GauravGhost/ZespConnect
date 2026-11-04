@@ -37,6 +37,8 @@ pub struct ToolInfo {
     pub path: Option<String>,
     pub version: Option<String>,
     pub source: ToolSource,
+    /// The copy the app downloaded itself, if any, so the UI can switch back to it.
+    pub managed_path: Option<String>,
 }
 
 impl ToolInfo {
@@ -46,6 +48,7 @@ impl ToolInfo {
             path: None,
             version: None,
             source: ToolSource::NotFound,
+            managed_path: None,
         }
     }
 }

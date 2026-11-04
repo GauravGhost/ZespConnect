@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, TriangleAlert } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,50 +8,47 @@ import { useAppStore } from "@/app/store";
 import { ThemeModeToggle } from "@/components/app/ThemeModeToggle";
 import { DeviceSwitcher } from "@/components/app/DeviceSwitcher";
 import { QrPairDialog } from "@/components/app/QrPairDialog";
+import { SIDEBAR_WIDTH } from "@/components/app/Sidebar";
+import { WindowControls } from "@/features/mirror-viewer";
 import { devicesKey, useActiveDevice } from "@/hooks/useDevices";
-import { useInstallLog } from "@/hooks/useInstallLog";
-import { toolsKey, useToolsStatus } from "@/hooks/useTools";
+import { toolsKey } from "@/hooks/useTools";
+import { IS_MAC } from "@/lib/platform";
+import { cn } from "@/lib/utils";
 
+/**
+ * The window's title bar: the native one is hidden, so this bar drags the window. macOS keeps its
+ * traffic lights on top of it; elsewhere it draws its own window controls.
+ */
 export function AppHeader() {
   const queryClient = useQueryClient();
   const activeTab = useAppStore((s) => s.activeTab);
-  const setActiveTab = useAppStore((s) => s.setActiveTab);
   const { device, devices, setSelectedSerial } = useActiveDevice();
-  const { data: tools } = useToolsStatus();
-  const install = useInstallLog();
   const page = navItem(activeTab);
 
-  const scrcpyMissing = Boolean(tools && tools.adb.found && !tools.scrcpy.found);
-  const scrcpyOutdated = Boolean(tools?.scrcpy.found && tools.scrcpy_update.outdated);
-  const scrcpyLatest = tools?.scrcpy_update.latest_version ?? null;
-
   return (
-    <header className="bg-background/80 flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/60 pr-2 pl-4 backdrop-blur">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="shrink-0 text-[15px] font-semibold tracking-tight">{page.label}</h1>
-          <p className="text-muted-foreground hidden truncate text-xs md:block">
-            {page.description}
-          </p>
-        </div>
+    <header
+      data-tauri-drag-region
+      className="bg-sidebar text-sidebar-foreground flex h-11 shrink-0 items-center gap-3 border-b border-sidebar-border pr-2 select-none"
+    >
+      <span
+        data-tauri-drag-region
+        className={cn(
+          SIDEBAR_WIDTH,
+          "shrink-0 font-mono text-sm font-medium tracking-tight",
+          // Room for the traffic lights, placed by `trafficLightPosition` in tauri.conf.json.
+          IS_MAC ? "pl-[84px]" : "pl-4",
+        )}
+      >
+        zesp<span className="text-primary">/</span>connect
+      </span>
 
-        {install.running ? (
-          <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium">
-            <RefreshCw className="size-3.5 animate-spin" />
-            Installing {install.tool ?? "tool"}…
-          </span>
-        ) : scrcpyMissing || scrcpyOutdated ? (
-          <button
-            type="button"
-            onClick={() => setActiveTab("settings")}
-            className="bg-warning/15 text-warning hover:bg-warning/25 inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
-          >
-            <TriangleAlert className="size-3.5" />
-            {scrcpyMissing
-              ? "scrcpy missing"
-              : `scrcpy ${scrcpyLatest ? `v${scrcpyLatest}` : "update"} available`}
-          </button>
-        ) : null}
+      <div data-tauri-drag-region className="flex min-w-0 flex-1 items-baseline gap-2">
+        <h1 data-tauri-drag-region className="shrink-0 text-sm font-semibold tracking-tight">
+          {page.label}
+        </h1>
+        <p data-tauri-drag-region className="text-muted-foreground truncate text-xs">
+          {page.description}
+        </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
@@ -62,7 +59,7 @@ export function AppHeader() {
             <Button
               variant="ghost"
               size="icon"
-              className="size-9"
+              className="size-8 rounded-lg"
               aria-label="Refresh"
               onClick={() => {
                 queryClient.invalidateQueries({ queryKey: devicesKey });
@@ -78,6 +75,12 @@ export function AppHeader() {
         <div className="ml-1.5">
           <DeviceSwitcher device={device} devices={devices} onSelect={setSelectedSerial} />
         </div>
+
+        {IS_MAC ? null : (
+          <div className="ml-2 border-l border-sidebar-border pl-2">
+            <WindowControls />
+          </div>
+        )}
       </div>
     </header>
   );

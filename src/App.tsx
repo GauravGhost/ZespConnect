@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/app/AppHeader";
 import { Sidebar } from "@/components/app/Sidebar";
 import { EmptyState } from "@/components/app/EmptyState";
 import { FileDropOverlay } from "@/components/app/FileDropOverlay";
+import { ToolStatusBanner } from "@/components/app/ToolStatusBanner";
 import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
 import { FeaturesPanel, useRecordingResults } from "@/features/connected";
@@ -16,6 +17,7 @@ import { DependencyCheck } from "@/features/onboarding";
 import { SettingsPanel } from "@/features/settings";
 import { useWirelessReconnect, WirelessPanel } from "@/features/wireless";
 import { useToolsStatus } from "@/hooks/useTools";
+import { useTabShortcuts } from "@/hooks/useTabShortcuts";
 import { useTrayNavigation } from "@/hooks/useTray";
 
 function ActiveFeature({ tab }: { tab: TabId }) {
@@ -57,18 +59,22 @@ function Main() {
 
 export default function App() {
   useTrayNavigation();
+  useTabShortcuts();
   useWirelessReconnect();
   useRecordingResults();
   const selectedSerial = useAppStore((s) => s.selectedSerial);
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader />
-        <main className="min-h-0 flex-1 overflow-y-auto">
-          <Main />
-        </main>
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden">
+      <AppHeader />
+      <div className="flex min-h-0 flex-1">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <ToolStatusBanner />
+          <main className="min-h-0 flex-1 overflow-y-auto">
+            <Main />
+          </main>
+        </div>
       </div>
       <FileDropOverlay serial={selectedSerial} />
     </div>

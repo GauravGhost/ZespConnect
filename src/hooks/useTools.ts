@@ -56,12 +56,14 @@ export function useCheckUpdates() {
 
 /** Locate, clear and install actions shared by the tool setup screens, with the installer log. */
 export function useToolActions() {
+  const queryClient = useQueryClient();
   const setPath = useSetToolPath();
   const install = useInstallTool();
   const log = useInstallLog();
 
   async function locate(kind: ToolKind) {
-    const selected = await pickToolExecutable(kind);
+    const currentPath = queryClient.getQueryData<ToolStatus>(toolsKey)?.[kind].path ?? null;
+    const selected = await pickToolExecutable(kind, currentPath);
     if (selected) setPath.mutate({ tool: kind, path: selected });
   }
 
@@ -69,10 +71,14 @@ export function useToolActions() {
     setPath.mutate({ tool: kind, path: null });
   }
 
+  function selectManaged(kind: ToolKind, path: string) {
+    setPath.mutate({ tool: kind, path });
+  }
+
   function runInstall(kind: ToolKind, onSuccess?: (status: ToolStatus) => void) {
     log.reset();
     install.mutate(kind, { onError: (error) => toast.error(errorMessage(error)), onSuccess });
   }
 
-  return { log, locate, clear, install: runInstall, installing: install.isPending };
+  return { log, locate, clear, selectManaged, install: runInstall, installing: install.isPending };
 }
