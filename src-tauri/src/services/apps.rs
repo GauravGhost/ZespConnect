@@ -188,6 +188,23 @@ fn write_cache(path: &Path, serial: &str, apps: &[AppInfo]) {
     let _ = util::write_json(path, &cache);
 }
 
+/// A device's cached app names by package, for naming an app without scanning the phone.
+pub fn cached_labels(app_data_dir: &Path, serial: &str) -> HashMap<String, String> {
+    read_cache(&cache_file(app_data_dir), serial)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|app| (app.package, app.label))
+        .collect()
+}
+
+/// An app's display name: its cached label, else one derived from the package.
+pub fn display_label(labels: &HashMap<String, String>, package: &str) -> String {
+    labels
+        .get(package)
+        .cloned()
+        .unwrap_or_else(|| prettify(package))
+}
+
 fn finish(mut apps: Vec<AppInfo>, source: AppListSource, include_system: bool) -> AppListResult {
     if !include_system {
         apps.retain(|app| !app.is_system);

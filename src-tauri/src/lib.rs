@@ -167,6 +167,8 @@ pub fn run() {
             commands::clipboard::set_clipboard_sync,
             commands::audio::list_phone_audio,
             commands::audio::set_phone_audio,
+            commands::media::watch_now_playing,
+            commands::media::send_media_key,
             commands::capture::capture_default_dirs,
             commands::capture::capture_open_folder,
             commands::capture::save_screenshot,

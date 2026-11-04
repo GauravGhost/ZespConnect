@@ -5,6 +5,7 @@ pub mod clipboard_sync;
 pub mod logcat;
 pub mod mirror;
 pub mod mirror_session;
+pub mod now_playing;
 pub mod phone_audio;
 pub mod reconnect;
 pub mod recording;

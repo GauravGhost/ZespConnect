@@ -27,7 +27,8 @@ pub struct SessionHandle {
     pub video_tap: tokio::sync::watch::Sender<Option<VideoTap>>,
 }
 
-/// One background link per device (phone audio, clipboard sync), each stopped through its sender.
+/// One background link per device (phone audio, clipboard sync, now playing), each stopped through
+/// its sender.
 /// Every link gets an id so a link that finishes late cannot unregister its replacement.
 #[derive(Default)]
 pub struct DeviceLinks {
@@ -105,6 +106,7 @@ pub struct AppState {
     selected: RwLock<Option<String>>,
     phone_audio: DeviceLinks,
     clipboard_sync: DeviceLinks,
+    now_playing: DeviceLinks,
     recordings: Recordings,
 }
 
@@ -132,6 +134,7 @@ impl AppState {
             selected: RwLock::new(selected),
             phone_audio: DeviceLinks::default(),
             clipboard_sync: DeviceLinks::default(),
+            now_playing: DeviceLinks::default(),
             recordings: Recordings::default(),
         }
     }
@@ -144,6 +147,11 @@ impl AppState {
     /// Devices whose clipboard is kept in sync with the computer's.
     pub fn clipboard_sync(&self) -> &DeviceLinks {
         &self.clipboard_sync
+    }
+
+    /// The device whose media sessions the main window is watching (at most one).
+    pub fn now_playing(&self) -> &DeviceLinks {
+        &self.now_playing
     }
 
     pub fn app_data_dir(&self) -> PathBuf {
