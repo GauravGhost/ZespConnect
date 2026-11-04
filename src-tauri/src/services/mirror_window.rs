@@ -10,18 +10,23 @@ pub const MIN_SIDE: f64 = 240.0;
 /// The longer side a window takes the first time it fits a session.
 pub const DEFAULT_LONG_SIDE: f64 = 820.0;
 
-/// Margin below the video so it does not run into the window's bottom edge; `MirrorViewer` pads its canvas by the same amount.
-pub const BOTTOM_INSET: f64 = 14.0;
+/// Height of the control bar below a phone window's video; `MirrorControlBar` is the same height (`h-9`).
+pub const CONTROL_BAR: f64 = 36.0;
+
+/// Margin below an app window's video, which has no control bar; `MirrorViewer` pads by the same (`pb-2`).
+pub const BOTTOM_GAP: f64 = 8.0;
 
 /// Height of a mirror window's own title bar, which replaces the native one on every platform.
 pub const TITLE_BAR: f64 = 28.0;
 
-/// The vertical space a window of `kind` reserves: a desktop's title bar only, or a phone's title bar plus `BOTTOM_INSET`.
+/// The vertical space a window of `kind` reserves under and over its video: every window has a
+/// title bar, a desktop nothing more, an app (Back is in its title bar) a small gap, and the rest
+/// a `CONTROL_BAR`.
 pub fn vertical_inset(kind: Option<MirrorKind>) -> f64 {
-    if kind == Some(MirrorKind::Desktop) {
-        TITLE_BAR
-    } else {
-        TITLE_BAR + BOTTOM_INSET
+    match kind {
+        Some(MirrorKind::Desktop) => TITLE_BAR,
+        Some(MirrorKind::App) => TITLE_BAR + BOTTOM_GAP,
+        _ => TITLE_BAR + CONTROL_BAR,
     }
 }
 
@@ -33,6 +38,32 @@ pub fn pad((width, height): (f64, f64), inset: f64) -> (f64, f64) {
 /// The video area inside a client size of `(width, height)`.
 pub fn unpad((width, height): (f64, f64), inset: f64) -> (f64, f64) {
     (width, (height - inset).max(1.0))
+}
+
+/// The display size that fills a window's video area for a display that follows the window
+/// (`flex_display`), at `pixels_per_point` display pixels per logical window pixel. The window
+/// arrives in physical pixels at `scale`; `None` while minimized or too small to hold any video.
+pub fn display_pixels(
+    (width, height): (u32, u32),
+    scale: f64,
+    inset: f64,
+    pixels_per_point: f64,
+) -> Option<(u16, u16)> {
+    let positive = |value: f64| {
+        if value.is_finite() && value > 0.0 {
+            value
+        } else {
+            1.0
+        }
+    };
+    let (scale, pixels_per_point) = (positive(scale), positive(pixels_per_point));
+    let width = f64::from(width) / scale;
+    let height = f64::from(height) / scale - inset;
+    if width < 1.0 || height < 1.0 {
+        return None;
+    }
+    let to_pixels = |value: f64| (value * pixels_per_point).round().min(f64::from(u16::MAX)) as u16;
+    Some((to_pixels(width), to_pixels(height)))
 }
 
 /// Upper bound on the longer side across a rotation, so a stretched window cannot produce an absurd size.
@@ -119,11 +150,20 @@ mod tests {
     }
 
     #[test]
-    fn a_phone_reserves_a_title_bar_and_a_bottom_gap() {
-        let expected = TITLE_BAR + BOTTOM_INSET;
-        assert_eq!(vertical_inset(Some(MirrorKind::App)), expected);
+    fn a_phone_reserves_a_title_bar_and_a_control_bar() {
+        let expected = TITLE_BAR + CONTROL_BAR;
+        assert_eq!(vertical_inset(Some(MirrorKind::Mirror)), expected);
+        assert_eq!(vertical_inset(Some(MirrorKind::Camera)), expected);
         assert_eq!(vertical_inset(Some(MirrorKind::ScreenApp)), expected);
         assert_eq!(vertical_inset(None), expected);
+    }
+
+    #[test]
+    fn an_app_reserves_a_title_bar_and_a_small_gap() {
+        assert_eq!(
+            vertical_inset(Some(MirrorKind::App)),
+            TITLE_BAR + BOTTOM_GAP
+        );
     }
 
     #[test]
@@ -141,5 +181,24 @@ mod tests {
             "{w}x{h} is below the minimum"
         );
         assert!((w / h - 1080.0 / 2400.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn display_pixels_drop_the_inset_then_apply_the_display_density() {
+        // A 410x820 logical window at 2x on a 420 dpi phone: 410x778 dp in 1076x2042 pixels.
+        assert_eq!(
+            display_pixels((820, 1640), 2.0, 42.0, 420.0 / 160.0),
+            Some((1076, 2042))
+        );
+        assert_eq!(
+            display_pixels((100, 100), f64::NAN, 10.0, 1.0),
+            Some((100, 90))
+        );
+    }
+
+    #[test]
+    fn a_minimized_window_has_no_display_pixels() {
+        assert_eq!(display_pixels((0, 0), 1.0, 42.0, 1.0), None);
+        assert_eq!(display_pixels((300, 40), 1.0, 42.0, 1.0), None);
     }
 }

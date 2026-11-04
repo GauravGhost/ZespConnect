@@ -35,6 +35,31 @@ pub enum KeyAction {
     Up,
 }
 
+/// A one-shot device control from a mirror window's menu, mirroring the `MirrorAction` TS type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirrorAction {
+    Back,
+    Notifications,
+    QuickSettings,
+    CollapsePanels,
+    Rotate,
+    TorchOn,
+    TorchOff,
+    ZoomIn,
+    ZoomOut,
+}
+
+impl MirrorAction {
+    /// Camera controls exist only on a scrcpy 4.0+ camera session.
+    pub fn is_camera(self) -> bool {
+        matches!(
+            self,
+            Self::TorchOn | Self::TorchOff | Self::ZoomIn | Self::ZoomOut
+        )
+    }
+}
+
 /// A running scrcpy window tracked in `AppState`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorProcess {
@@ -58,6 +83,18 @@ pub struct MirrorSession {
     /// Desktop mode: whether the phone's own screen starts on because it was in use when the session opened.
     #[serde(default, rename = "phoneScreen")]
     pub phone_screen: bool,
+    /// The session's virtual display follows its window's size (scrcpy 4.0+ `flex_display`).
+    #[serde(default, rename = "flexDisplay")]
+    pub flex_display: bool,
+    /// Flex display pixels per logical window pixel; resizes keep the display's density.
+    #[serde(skip)]
+    pub display_scale: f64,
+    /// A camera session whose server takes torch and zoom controls (scrcpy 4.0+).
+    #[serde(default, rename = "cameraControls")]
+    pub camera_controls: bool,
+    /// Camera: whether the torch started on.
+    #[serde(default)]
+    pub torch: bool,
 }
 
 /// Everything needed to start one in-app session, kept in `AppState` so a failed stream can fall back with the same settings.

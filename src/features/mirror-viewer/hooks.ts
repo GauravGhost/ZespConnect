@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { useBackendEvents } from "@/hooks/useBackendEvents";
 import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
+import type { MirrorSession } from "@/types";
 import { H264Decoder } from "./decoder";
 import { androidKeycode, androidMetaState, isTextKey } from "./keymap";
 import { mirrorSessionId } from "./session";
@@ -98,7 +99,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
   // Desktop mode turns the phone screen off; the side toggle turns it back on.
   const [phoneScreen, setPhoneScreen] = useState(false);
   // Known once the session starts; the sound switch is per device, not per window.
-  const [serial, setSerial] = useState<string | null>(null);
+  const [session, setSession] = useState<MirrorSession | null>(null);
 
   useEffect(() => {
     const id = sessionId;
@@ -191,7 +192,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
         interactiveRef.current = rich;
         setInteractive(rich);
         setPhoneScreen(session.phoneScreen);
-        setSerial(session.serial);
+        setSession(session);
       })
       .catch(async (failure) => {
         if (disposed) return;
@@ -241,7 +242,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
     locked,
     phoneScreen,
     setPhoneScreen,
-    serial,
+    session,
   };
 }
 

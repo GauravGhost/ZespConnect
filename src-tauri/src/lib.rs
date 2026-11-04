@@ -87,7 +87,7 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             match event {
-                // Keep a mirror window's client area on the video's aspect ratio when resizing.
+                // A mirror window keeps its video's aspect ratio, or resizes a display that follows it.
                 tauri::WindowEvent::Resized(size) => on_mirror_resized(window, *size),
                 // Closing main only hides it (quit via the tray); a mirror window closes for real, stopping its session.
                 tauri::WindowEvent::CloseRequested { api, .. } => {
@@ -138,6 +138,7 @@ pub fn run() {
             commands::mirror::mirror_scroll,
             commands::mirror::mirror_key,
             commands::mirror::mirror_text,
+            commands::mirror::mirror_action,
             commands::mirror::mirror_reset_video,
             commands::mirror::mirror_phone_screen,
             commands::mirror::list_mirror_sessions,
@@ -202,9 +203,40 @@ fn enforce_aspect<R: tauri::Runtime>(window: &tauri::Window<R>, width: u32, heig
     }
 }
 
-/// Correct a resized mirror window back onto its video's aspect ratio after the fact.
+/// Ask a flex display to take a resized window's new video area; the server debounces a drag.
+fn resize_display<R: tauri::Runtime>(
+    window: &tauri::Window<R>,
+    session: &models::MirrorSession,
+    size: tauri::PhysicalSize<u32>,
+) {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let inset = services::mirror_window::vertical_inset(Some(session.kind));
+    let Some((width, height)) = services::mirror_window::display_pixels(
+        (size.width, size.height),
+        scale,
+        inset,
+        session.display_scale,
+    ) else {
+        return;
+    };
+    let state = window.app_handle().state::<AppState>();
+    if let Some(control) = state.session_control(session.id) {
+        let _ = control.send(services::control::resize_display(width, height));
+    }
+}
+
+/// After a mirror window resizes, resize its flex display or correct the window back onto its video's aspect ratio.
 fn on_mirror_resized<R: tauri::Runtime>(window: &tauri::Window<R>, size: tauri::PhysicalSize<u32>) {
-    if let Some(id) = session_window::session_id(window.label()) {
-        enforce_aspect(window, size.width, size.height, id);
+    let Some(id) = session_window::session_id(window.label()) else {
+        return;
+    };
+    match window.app_handle().state::<AppState>().session(id) {
+        Some(session) if session.flex_display => {
+            // A minimized window reports a meaningless size.
+            if !window.is_minimized().unwrap_or(false) {
+                resize_display(window, &session, size);
+            }
+        }
+        _ => enforce_aspect(window, size.width, size.height, id),
     }
 }

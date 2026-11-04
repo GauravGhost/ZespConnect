@@ -2,9 +2,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Pin } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { MirrorIconButton } from "./MirrorIconButton";
 
-export function AlwaysOnTopButton({ className }: Readonly<{ className?: string }>) {
+export function AlwaysOnTopButton() {
   const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
@@ -30,18 +30,12 @@ export function AlwaysOnTopButton({ className }: Readonly<{ className?: string }
   };
 
   return (
-    <button
-      type="button"
+    <MirrorIconButton
+      label={pinned ? "Stop keeping this window on top" : "Keep this window on top"}
+      icon={Pin}
+      iconClassName={pinned ? "fill-current" : undefined}
+      pressed={pinned}
       onClick={toggle}
-      aria-pressed={pinned}
-      title={pinned ? "Stop keeping this window on top" : "Keep this window on top"}
-      className={cn(
-        "flex items-center justify-center rounded-full transition-colors",
-        pinned ? "text-emerald-300 hover:bg-emerald-500/25" : "text-neutral-300 hover:bg-white/10",
-        className,
-      )}
-    >
-      <Pin className={cn("size-3.5", pinned && "fill-current")} />
-    </button>
+    />
   );
 }

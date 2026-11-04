@@ -101,6 +101,18 @@ export type TouchAction = "down" | "move" | "up" | "hover";
 /** A key press or release forwarded to a mirrored device. */
 export type KeyAction = "down" | "up";
 
+/** A one-shot device control from a mirror window's menu (camera ones need scrcpy 4.0+). */
+export type MirrorAction =
+  | "back"
+  | "notifications"
+  | "quick-settings"
+  | "collapse-panels"
+  | "rotate"
+  | "torch-on"
+  | "torch-off"
+  | "zoom-in"
+  | "zoom-out";
+
 export interface MirrorOptions {
   resolution: number | null;
   fps: number | null;
@@ -136,6 +148,12 @@ export interface MirrorSession {
   started: number;
   /** Desktop mode: whether the phone's own screen is on (the title-bar toggle). */
   phoneScreen: boolean;
+  /** The virtual display follows the window's size instead of locking its aspect ratio. */
+  flexDisplay: boolean;
+  /** A camera session that takes torch and zoom controls. */
+  cameraControls: boolean;
+  /** Camera: whether the torch started on. */
+  torch: boolean;
 }
 
 export type QuickToggleKey =

@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use crate::error::{AppError, Result};
 use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
 use crate::runtime::server_link::{self, ServerLink, Teardown};
-use crate::runtime::{mirror, phone_audio};
+use crate::runtime::{mirror, phone_audio, session_window};
 use crate::services::{apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
 
@@ -26,6 +26,9 @@ const UNLOCKED_POLL: Duration = Duration::from_secs(2);
 const KEYCODE_HOME: u32 = 3;
 const START_APP_ATTEMPTS: usize = 6;
 const START_APP_RETRY: Duration = Duration::from_millis(900);
+
+/// How long Back gets to close an app before it is launched again (see `reopen_after_back`).
+const REOPEN_AFTER_BACK: Duration = Duration::from_millis(600);
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,8 +128,28 @@ pub async fn start(
     let adb_bin = server.adb_bin.clone();
     let scid = scrcpy_server::scid();
 
-    let (options, virtual_display) = session_options(&adb_bin, &spec).await?;
+    let (mut options, virtual_display) = session_options(&adb_bin, &spec).await?;
     let kind = options.kind;
+
+    // Camera controls and resizable displays arrived together in scrcpy 4.0.
+    let extended_controls = scrcpy::flex_display_supported(Some(&server.version));
+    // A virtual display then follows its window: sized to it now, resized with it after.
+    let flex = if extended_controls && options.new_display.is_some() {
+        let phone_dpi = if kind == MirrorKind::Desktop {
+            None
+        } else {
+            scrcpy::phone_density(&adb_bin, &spec.serial).await
+        };
+        session_window::flex_display(app, id, kind, phone_dpi)
+    } else {
+        None
+    };
+    let display_scale = flex.as_ref().map(|display| display.pixels_per_point);
+    if let Some(display) = flex {
+        options.new_display = Some(display.spec);
+        options.flex_display = true;
+        options.max_size = scrcpy::MAX_DESKTOP_SIDE as u32;
+    }
 
     // Desktop mode wakes the phone so apps draw; its screen is switched off once streaming (see `watch_lock`).
     let screen_was_on = if kind == MirrorKind::Desktop {
@@ -174,6 +197,10 @@ pub async fn start(
         label: Some(mirror::label_or(&spec.label, &spec.serial)),
         started: crate::util::time::unix_now(),
         phone_screen: screen_was_on,
+        flex_display: display_scale.is_some(),
+        display_scale: display_scale.unwrap_or(1.0),
+        camera_controls: extended_controls && kind == MirrorKind::Camera,
+        torch: spec.options.camera_torch,
     };
 
     // Seed the toggle before `watch_lock`, which confirms it on its first check.
@@ -225,6 +252,17 @@ pub async fn start(
     ));
 
     Ok(info)
+}
+
+/// Back on an app's first screen closes it and leaves its virtual display black, so the app is
+/// launched again once Back has run. An app that is still open just stays as it is.
+pub fn reopen_after_back(control: ControlChannel, package: &str) -> Result<()> {
+    let message = control::start_app(package)?;
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(REOPEN_AFTER_BACK).await;
+        let _ = control.send(message);
+    });
+    Ok(())
 }
 
 /// Resend START_APP until the app is drawing (stream live) or the session ends.
@@ -391,6 +429,7 @@ async fn session_options(
     let options = scrcpy_server::ServerOptions {
         kind,
         new_display,
+        flex_display: false,
         // The desktop is already sized to the screen; 0 tells scrcpy not to cap it.
         max_size: if desktop {
             0

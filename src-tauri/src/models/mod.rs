@@ -15,8 +15,8 @@ pub use controls::{DeviceInfo, QuickState, RebootMode, DEFAULT_BRIGHTNESS_MAX, D
 pub use device::{Device, DeviceState, DeviceTransport};
 pub use files::{FileEntry, SendOutcome};
 pub use mirror::{
-    KeyAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec,
-    TouchAction,
+    KeyAction, MirrorAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession,
+    MirrorSessionSpec, TouchAction,
 };
 pub use tools::{
     InstallDone, InstallProgress, ToolInfo, ToolKind, ToolSource, ToolStatus, UpdateInfo,

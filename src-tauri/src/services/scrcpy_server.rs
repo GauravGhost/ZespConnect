@@ -80,6 +80,8 @@ pub struct ServerOptions {
     pub kind: MirrorKind,
     /// `""` reuses the main display's size, `WxH/dpi` sizes it (desktop), `None` mirrors an existing display.
     pub new_display: Option<String>,
+    /// Let the client resize the virtual display (`RESIZE_DISPLAY`); scrcpy 4.0+.
+    pub flex_display: bool,
     pub max_size: u32,
     pub max_fps: Option<u32>,
     pub bit_rate: Option<u32>,
@@ -137,6 +139,9 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
     if let Some(size) = opts.new_display.as_deref() {
         // `new_display` takes a size spec (or empty for the main display's size), not a boolean.
         args.push(format!("new_display={size}"));
+        if opts.flex_display {
+            args.push("flex_display=true".to_string());
+        }
         if opts.kind == MirrorKind::Desktop {
             // Desktop mode is the decorations; typing comes from the computer, so hide the phone IME.
             // Sleep-on-close is decided by the session's phone-screen toggle (see `finish_desktop`).
@@ -238,6 +243,7 @@ mod tests {
         ServerOptions {
             kind,
             new_display: None,
+            flex_display: false,
             max_size: 1024,
             max_fps: None,
             bit_rate: None,
@@ -298,6 +304,18 @@ mod tests {
         assert!(args.contains(&"display_ime_policy=hide".to_string()));
         assert!(!args.iter().any(|a| a.starts_with("power_off_on_close")));
         assert!(args.iter().any(|a| a.starts_with("screen_off_timeout=")));
+    }
+
+    #[test]
+    fn flex_display_rides_on_the_virtual_display() {
+        let mut opts = options(MirrorKind::App);
+        opts.new_display = Some("820x1552/320".to_string());
+        assert!(!options_args("4.0", "s", &opts)
+            .iter()
+            .any(|a| a.starts_with("flex_display")));
+
+        opts.flex_display = true;
+        assert!(options_args("4.0", "s", &opts).contains(&"flex_display=true".to_string()));
     }
 
     #[test]

@@ -8,10 +8,20 @@ const TYPE_INJECT_KEYCODE: u8 = 0;
 const TYPE_INJECT_TEXT: u8 = 1;
 const TYPE_INJECT_TOUCH_EVENT: u8 = 2;
 const TYPE_INJECT_SCROLL_EVENT: u8 = 3;
+const TYPE_BACK_OR_SCREEN_ON: u8 = 4;
+const TYPE_EXPAND_NOTIFICATION_PANEL: u8 = 5;
+const TYPE_EXPAND_SETTINGS_PANEL: u8 = 6;
+const TYPE_COLLAPSE_PANELS: u8 = 7;
 const TYPE_SET_CLIPBOARD: u8 = 9;
 const TYPE_SET_DISPLAY_POWER: u8 = 10;
+const TYPE_ROTATE_DEVICE: u8 = 11;
 const TYPE_START_APP: u8 = 16;
 const TYPE_RESET_VIDEO: u8 = 17;
+// Types 18+ exist only from scrcpy 4.0; an older server drops the session on an unknown type.
+const TYPE_CAMERA_SET_TORCH: u8 = 18;
+const TYPE_CAMERA_ZOOM_IN: u8 = 19;
+const TYPE_CAMERA_ZOOM_OUT: u8 = 20;
+const TYPE_RESIZE_DISPLAY: u8 = 21;
 
 /// `AMOTION_EVENT_ACTION_*` values carried by a touch message.
 const ACTION_DOWN: u8 = 0;
@@ -230,6 +240,60 @@ pub fn set_display_power(on: bool) -> Vec<u8> {
     vec![TYPE_SET_DISPLAY_POWER, u8::from(on)]
 }
 
+/// `BACK_OR_SCREEN_ON` - `[type][u8 action]`. Presses BACK, or wakes the screen if it is off.
+pub fn back_or_screen_on(action: KeyAction) -> Vec<u8> {
+    let action = match action {
+        KeyAction::Down => KEY_ACTION_DOWN,
+        KeyAction::Up => KEY_ACTION_UP,
+    };
+    vec![TYPE_BACK_OR_SCREEN_ON, action]
+}
+
+/// `EXPAND_NOTIFICATION_PANEL` - `[type]`.
+pub fn expand_notification_panel() -> Vec<u8> {
+    vec![TYPE_EXPAND_NOTIFICATION_PANEL]
+}
+
+/// `EXPAND_SETTINGS_PANEL` - `[type]`. Opens quick settings.
+pub fn expand_settings_panel() -> Vec<u8> {
+    vec![TYPE_EXPAND_SETTINGS_PANEL]
+}
+
+/// `COLLAPSE_PANELS` - `[type]`.
+pub fn collapse_panels() -> Vec<u8> {
+    vec![TYPE_COLLAPSE_PANELS]
+}
+
+/// `ROTATE_DEVICE` - `[type]`. Turns the mirrored display a quarter turn.
+pub fn rotate_device() -> Vec<u8> {
+    vec![TYPE_ROTATE_DEVICE]
+}
+
+/// `CAMERA_SET_TORCH` - `[type][u8 on]`. scrcpy 4.0+, camera sessions only.
+pub fn camera_set_torch(on: bool) -> Vec<u8> {
+    vec![TYPE_CAMERA_SET_TORCH, u8::from(on)]
+}
+
+/// `CAMERA_ZOOM_IN` - `[type]`. scrcpy 4.0+, camera sessions only.
+pub fn camera_zoom_in() -> Vec<u8> {
+    vec![TYPE_CAMERA_ZOOM_IN]
+}
+
+/// `CAMERA_ZOOM_OUT` - `[type]`. scrcpy 4.0+, camera sessions only.
+pub fn camera_zoom_out() -> Vec<u8> {
+    vec![TYPE_CAMERA_ZOOM_OUT]
+}
+
+/// `RESIZE_DISPLAY` - `[type][u16 width][u16 height]`. scrcpy 4.0+, and only for a `flex_display`
+/// session: the server throws on any other, which ends the session.
+pub fn resize_display(width: u16, height: u16) -> Vec<u8> {
+    let mut message = Vec::with_capacity(5);
+    message.push(TYPE_RESIZE_DISPLAY);
+    message.extend_from_slice(&width.to_be_bytes());
+    message.extend_from_slice(&height.to_be_bytes());
+    message
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,5 +452,35 @@ mod tests {
     fn start_app_rejects_names_that_do_not_fit_the_length_byte() {
         assert!(start_app(&"a".repeat(255)).is_ok());
         assert!(start_app(&"a".repeat(256)).is_err());
+    }
+
+    #[test]
+    fn back_or_screen_on_carries_the_key_action() {
+        assert_eq!(back_or_screen_on(KeyAction::Down), vec![4, 0]);
+        assert_eq!(back_or_screen_on(KeyAction::Up), vec![4, 1]);
+    }
+
+    #[test]
+    fn panel_and_rotate_messages_are_bare_types() {
+        assert_eq!(expand_notification_panel(), vec![5]);
+        assert_eq!(expand_settings_panel(), vec![6]);
+        assert_eq!(collapse_panels(), vec![7]);
+        assert_eq!(rotate_device(), vec![11]);
+    }
+
+    #[test]
+    fn camera_messages_match_scrcpy_4() {
+        assert_eq!(camera_set_torch(true), vec![18, 1]);
+        assert_eq!(camera_set_torch(false), vec![18, 0]);
+        assert_eq!(camera_zoom_in(), vec![19]);
+        assert_eq!(camera_zoom_out(), vec![20]);
+    }
+
+    #[test]
+    fn resize_display_is_a_type_then_two_u16() {
+        assert_eq!(
+            resize_display(1080, 0x0960),
+            vec![21, 0x04, 0x38, 0x09, 0x60]
+        );
     }
 }

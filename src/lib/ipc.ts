@@ -8,6 +8,7 @@ import type {
   FileEntry,
   KeyAction,
   LogLine,
+  MirrorAction,
   MdnsDevice,
   MirrorKind,
   MirrorOptions,
@@ -123,6 +124,8 @@ export const ipc = {
     phoneScreen: (id: number, on: boolean) => invoke<void>("mirror_phone_screen", { id, on }),
     /** Type text (at most 300 UTF-8 bytes per call). */
     text: (id: number, text: string) => invoke<void>("mirror_text", { id, text }),
+    /** Run a one-shot control (Back, panels, rotate, camera torch/zoom). */
+    action: (id: number, action: MirrorAction) => invoke<void>("mirror_action", { id, action }),
     listSessions: () => invoke<MirrorSession[]>("list_mirror_sessions"),
     /** Reopen a session as an external window when in-app rendering is unavailable. */
     fallback: (id: number) => invoke<void>("mirror_session_fallback", { id }),

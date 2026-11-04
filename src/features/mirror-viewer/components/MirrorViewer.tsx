@@ -14,6 +14,7 @@ import type { TouchAction } from "@/types";
 import { useKeyboardForwarding, useMirrorStream } from "../hooks";
 import { androidButton, androidButtons, wheelNotches } from "../keymap";
 import { DesktopTitleBar } from "./DesktopTitleBar";
+import { MirrorControlBar } from "./MirrorControlBar";
 import { MirrorTitleBar } from "./MirrorTitleBar";
 
 /** Mouse buttons sent with a desktop pointer event (Android `BUTTON_*` masks). */
@@ -43,8 +44,11 @@ export function MirrorViewer() {
     locked,
     phoneScreen,
     setPhoneScreen,
-    serial,
+    session,
   } = useMirrorStream(canvasRef);
+  const serial = session?.serial ?? null;
+  // An app's Back is in its title bar, so its window has a small gap instead of a control bar.
+  const controlBar = !desktop && session?.kind !== "app";
 
   useEffect(
     () => () => {
@@ -135,6 +139,11 @@ export function MirrorViewer() {
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (activePointerRef.current !== null) return;
     const mouse = interactiveMouse(event);
+    // A touch-only screen mirror takes right-click as Back (or wake), like scrcpy.
+    if (session?.kind === "mirror" && event.pointerType === "mouse" && event.button === 2) {
+      enqueue((id) => ipc.mirror.action(id, "back"));
+      return;
+    }
     if (event.pointerType === "mouse" && !mouse && event.button !== 0) return;
     const point = pointFor(event);
     if (!point) return;
@@ -189,7 +198,7 @@ export function MirrorViewer() {
   };
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-neutral-950">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       {desktop ? (
         <DesktopTitleBar
           serial={serial}
@@ -197,19 +206,19 @@ export function MirrorViewer() {
           onTogglePhoneScreen={togglePhoneScreen}
         />
       ) : (
-        <MirrorTitleBar serial={serial} />
+        <MirrorTitleBar session={session} />
       )}
-      {/* A phone window keeps a bottom gap and rounded corners; a desktop fills the
-          area under its title bar. Sized by `mirror_window::vertical_inset`. */}
+      {/* A phone window keeps a control bar (an app a small gap) below rounded corners; a
+          desktop fills the area under its title bar. Sized by `mirror_window::vertical_inset`. */}
       <div
         className={cn(
           "relative flex min-h-0 flex-1 items-center justify-center",
-          !desktop && "pb-3.5",
+          session?.kind === "app" && "pb-2",
         )}
       >
         <canvas
           ref={canvasRef}
-          className={cn("max-h-full max-w-full touch-none", !desktop && "rounded-[12px]")}
+          className={cn("max-h-full max-w-full touch-none", !desktop && "rounded-[10px]")}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
@@ -219,30 +228,31 @@ export function MirrorViewer() {
           onContextMenu={(event) => event.preventDefault()}
         />
         {status !== "live" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/80 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/85 text-center">
             {status === "error" ? (
               <>
-                <MonitorX className="size-6 text-neutral-400" />
-                <p className="max-w-sm px-6 text-sm text-neutral-300">{message}</p>
+                <MonitorX className="size-6 text-muted-foreground" />
+                <p className="max-w-sm px-6 text-sm text-foreground">{message}</p>
               </>
             ) : (
               <>
-                <Loader2 className="size-6 animate-spin text-neutral-400" />
-                <p className="text-sm text-neutral-400">Starting mirror…</p>
+                <Loader2 className="size-6 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Starting mirror…</p>
               </>
             )}
           </div>
         ) : locked ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/80 text-center">
-            <Lock className="size-6 text-neutral-300" />
-            <p className="text-sm font-medium text-neutral-200">Unlock your phone</p>
-            <p className="max-w-sm px-6 text-sm text-neutral-400">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/85 text-center">
+            <Lock className="size-6 text-primary" />
+            <p className="text-sm font-medium text-foreground">Unlock your phone</p>
+            <p className="max-w-sm px-6 text-sm text-muted-foreground">
               Android shows the desktop only while the phone is unlocked. It appears here as soon as
               you unlock.
             </p>
           </div>
         ) : null}
       </div>
+      {controlBar ? <MirrorControlBar key={session?.id} session={session} /> : null}
       <FileDropOverlay serial={serial} />
     </div>
   );

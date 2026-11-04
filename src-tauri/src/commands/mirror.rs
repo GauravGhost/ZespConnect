@@ -6,8 +6,8 @@ use tauri::{AppHandle, LogicalSize, Manager, State};
 
 use crate::error::{AppError, Result};
 use crate::models::{
-    KeyAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession, MirrorSessionSpec,
-    TouchAction,
+    KeyAction, MirrorAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession,
+    MirrorSessionSpec, TouchAction,
 };
 use crate::runtime::mirror::{self, AppDisplay};
 use crate::runtime::{mirror_session, session_window};
@@ -124,12 +124,20 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
         return Err(AppError::Invalid("Invalid video size".into()));
     }
 
+    let state = app.state::<AppState>();
+    // A flex display already takes the window's shape; fitting would undo the user's resize.
+    if state
+        .session(id)
+        .is_some_and(|session| session.flex_display)
+    {
+        return Ok(());
+    }
+
     let window = app
         .get_webview_window(&session_window::label(id))
         .ok_or_else(|| AppError::Invalid("Unknown mirror window".into()))?;
 
     let aspect = width as f64 / height as f64;
-    let state = app.state::<AppState>();
     let inset = mirror_window::vertical_inset(state.session_kind(id));
     let long_side = mirror::window_long_side(&window, inset);
     state.set_aspect(id, aspect);
@@ -232,6 +240,49 @@ pub async fn mirror_phone_screen(id: u64, on: bool, state: State<'_, AppState>) 
     let channel = session_channel(&state, id)?;
     state.set_phone_screen(id, on);
     channel.send(control::set_display_power(on))
+}
+
+/// Run a one-shot control from the window's menu (Back, panels, rotate, camera torch/zoom).
+#[tauri::command]
+pub async fn mirror_action(
+    id: u64,
+    action: MirrorAction,
+    state: State<'_, AppState>,
+) -> Result<()> {
+    // An unknown message type ends an older server's session, so camera controls are gated.
+    if action.is_camera()
+        && !state
+            .session(id)
+            .is_some_and(|session| session.camera_controls)
+    {
+        return Err(AppError::Invalid(
+            "Camera controls need a scrcpy 4.0+ camera session".into(),
+        ));
+    }
+
+    let channel = session_channel(&state, id)?;
+    match action {
+        MirrorAction::Back => {
+            channel.send(control::back_or_screen_on(KeyAction::Down))?;
+            channel.send(control::back_or_screen_on(KeyAction::Up))?;
+            match state.session(id) {
+                Some(MirrorSession {
+                    kind: MirrorKind::App,
+                    package: Some(package),
+                    ..
+                }) => mirror_session::reopen_after_back(channel, &package),
+                _ => Ok(()),
+            }
+        }
+        MirrorAction::Notifications => channel.send(control::expand_notification_panel()),
+        MirrorAction::QuickSettings => channel.send(control::expand_settings_panel()),
+        MirrorAction::CollapsePanels => channel.send(control::collapse_panels()),
+        MirrorAction::Rotate => channel.send(control::rotate_device()),
+        MirrorAction::TorchOn => channel.send(control::camera_set_torch(true)),
+        MirrorAction::TorchOff => channel.send(control::camera_set_torch(false)),
+        MirrorAction::ZoomIn => channel.send(control::camera_zoom_in()),
+        MirrorAction::ZoomOut => channel.send(control::camera_zoom_out()),
+    }
 }
 
 #[tauri::command]

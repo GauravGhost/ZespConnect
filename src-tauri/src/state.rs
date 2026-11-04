@@ -285,6 +285,13 @@ impl AppState {
             .unwrap_or(false)
     }
 
+    pub fn session(&self, id: u64) -> Option<MirrorSession> {
+        self.sessions
+            .read()
+            .ok()
+            .and_then(|guard| guard.get(&id).map(|handle| handle.info.clone()))
+    }
+
     pub fn session_kind(&self, id: u64) -> Option<MirrorKind> {
         self.sessions
             .read()

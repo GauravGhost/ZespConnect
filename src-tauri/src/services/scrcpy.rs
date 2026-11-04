@@ -63,6 +63,24 @@ pub async fn android_api(adb_path: &str, serial: &str) -> Option<u32> {
     output.stdout.trim().parse().ok()
 }
 
+/// The phone's screen density (`wm density`, an override winning over the physical value).
+pub async fn phone_density(adb_path: &str, serial: &str) -> Option<u32> {
+    let output = adb::shell(adb_path, serial, "wm density", API_TIMEOUT)
+        .await
+        .ok()?;
+    parse_density(&output.stdout)
+}
+
+fn parse_density(output: &str) -> Option<u32> {
+    let value = |label: &str| {
+        output
+            .lines()
+            .find_map(|line| line.trim().strip_prefix(label))
+            .and_then(|rest| rest.trim().parse::<u32>().ok())
+    };
+    value("Override density:").or_else(|| value("Physical density:"))
+}
+
 /// Whether the installed scrcpy understands `--flex-display`; unknown versions are treated as unsupported.
 pub fn flex_display_supported(version: Option<&str>) -> bool {
     version
@@ -129,11 +147,11 @@ pub fn app_window_args(
 /// Android 16 (API 36) brought desktop windowing (taskbar, launcher, freeform windows) to connected displays.
 const MIN_DESKTOP_API: u32 = 36;
 
-/// The longest side a desktop display may take; larger screens are scaled down with the density.
-const MAX_DESKTOP_SIDE: f64 = 2560.0;
+/// The longest side a desktop or resizable display may take; larger screens are scaled down with the density.
+pub const MAX_DESKTOP_SIDE: f64 = 2560.0;
 
 /// Android's baseline density: one dp is one pixel at 160 dpi.
-const BASE_DENSITY: f64 = 160.0;
+pub const BASE_DENSITY: f64 = 160.0;
 
 /// Desktop streams a large, text-heavy display, so it defaults to a higher bitrate (Mbps) than a phone mirror.
 pub const DESKTOP_BIT_RATE: u32 = 16;
@@ -154,6 +172,18 @@ echo \"$sdk $ff ${{w#mWakefulness=}}\"; \
 [ \"$sdk\" -ge {MIN_DESKTOP_API} ] && [ \"$ff\" = true ] && input keyevent KEYCODE_WAKEUP"
     )
 });
+
+/// The density that gives a desktop the computer's own UI scale.
+pub fn desktop_density(scale: f64) -> u32 {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    (BASE_DENSITY * scale)
+        .round()
+        .clamp(MIN_DESKTOP_DPI, MAX_DESKTOP_DPI) as u32
+}
 
 /// The `WxH/dpi` virtual display matching a computer screen of `width`×`height` pixels at `scale`.
 pub fn desktop_display(width: u32, height: u32, scale: f64) -> String {
@@ -468,6 +498,23 @@ mod tests {
     fn desktop_display_matches_a_retina_laptop() {
         // A 2560x1664 panel at 2x is a 1280x832 dp desktop.
         assert_eq!(desktop_display(2560, 1664, 2.0), "2560x1664/320");
+    }
+
+    #[test]
+    fn density_prefers_the_override() {
+        assert_eq!(parse_density("Physical density: 420\n"), Some(420));
+        assert_eq!(
+            parse_density("Physical density: 420\nOverride density: 480\n"),
+            Some(480)
+        );
+        assert_eq!(parse_density("error"), None);
+    }
+
+    #[test]
+    fn desktop_density_follows_the_screen_scale() {
+        assert_eq!(desktop_density(1.0), 160);
+        assert_eq!(desktop_density(1.5), 240);
+        assert_eq!(desktop_density(f64::NAN), 160);
     }
 
     #[test]
