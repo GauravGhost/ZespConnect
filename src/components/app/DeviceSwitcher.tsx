@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { deviceIdentity, deviceName, stateLabel } from "@/lib/format";
+import { deviceIdentity, deviceName, stateLabel, transportLabel } from "@/lib/format";
 import type { Device } from "@/types";
 
 function StatusDot({ state }: { state: Device["state"] }) {
@@ -54,7 +54,7 @@ export function DeviceSwitcher({
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Devices</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {devices.map((item) => (
@@ -69,7 +69,7 @@ export function DeviceSwitcher({
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-medium">{deviceName(item)}</span>
               <span className="text-muted-foreground truncate text-xs">
-                {item.serial} · {stateLabel(item.state)}
+                {transportLabel(item)} · {stateLabel(item.state)}
               </span>
             </span>
             {item.serial === device?.serial ? <Check className="mt-0.5 size-4" /> : null}
