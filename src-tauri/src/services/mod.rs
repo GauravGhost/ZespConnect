@@ -7,6 +7,7 @@ pub mod console;
 pub mod control;
 pub mod devices;
 pub mod files;
+pub mod fmp4;
 pub mod install;
 pub mod mdns;
 pub mod mirror_window;
