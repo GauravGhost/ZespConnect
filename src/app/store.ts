@@ -20,10 +20,13 @@ interface AppStore {
   selectedSerial: string | null;
   themeId: string;
   themeMode: ThemeMode;
+  /** Latest scrcpy version whose update banner the user dismissed. */
+  dismissedScrcpyUpdate: string | null;
   setActiveTab: (tab: TabId) => void;
   setSelectedSerial: (serial: string | null) => void;
   setThemeId: (id: string) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  dismissScrcpyUpdate: (version: string) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -33,10 +36,12 @@ export const useAppStore = create<AppStore>()(
       selectedSerial: null,
       themeId: DEFAULT_THEME_ID,
       themeMode: "system",
+      dismissedScrcpyUpdate: null,
       setActiveTab: (activeTab) => set({ activeTab }),
       setSelectedSerial: (selectedSerial) => set({ selectedSerial }),
       setThemeId: (themeId) => set({ themeId }),
       setThemeMode: (themeMode) => set({ themeMode }),
+      dismissScrcpyUpdate: (dismissedScrcpyUpdate) => set({ dismissedScrcpyUpdate }),
     }),
     {
       name: "zesp-connect-ui",
@@ -52,6 +57,7 @@ export const useAppStore = create<AppStore>()(
         selectedSerial: state.selectedSerial,
         themeId: state.themeId,
         themeMode: state.themeMode,
+        dismissedScrcpyUpdate: state.dismissedScrcpyUpdate,
       }),
     },
   ),
