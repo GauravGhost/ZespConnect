@@ -227,8 +227,6 @@ export function OverviewPanel() {
 
   return (
     <OverviewLayout phone={<QuickSettingsShade device={live} />}>
-      <DeviceHero device={device} />
-      {stats}
       <QuickActions device={device} />
       <DeviceWindows device={device} className="flex-1" />
     </OverviewLayout>

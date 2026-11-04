@@ -1,6 +1,7 @@
-import { Package, Search } from "lucide-react";
+import { Package, Search, Smartphone } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { events } from "@/lib/events";
 import { ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
@@ -31,32 +32,32 @@ export function LauncherPopup() {
   }
 
   return (
-    <div className="bg-background text-foreground flex h-screen flex-col overflow-hidden border select-none">
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <Search className="text-muted-foreground size-5 shrink-0" />
-        <input
-          ref={inputRef}
-          autoFocus
-          value={launcher.query}
-          onChange={(event) => launcher.setQuery(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Search apps"
-          aria-label="Search apps"
-          className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-xl outline-none"
-        />
-        <DeviceChip target={launcher.target} />
+    <div className="bg-popover text-popover-foreground flex h-screen flex-col overflow-hidden rounded-3xl border select-none">
+      <div className="p-3">
+        <label className="bg-muted/40 focus-within:bg-muted focus-within:ring-ring flex h-12 items-center gap-3 rounded-2xl px-4 transition-[background-color,box-shadow] duration-150 ease-emphasized focus-within:ring-2">
+          <Search className="text-muted-foreground size-5 shrink-0" />
+          <input
+            ref={inputRef}
+            autoFocus
+            value={launcher.query}
+            onChange={(event) => launcher.setQuery(event.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Search apps"
+            aria-label="Search apps"
+            className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-lg outline-none"
+          />
+          <DeviceChip target={launcher.target} />
+        </label>
       </div>
       {launcher.error ? (
-        <p className="text-destructive border-b px-4 py-2 text-sm">{launcher.error}</p>
+        <p className="bg-destructive/10 text-destructive mx-3 mb-2 rounded-2xl px-4 py-2 text-sm">
+          {launcher.error}
+        </p>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-y-auto py-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         <LauncherBody launcher={launcher} />
       </div>
-      <div className="text-muted-foreground flex gap-4 border-t px-4 py-2 text-xs">
-        <span>Enter open</span>
-        <span>Up/Down move</span>
-        <span>Esc close</span>
-      </div>
+      <LauncherFooter />
     </div>
   );
 }
@@ -64,14 +65,39 @@ export function LauncherPopup() {
 function DeviceChip({ target }: Readonly<{ target: LauncherTarget | null }>) {
   if (target?.kind !== "ready" && target?.kind !== "offline") return null;
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full px-2 py-0.5 text-xs",
-        target.kind === "ready" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-      )}
-    >
+    <Badge variant={target.kind === "ready" ? "default" : "secondary"}>
+      <Smartphone />
       {target.name}
-    </span>
+    </Badge>
+  );
+}
+
+const KEY_HINTS = [
+  { key: "Enter", action: "open" },
+  { key: "Up/Down", action: "move" },
+  { key: "Esc", action: "close" },
+];
+
+function LauncherFooter() {
+  return (
+    <div className="text-muted-foreground flex items-center gap-4 border-t px-4 py-2.5 text-xs">
+      <span className="text-foreground flex items-center gap-2 font-medium">
+        <span className="bg-primary-container text-on-primary-container flex size-5 items-center justify-center rounded-md">
+          <Smartphone className="size-3" />
+        </span>
+        Zesp Connect
+      </span>
+      <span className="ml-auto flex items-center gap-3">
+        {KEY_HINTS.map(({ key, action }) => (
+          <span key={key} className="flex items-center gap-1.5">
+            <kbd className="bg-muted text-foreground rounded-md px-1.5 py-0.5 font-sans text-[11px] font-medium">
+              {key}
+            </kbd>
+            {action}
+          </span>
+        ))}
+      </span>
+    </div>
   );
 }
 
@@ -110,15 +136,27 @@ function AppResult({
       tabIndex={-1}
       onClick={onOpen}
       className={cn(
-        "flex w-full items-center gap-3 px-4 py-2 text-left text-sm",
-        highlighted && "bg-primary/15",
+        "flex h-12 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm transition-colors duration-150 ease-emphasized",
+        highlighted ? "bg-primary-container text-on-primary-container" : "hover:bg-muted/60",
       )}
     >
-      <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-xl",
+          highlighted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+        )}
+      >
         <Package className="size-4" />
       </span>
       <span className="truncate font-medium">{app.label}</span>
-      <span className="text-muted-foreground ml-auto truncate text-xs">{app.package}</span>
+      <span
+        className={cn(
+          "ml-auto truncate font-mono text-xs",
+          highlighted ? "text-on-primary-container/70" : "text-muted-foreground",
+        )}
+      >
+        {app.package}
+      </span>
     </button>
   );
 }

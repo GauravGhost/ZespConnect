@@ -130,6 +130,7 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
         .title("Zesp Connect launcher")
         .inner_size(WIDTH, HEIGHT)
         .decorations(false)
+        .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)

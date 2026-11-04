@@ -19,7 +19,10 @@ const windowLabel = getCurrentWebviewWindow().label;
 
 function windowView() {
   if (isMirrorWindowLabel(windowLabel)) return <MirrorViewer />;
-  if (isLauncherWindowLabel(windowLabel)) return <LauncherPopup />;
+  if (isLauncherWindowLabel(windowLabel)) {
+    document.documentElement.classList.add("transparent-window");
+    return <LauncherPopup />;
+  }
   return (
     <React.StrictMode>
       <App />

@@ -140,6 +140,12 @@
     font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   }
 
+  /* The launcher window is transparent so its rounded corners show the desktop behind them. */
+  .transparent-window,
+  .transparent-window body {
+    background: transparent;
+  }
+
   ::selection {
     background-color: var(--primary);
     color: var(--primary-foreground);
