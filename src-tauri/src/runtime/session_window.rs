@@ -67,6 +67,7 @@ pub fn open(app: &AppHandle, mut spec: MirrorSessionSpec) -> Result<u64> {
         .hidden_title(true);
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false).shadow(false);
+    crate::platform::unhide_app(app);
     builder
         .build()
         .map_err(|error| AppError::Other(error.to_string()))?;

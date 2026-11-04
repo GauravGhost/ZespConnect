@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppInfo } from "@/types";
 import { LauncherPopup } from "./LauncherPopup";
 
 const launcher = vi.hoisted(() => ({
+  shown: [] as (() => void)[],
   target: vi.fn(),
   apps: vi.fn(),
   hide: vi.fn(),
@@ -21,7 +22,10 @@ vi.mock("@/lib/ipc", () => ({
 
 vi.mock("@/lib/events", () => ({
   events: {
-    launcherShown: () => Promise.resolve(() => {}),
+    launcherShown: (handler: () => void) => {
+      launcher.shown.push(handler);
+      return Promise.resolve(() => {});
+    },
     launcherAppsChanged: () => Promise.resolve(() => {}),
   },
 }));
@@ -52,6 +56,7 @@ describe("LauncherPopup", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    launcher.shown.length = 0;
     launcher.target.mockResolvedValue({ kind: "ready", serial: "phone", name: "Pixel 8" });
     launcher.apps.mockResolvedValue([makeApp("WhatsApp"), makeApp("Weather")]);
     launcher.hide.mockResolvedValue(undefined);
@@ -77,6 +82,17 @@ describe("LauncherPopup", () => {
   it("does nothing on Enter when no app matches", async () => {
     const input = await renderReady();
     fireEvent.change(input, { target: { value: "zzz" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(launcher.startAppWindow).not.toHaveBeenCalled();
+  });
+
+  it("clears the previous list and query as soon as it is shown again", async () => {
+    const input = await renderReady();
+    fireEvent.change(input, { target: { value: "wh" } });
+    launcher.target.mockReturnValue(new Promise(() => {}));
+    act(() => launcher.shown.forEach((handler) => handler()));
+    expect(screen.queryByText("WhatsApp")).not.toBeInTheDocument();
+    expect(input).toHaveValue("");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(launcher.startAppWindow).not.toHaveBeenCalled();
   });

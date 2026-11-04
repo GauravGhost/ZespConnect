@@ -22,6 +22,7 @@ pub(crate) const MAIN_WINDOW: &str = "main";
 /// Bring the main window to the front, restoring it if hidden or minimized.
 pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        platform::unhide_app(app);
         platform::show_in_dock(app);
         let _ = window.show();
         let _ = window.unminimize();
@@ -58,7 +59,9 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        runtime::launcher::toggle(app);
+                        // Building a window inside an event handler deadlocks on Windows.
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move { runtime::launcher::toggle(&app) });
                     }
                 })
                 .build(),

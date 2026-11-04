@@ -44,6 +44,16 @@ pub fn show_in_dock(app: &tauri::AppHandle) {
 #[cfg(not(target_os = "macos"))]
 pub fn show_in_dock(_app: &tauri::AppHandle) {}
 
+/// Undo a macOS app hide (the launcher hides the app to hand focus back), so a window about to be
+/// shown actually appears. A no-op elsewhere.
+#[cfg(target_os = "macos")]
+pub fn unhide_app(app: &tauri::AppHandle) {
+    let _ = app.show();
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn unhide_app(_app: &tauri::AppHandle) {}
+
 /// Run as a menu-bar-only app on macOS, without a Dock icon. A no-op elsewhere.
 #[cfg(target_os = "macos")]
 pub fn hide_from_dock(app: &tauri::AppHandle) {

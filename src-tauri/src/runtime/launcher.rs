@@ -7,6 +7,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::error::{AppError, Result};
 use crate::models::{AppInfo, LauncherAppsChanged, LauncherSettings, LauncherStatus};
+use crate::platform;
 use crate::services::{apps, launcher};
 use crate::state::AppState;
 use crate::util;
@@ -138,8 +139,7 @@ fn build(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
 
 fn show(app: &AppHandle, window: &tauri::WebviewWindow) {
     center_on_cursor_monitor(app, window);
-    #[cfg(target_os = "macos")]
-    let _ = app.show();
+    platform::unhide_app(app);
     let _ = window.show();
     let _ = window.set_focus();
     let _ = app.emit_to(WINDOW, SHOWN_EVENT, ());

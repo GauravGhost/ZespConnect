@@ -23,13 +23,16 @@ export function useLauncher() {
   const load = useCallback(async () => {
     const generation = ++loadGeneration.current;
     const isCurrent = () => generation === loadGeneration.current;
-    const next = await ipc.launcher.target();
-    if (!isCurrent()) return;
-
+    // The window is reused, so clear the last visit before anything can act on it.
     setQueryState("");
     setHighlightedPackage(null);
     setError(null);
     setApps([]);
+    setTarget(null);
+    readySerial.current = null;
+
+    const next = await ipc.launcher.target();
+    if (!isCurrent()) return;
     setTarget(next);
     readySerial.current = next.kind === "ready" ? next.serial : null;
     if (next.kind !== "ready") return;
