@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crate::error::{AppError, Result};
 use crate::models::{AppInfo, AppListResult, AppListSource, LabelSource, ToolStatus};
-use crate::services::adb;
+use crate::services::{adb, app_icons};
 use crate::util;
 use crate::util::process::{self, ProcessOutput};
 use crate::util::validation::{shell_quote, validate_package};
@@ -249,16 +249,33 @@ pub async fn list(
     let path = cache_file(app_data_dir);
     let cached = read_cache(&path, serial);
 
-    if !refresh {
-        if let Some(apps) = cached.clone() {
-            return Ok(from_cache(apps, include_system));
+    let mut result = match cached.clone() {
+        Some(apps) if !refresh => from_cache(apps, include_system),
+        _ => {
+            // Icons are optional, so a failed icon read still returns the list.
+            let (listed, _) = tokio::join!(
+                read_device(tools, serial, include_system, cached, &path),
+                app_icons::refresh(tools, serial, app_data_dir),
+            );
+            listed?
         }
-    }
+    };
+    app_icons::attach(&mut result.apps, app_data_dir, serial);
+    Ok(result)
+}
 
+/// Read the list from the phone (scrcpy for real names, else `pm`) and update the cache.
+async fn read_device(
+    tools: &ToolStatus,
+    serial: &str,
+    include_system: bool,
+    cached: Option<Vec<AppInfo>>,
+    path: &Path,
+) -> Result<AppListResult> {
     if let Some(scrcpy) = tools.scrcpy.path.as_deref() {
         if let Ok(apps) = scrcpy_list(scrcpy, serial).await {
             if !apps.is_empty() {
-                write_cache(&path, serial, &apps);
+                write_cache(path, serial, &apps);
                 return Ok(finish(apps, AppListSource::Scrcpy, include_system));
             }
         }
@@ -275,7 +292,7 @@ pub async fn list(
             "No apps reported for {serial}"
         )));
     }
-    write_cache(&path, serial, &apps);
+    write_cache(path, serial, &apps);
     Ok(finish(apps, AppListSource::Pm, include_system))
 }
 

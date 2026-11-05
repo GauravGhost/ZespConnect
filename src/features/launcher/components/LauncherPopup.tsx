@@ -1,6 +1,7 @@
 import { Package, Search, Smartphone } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
+import { AppIcon } from "@/components/app/AppIcon";
 import { Badge } from "@/components/ui/badge";
 import { events } from "@/lib/events";
 import { ipc } from "@/lib/ipc";
@@ -139,14 +140,20 @@ function AppResult({
         highlighted ? "bg-primary-container text-on-primary-container" : "hover:bg-muted/60",
       )}
     >
-      <span
-        className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-xl",
-          highlighted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-        )}
-      >
-        <Package className="size-4" />
-      </span>
+      <AppIcon
+        iconPath={app.icon_path}
+        className="size-8"
+        fallback={
+          <span
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-xl",
+              highlighted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+            )}
+          >
+            <Package className="size-4" />
+          </span>
+        }
+      />
       <span className="truncate font-medium">{app.label}</span>
       <span
         className={cn(

@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::error::{AppError, Result};
 use crate::models::{FileEntry, ToolStatus};
 use crate::services::adb;
+use crate::util;
 use crate::util::process::ProcessOutput;
 use crate::util::validation::{shell_quote, validate_remote_path};
 
@@ -164,19 +165,8 @@ pub fn preview_path(cache_root: &Path, serial: &str, remote: &str) -> Result<Pat
         return Err(AppError::Invalid(format!("Not a file: {remote}")));
     }
     Ok(cache_root
-        .join(safe_file_name(serial))
-        .join(safe_file_name(name)))
-}
-
-fn safe_file_name(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            c if c.is_control() => '_',
-            c => c,
-        })
-        .collect()
+        .join(util::safe_file_name(serial))
+        .join(util::safe_file_name(name)))
 }
 
 /// Copy a device file to [`preview_path`] so a computer app can open it. Returns the local path.

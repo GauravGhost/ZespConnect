@@ -31,3 +31,15 @@ pub fn ensure_dir(path: PathBuf) -> Result<PathBuf> {
     std::fs::create_dir_all(&path)?;
     Ok(path)
 }
+
+/// `value` with characters no OS allows in a file name replaced by `_`.
+pub fn safe_file_name(value: &str) -> String {
+    value
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect()
+}

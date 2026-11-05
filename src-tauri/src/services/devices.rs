@@ -120,14 +120,18 @@ pub fn parse_devices(text: &str) -> Vec<Device> {
 
 /// Collapse the Android 11+ duplicate transports for one phone: a wireless device shows up as
 /// `ip:port` and as an mDNS alias. Keep the alias (scrcpy refuses the `ip:port` serial while it
-/// exists) and carry the address for display and reconnecting.
+/// exists) and carry the address for display and reconnecting. A USB transport of the same
+/// phone is a separate entry and must never be paired with the alias.
 fn dedupe(devices: Vec<Device>) -> Vec<Device> {
     let mut result: Vec<Device> = Vec::new();
 
     for device in devices {
         let device_mdns = is_mdns(&device.serial);
+        let device_wireless = is_wireless(&device.serial);
         let twin_index = result.iter().position(|other| {
-            is_mdns(&other.serial) != device_mdns
+            device_wireless
+                && is_wireless(&other.serial)
+                && is_mdns(&other.serial) != device_mdns
                 && !other.model.is_empty()
                 && other.model == device.model
         });
@@ -323,6 +327,24 @@ mod tests {
         assert_eq!(phone.transport, DeviceTransport::Wifi);
         assert_eq!(phone.address.as_deref(), Some("192.168.1.42:5555"));
         assert!(phone.connected);
+    }
+
+    #[test]
+    fn keeps_usb_separate_from_wireless_twins() {
+        let devices = parse_devices(
+            "List of devices attached\n\
+             3C181FDJH003D3 device product:shiba model:Pixel_8 device:shiba transport_id:5\n\
+             192.168.1.121:40439 device product:shiba model:Pixel_8 device:shiba transport_id:4\n\
+             adb-3C181FDJH003D3-GBCpv3._adb-tls-connect._tcp device product:shiba model:Pixel_8 device:shiba transport_id:3\n",
+        );
+        assert_eq!(devices.len(), 2);
+
+        assert_eq!(devices[0].serial, "3C181FDJH003D3");
+        assert_eq!(devices[0].transport, DeviceTransport::Usb);
+
+        assert!(is_mdns(&devices[1].serial));
+        assert_eq!(devices[1].transport, DeviceTransport::Wifi);
+        assert_eq!(devices[1].address.as_deref(), Some("192.168.1.121:40439"));
     }
 
     #[test]
