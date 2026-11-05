@@ -1,6 +1,6 @@
 [package]
 name = "zesp-connect"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 repository = "https://github.com/GauravGhost/ZespConnect"
 description = "Zesp Connect - manage Android devices over adb and scrcpy"
