@@ -43,7 +43,7 @@
       "icons/icon.ico"
     ],
     "publisher": "Gyanendra Kumar",
-    "homepage": "https://github.com/GauravGhost/Zesp-Connect",
+    "homepage": "https://github.com/GauravGhost/ZespConnect",
     "copyright": "Copyright © 2026 Gyanendra Kumar",
     "category": "Utility",
     "shortDescription": "Manage Android devices over adb and scrcpy.",

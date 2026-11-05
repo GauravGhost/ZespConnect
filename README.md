@@ -9,12 +9,12 @@
 Mirror the screen, hear the phone's sound, share the clipboard, move files and control
 apps from one fast, lightweight window. No companion app, no account, no cloud.
 
-[![CI](https://github.com/GauravGhost/Zesp-Connect/actions/workflows/ci.yml/badge.svg)](https://github.com/GauravGhost/Zesp-Connect/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/GauravGhost/Zesp-Connect?include_prereleases)](https://github.com/GauravGhost/Zesp-Connect/releases)
+[![CI](https://github.com/GauravGhost/ZespConnect/actions/workflows/ci.yml/badge.svg)](https://github.com/GauravGhost/ZespConnect/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/GauravGhost/ZespConnect?include_prereleases)](https://github.com/GauravGhost/ZespConnect/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
-[Download](https://github.com/GauravGhost/Zesp-Connect/releases) ·
+[Download](https://github.com/GauravGhost/ZespConnect/releases) ·
 [Features](#features) ·
 [Getting started](#getting-started) ·
 [Build from source](#building-from-source) ·
@@ -125,7 +125,7 @@ rather than polling, so the app sits quietly in the tray until you need it.
 ### 1. Install the app
 
 Download the installer for your platform from the
-[Releases](https://github.com/GauravGhost/Zesp-Connect/releases) page.
+[Releases](https://github.com/GauravGhost/ZespConnect/releases) page.
 
 | Platform | Package                                  |
 | -------- | ---------------------------------------- |
@@ -171,8 +171,8 @@ sound, files and clipboard never leave the devices you connect.
 ### Run in development
 
 ```bash
-git clone https://github.com/GauravGhost/Zesp-Connect.git
-cd Zesp-Connect
+git clone https://github.com/GauravGhost/ZespConnect.git
+cd ZespConnect
 npm install
 npm run tauri dev
 ```
@@ -231,7 +231,7 @@ Device paths and package names are validated before they are used.
 
 Contributions of all sizes are welcome: bug reports, feature ideas, documentation and code.
 
-1. For larger changes, please [open an issue](https://github.com/GauravGhost/Zesp-Connect/issues)
+1. For larger changes, please [open an issue](https://github.com/GauravGhost/ZespConnect/issues)
    first to discuss the approach.
 2. Fork the repo and create a branch for your change.
 3. Make sure these pass before you open a pull request:

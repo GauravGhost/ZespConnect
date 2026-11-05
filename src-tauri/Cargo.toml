@@ -2,7 +2,7 @@
 name = "zesp-connect"
 version = "0.1.0"
 license = "MIT"
-repository = "https://github.com/GauravGhost/Zesp-Connect"
+repository = "https://github.com/GauravGhost/ZespConnect"
 description = "Zesp Connect - manage Android devices over adb and scrcpy"
 edition = "2021"
 

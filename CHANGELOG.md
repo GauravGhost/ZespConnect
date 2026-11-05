@@ -78,4 +78,4 @@ phone's Developer options.
     click **Open Anyway**. If macOS says the app is damaged, run
     `xattr -cr "/Applications/Zesp Connect.app"` in Terminal.
 
-[0.1.0]: https://github.com/GauravGhost/Zesp-Connect/releases/tag/v0.1.0
+[0.1.0]: https://github.com/GauravGhost/ZespConnect/releases/tag/v0.1.0
