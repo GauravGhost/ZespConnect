@@ -83,6 +83,25 @@ jobs:
             fs.writeFileSync("src-tauri/Cargo.toml", cargo);
           '
 
+      # Release body is this version's CHANGELOG.md section, from its heading to the next one.
+      - name: Read release notes
+        id: notes
+        shell: bash
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_REF#v}"
+          notes=$(awk -v v="$version" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found && !/^\[[^]]+\]: / { print }
+          ' CHANGELOG.md)
+          if [ -z "$notes" ]; then notes="Download the installer for your platform below."; fi
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            echo "$notes"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       # Secrets cannot be used in `if:` conditions, so this step always runs on
       # Windows and no-ops when the certificate secret is absent - the build then
       # stays unsigned and the workflow still succeeds.
@@ -121,7 +140,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Zesp Connect ${{ github.ref_name }}"
-          releaseBody: "Download the installer for your platform below."
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
