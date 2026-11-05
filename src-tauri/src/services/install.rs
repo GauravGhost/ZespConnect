@@ -1,7 +1,3 @@
-//! Download a tool from upstream and unpack it into the app-managed directory. Deliberately
-//! Tauri-free: the caller passes a progress callback, and everything is written under
-//! `<app_data_dir>/tools`, which the user owns (no administrator rights).
-
 use std::path::{Path, PathBuf};
 
 use futures_util::StreamExt;

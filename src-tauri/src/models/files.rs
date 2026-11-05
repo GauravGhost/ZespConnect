@@ -17,7 +17,6 @@ pub struct FileEntry {
     pub is_directory: bool,
     /// Raw size in bytes; directories report their own inode size.
     pub size: u64,
-    /// Human-readable size for the list.
     pub formatted_size: String,
     /// `ls` date and time joined (`2024-05-01 09:12`).
     pub date: String,

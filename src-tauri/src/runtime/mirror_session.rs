@@ -1,7 +1,3 @@
-//! In-app mirror sessions: we run the scrcpy server and relay its H.264 output to a Tauri
-//! window over an IPC channel, using a reverse adb tunnel (scrcpy's default) so the window
-//! belongs to Zesp Connect instead of being a separate scrcpy OS window.
-
 use std::time::{Duration, Instant};
 
 use tauri::ipc::{Channel, Response};

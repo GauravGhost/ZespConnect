@@ -1,6 +1,3 @@
-//! Quick controls: toggles, brightness, volume and reboot. The brightness ceiling differs per
-//! device and is read from the framework resource, cached for the life of the process.
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;

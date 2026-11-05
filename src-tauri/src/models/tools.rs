@@ -23,11 +23,9 @@ impl ToolKind {
 pub enum ToolSource {
     /// Explicitly configured by the user (persisted).
     Override,
-    /// Found on `PATH`.
     Path,
     /// Found at a well-known install location.
     Known,
-    /// Not found anywhere.
     NotFound,
 }
 
@@ -68,9 +66,7 @@ pub struct UpdateInfo {
 pub struct ToolStatus {
     pub adb: ToolInfo,
     pub scrcpy: ToolInfo,
-    /// Update check for adb (independent of whether it is installed).
     pub adb_update: UpdateInfo,
-    /// Update check for scrcpy.
     pub scrcpy_update: UpdateInfo,
 }
 

@@ -1,7 +1,3 @@
-//! Turning a mirror session's video packets and a separate sound stream into one MP4, with no
-//! IO besides the output. The two streams come from separate servers whose timestamps share no
-//! origin, so each is anchored to when its first packet reached the computer.
-
 use std::io::{self, Write};
 use std::time::Instant;
 
@@ -21,6 +17,8 @@ struct Anchor {
     at_us: u64,
 }
 
+/// The video and sound servers' timestamps share no origin, so each stream is anchored to when
+/// its first packet reached the computer.
 pub struct RecorderCore<W: Write> {
     out: Option<W>,
     audio_config: Option<AudioConfig>,

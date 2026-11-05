@@ -1,7 +1,3 @@
-//! Wireless debugging (Android 11+): pair a phone over Wi-Fi by scanning a QR code shown in the UI,
-//! and reconnect saved phones when they come back on a new port. Discovery merges the adb server's
-//! mDNS (`adb mdns services`) with our own browser ([`mdns`]), as either can miss a phone.
-
 use std::time::{Duration, Instant};
 
 use crate::error::{AppError, Result};
@@ -261,7 +257,6 @@ pub async fn connect(adb_path: &str, address: &str) -> Result<String> {
     }
 }
 
-/// `adb disconnect <target>`.
 pub async fn disconnect(adb_path: &str, target: &str) -> Result<()> {
     validate_serial(target)?;
     adb::disconnect(adb_path, target).await?;

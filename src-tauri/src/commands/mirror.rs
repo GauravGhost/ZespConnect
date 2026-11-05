@@ -1,6 +1,3 @@
-//! Mirroring commands (thin wrappers over `runtime::mirror`, `runtime::mirror_session` and
-//! `runtime::session_window`).
-
 use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, LogicalSize, Manager, State};
 

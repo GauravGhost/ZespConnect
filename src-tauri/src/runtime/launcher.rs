@@ -1,5 +1,3 @@
-//! The app launcher: a global hotkey that toggles a search popup window for the active phone.
-
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder,
 };

@@ -1,5 +1,3 @@
-//! Tool lifecycle: re-resolve, update-check and install, driving managed state and progress events.
-
 use std::path::Path;
 
 use tauri::{AppHandle, Emitter, Manager};

@@ -1,5 +1,3 @@
-//! Platform-specific helpers: process spawning flags and macOS Dock visibility.
-
 /// Hide the console window a spawned process would otherwise flash on Windows.
 /// A no-op everywhere else.
 #[cfg(windows)]
@@ -32,7 +30,6 @@ pub fn prepare(program: &str, args: &[String]) -> (String, Vec<String>) {
     (program.to_string(), args.to_vec())
 }
 
-/// Executable suffix for the current platform.
 pub const EXE_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
 
 /// Give the app a Dock icon on macOS while it has a visible window. A no-op elsewhere.

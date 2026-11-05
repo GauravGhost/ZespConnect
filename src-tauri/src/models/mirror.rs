@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MirrorKind {
-    /// Full device screen.
     Mirror,
-    /// Device camera.
     Camera,
     /// An app on its own virtual display (its own window).
     App,

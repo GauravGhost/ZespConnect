@@ -1,5 +1,3 @@
-//! Console commands: `adb shell` execution and the in-app logcat streamer.
-
 use tauri::ipc::Channel;
 use tauri::State;
 

@@ -1,5 +1,3 @@
-/** Pure device-path helpers for the file browser. */
-
 /** Join a device directory and an entry name with exactly one separator. */
 export function joinPath(base: string, name: string): string {
   return base.endsWith("/") ? `${base}${name}` : `${base}/${name}`;

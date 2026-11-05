@@ -1,5 +1,3 @@
-//! In-app logcat streaming: one `adb logcat` per device, its lines forwarded to a window's channel.
-
 use tauri::ipc::Channel;
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 

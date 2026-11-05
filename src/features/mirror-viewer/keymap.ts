@@ -1,9 +1,3 @@
-/**
- * Keyboard and mouse translation for desktop-mode windows: `KeyboardEvent.code` to Android
- * `KEYCODE_*`, modifiers to `META_*`, buttons to `BUTTON_*`. `code` is physical so shortcuts
- * are layout-independent; printable characters go as text instead (see `isTextKey`).
- */
-
 import { IS_MAC } from "@/lib/platform";
 
 const KEYCODES: Record<string, number> = {
@@ -53,7 +47,7 @@ for (let i = 0; i < 10; i++) KEYCODES[`Digit${i}`] = 7 + i;
 // F1-F12 → KEYCODE_F1 (131) … KEYCODE_F12 (142).
 for (let i = 1; i <= 12; i++) KEYCODES[`F${i}`] = 130 + i;
 
-/** The Android keycode for a physical key, if it has one. */
+/** The Android keycode for a physical key; `code` keeps shortcuts layout-independent. */
 export function androidKeycode(event: KeyboardEvent): number | undefined {
   return KEYCODES[event.code];
 }

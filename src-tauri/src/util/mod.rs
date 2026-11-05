@@ -27,7 +27,6 @@ pub fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<()> {
     Ok(())
 }
 
-/// Ensure a directory exists and return it.
 pub fn ensure_dir(path: PathBuf) -> Result<PathBuf> {
     std::fs::create_dir_all(&path)?;
     Ok(path)

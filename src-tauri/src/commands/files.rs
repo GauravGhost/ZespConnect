@@ -1,5 +1,3 @@
-//! Device file-browser commands (thin wrappers over `services::files`).
-
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
 

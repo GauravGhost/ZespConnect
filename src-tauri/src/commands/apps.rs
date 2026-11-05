@@ -1,5 +1,3 @@
-//! App commands (thin wrappers over `services::apps`).
-
 use std::path::Path;
 
 use tauri::{AppHandle, Emitter, State};

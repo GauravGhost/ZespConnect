@@ -1,7 +1,3 @@
-//! Playing the phone's raw PCM (48 kHz stereo s16le) on the computer's default output device.
-//! Packets land in a small jitter buffer that the device's audio callback drains, resampled
-//! to the device's rate and mapped to its channel count.
-
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 

@@ -1,7 +1,3 @@
-//! Reads device files in byte ranges over adb so the webview can stream them without a local
-//! copy. Requests arrive as `devicefile://localhost/<url-encoded serial + device path>`.
-//! Range planning, URL and MIME handling are pure and unit-tested.
-
 use std::time::Duration;
 
 use crate::error::{AppError, Result};

@@ -1,5 +1,3 @@
-//! Input validation for values that reach `adb shell`.
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 

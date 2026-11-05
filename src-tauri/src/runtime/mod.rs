@@ -1,6 +1,3 @@
-//! Tauri-coupled coordinators: long-lived background tasks and window lifecycle.
-//! Unlike `services/`, these modules talk to Tauri (managed state and events).
-
 pub mod clipboard_sync;
 pub mod file_stream;
 pub mod launcher;

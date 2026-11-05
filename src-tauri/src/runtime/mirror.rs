@@ -1,6 +1,3 @@
-//! scrcpy app-window lifecycle: spawn, track, stop, report exit. Tauri-coupled like the
-//! other runtime coordinators; the pure argv logic is in `services::scrcpy`.
-
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -192,12 +189,10 @@ pub async fn start_fallback(app: &AppHandle, spec: &MirrorSessionSpec) -> Result
     }
 }
 
-/// The OS title of a mirror window.
 pub fn window_title(label: &str) -> String {
     format!("Zesp Connect - {label}")
 }
 
-/// `label`, or `fallback` when it is blank.
 pub fn label_or(label: &str, fallback: &str) -> String {
     if label.trim().is_empty() {
         fallback.to_string()

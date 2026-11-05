@@ -1,6 +1,3 @@
-//! The tray menu's layout and item ids. Rebuilt on every `sync`, so it is plain construction from
-//! the current state with no item kept between builds.
-
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;

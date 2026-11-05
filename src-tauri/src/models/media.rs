@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct NowPlaying {
     pub package: String,
-    /// The app's display name.
     pub app: String,
     pub title: String,
     pub artist: Option<String>,

@@ -1,6 +1,3 @@
-//! The sound of a recording: its own audio-only scrcpy server sending AAC, separate from the
-//! phone-sound link so a recording never changes where the user hears the phone.
-
 use std::time::{Duration, Instant};
 
 use tauri::AppHandle;

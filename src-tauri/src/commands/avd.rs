@@ -1,5 +1,3 @@
-//! AVD (emulator) commands (thin wrappers over `services::avd`).
-
 use tauri::State;
 
 use crate::error::Result;

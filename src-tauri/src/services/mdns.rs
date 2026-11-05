@@ -1,7 +1,3 @@
-//! Our own mDNS browser for the phone's wireless debugging services. It runs next to
-//! `adb mdns services` because adb's built-in mDNS often sees nothing on networks where the
-//! phone is announcing itself, e.g. right after it comes back on a new port.
-
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 

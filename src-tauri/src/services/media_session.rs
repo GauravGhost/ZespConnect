@@ -1,10 +1,3 @@
-//! A phone's media sessions, read from `dumpsys media_session` and controlled with media key
-//! events. Parsing is pure and unit-tested.
-//!
-//! `cmd media_session monitor <tag>` would be event-driven, but tags are not unique (YouTube runs
-//! many sessions under one) and it misses updates, so a phone-side loop prints the filtered dump
-//! only when it changes instead.
-
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -19,7 +12,8 @@ pub const END_MARKER: &str = "ZC-NOW-PLAYING-END";
 const SESSIONS_COMMAND: &str = "dumpsys media_session \
      | sed -n '/Sessions Stack/,/^Audio playback/p' \
      | grep -E '^ +(package=|state=|metadata:)'";
-/// How often the phone-side loop re-reads the sessions.
+/// `cmd media_session monitor` misses updates and its tags are not unique, so a phone-side
+/// loop re-reads the sessions this often and prints only changes.
 const WATCH_INTERVAL_SECS: u32 = 2;
 const SHELL_TIMEOUT: Duration = Duration::from_secs(10);
 

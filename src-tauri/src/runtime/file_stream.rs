@@ -1,6 +1,3 @@
-//! Serves the `devicefile://` scheme: the webview's image, video, audio and PDF previews load
-//! device files through it, read over adb in ranges so nothing is copied to the computer.
-
 use tauri::http::{header, Request, Response, StatusCode};
 use tauri::{AppHandle, Manager, UriSchemeContext, UriSchemeResponder};
 

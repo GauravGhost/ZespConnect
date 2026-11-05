@@ -1,7 +1,3 @@
-//! Recording a mirror window to MP4: the session's video packets are copied off its read loop
-//! (see `VideoTap`), joined with a separate AAC stream, and written by `RecorderCore` on a task
-//! of their own, so a slow disk never stalls the live mirror.
-
 use std::collections::HashMap;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;

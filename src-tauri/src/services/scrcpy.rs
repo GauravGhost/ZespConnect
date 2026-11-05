@@ -1,5 +1,3 @@
-//! scrcpy argv building and Android API detection for app windows; pure or thin adb calls, unit tested directly.
-
 use std::time::Duration;
 
 use once_cell::sync::Lazy;
@@ -376,7 +374,6 @@ pub fn camera_zoom(requested: Option<f64>) -> Option<f64> {
     requested.filter(|zoom| zoom.is_finite() && *zoom > 0.0)
 }
 
-/// `-m <size>`.
 fn push_max_size(args: &mut Vec<String>, opts: &MirrorOptions) {
     if let Some(value) = max_size(opts) {
         args.push("-m".to_string());
@@ -384,7 +381,6 @@ fn push_max_size(args: &mut Vec<String>, opts: &MirrorOptions) {
     }
 }
 
-/// `--max-fps <fps>`.
 fn push_max_fps(args: &mut Vec<String>, opts: &MirrorOptions) {
     if let Some(value) = max_fps(opts) {
         args.push("--max-fps".to_string());
@@ -392,7 +388,6 @@ fn push_max_fps(args: &mut Vec<String>, opts: &MirrorOptions) {
     }
 }
 
-/// `-b <bitrate>M`.
 fn push_bitrate(args: &mut Vec<String>, opts: &MirrorOptions) {
     if let Some(value) = bit_rate(opts) {
         args.push("-b".to_string());
@@ -430,7 +425,6 @@ fn push_window_flags(args: &mut Vec<String>, opts: &MirrorOptions) {
     }
 }
 
-/// Build the argv for a full-screen mirror of `serial`.
 pub fn mirror_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Vec<String> {
     let mut args = vec![
         "--serial".to_string(),
@@ -449,7 +443,6 @@ pub fn mirror_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Ve
     args
 }
 
-/// Build the argv for a camera feed of `serial`.
 pub fn camera_args(serial: &str, window_title: &str, opts: &MirrorOptions) -> Vec<String> {
     let facing = camera_facing(opts.camera_facing.as_deref());
     let mut args = vec![

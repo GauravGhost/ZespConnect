@@ -1,5 +1,3 @@
-//! What the phone is playing, and its media buttons.
-
 use tauri::AppHandle;
 
 use crate::error::Result;

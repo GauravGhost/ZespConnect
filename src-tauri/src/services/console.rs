@@ -1,5 +1,3 @@
-//! `adb shell` execution and logcat process spawning for the console feature.
-
 use std::time::Duration;
 
 use crate::error::{AppError, Result};

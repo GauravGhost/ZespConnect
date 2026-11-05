@@ -1,5 +1,3 @@
-//! Device list parsing, mDNS/ip duplicate merging, and per-device info.
-
 use std::time::Duration;
 
 use once_cell::sync::Lazy;
@@ -58,7 +56,6 @@ fn is_wireless(serial: &str) -> bool {
     serial.contains(':') || is_mdns(serial)
 }
 
-/// Parse `adb devices -l` output into devices.
 pub fn parse_devices(text: &str) -> Vec<Device> {
     let mut devices = Vec::new();
 
@@ -244,7 +241,6 @@ pub fn parse_volume_levels(text: &str) -> Option<(i32, i32, i32)> {
     (high > low).then_some((current, low, high))
 }
 
-/// Fresh device list from `adb devices -l`.
 pub async fn list(tools: &ToolStatus) -> Result<Vec<Device>> {
     let adb = adb::adb_path(tools)?;
     let output = adb::list_devices_raw(&adb).await?;

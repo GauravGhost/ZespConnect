@@ -1,6 +1,3 @@
-//! Background device tracker: runs `adb track-devices` and re-publishes the device list
-//! on change, retrying if the stream ends (the frontend poll is the final safety net).
-
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -31,7 +28,6 @@ async fn run(app: AppHandle) {
         let _ = adb::start_server(&adb_path).await;
         refresh(&app).await;
 
-        // Track until the stream ends, then retry.
         let _ = track_stream(&app, &adb_path).await;
         tokio::time::sleep(RETRY_DELAY).await;
     }

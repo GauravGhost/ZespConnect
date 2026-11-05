@@ -129,14 +129,12 @@ export function useOpenAppOnScreen() {
   );
 }
 
-/** Mirror the full device screen. */
 export function useStartMirror() {
   return useWindowMutation(({ serial, options }: { serial: string; options: MirrorOptions }) =>
     openMirror(serial, "mirror", null, "", options, () => ipc.mirror.start(serial, options)),
   );
 }
 
-/** Stream the device camera. */
 export function useStartCamera() {
   return useWindowMutation(({ serial, options }: { serial: string; options: MirrorOptions }) =>
     openMirror(serial, "camera", null, "", options, () => ipc.mirror.startCamera(serial, options)),
@@ -152,14 +150,12 @@ export function useStartDesktop() {
   );
 }
 
-/** Close one open mirror. */
 export function useStopOpenWindow() {
   return useWindowMutation((target: OpenWindow) =>
     target.session ? ipc.mirror.stopSession(target.id) : ipc.mirror.stop(target.id),
   );
 }
 
-/** Close every open mirror. */
 export function useStopAllMirrors() {
   return useWindowMutation<void>(() => ipc.mirror.stopAll());
 }

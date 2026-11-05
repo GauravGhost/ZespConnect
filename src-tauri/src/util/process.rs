@@ -1,6 +1,3 @@
-//! Process helpers: run a child to completion, or spawn a detached one. Always spawns with an
-//! argv array (never a shell string), so nothing from the UI can be shell-interpreted.
-
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;

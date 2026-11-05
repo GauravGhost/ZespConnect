@@ -1,6 +1,3 @@
-//! H.264 Annex-B byte streams (start-code separated, as scrcpy sends them) and the
-//! length-prefixed AVCC form MP4 samples use.
-
 const NAL_SPS: u8 = 7;
 const NAL_PPS: u8 = 8;
 

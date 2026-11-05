@@ -1,8 +1,3 @@
-//! System tray integration (Windows, macOS and Linux). The menu offers quick actions on the active
-//! phone (mirror, camera, launcher, media keys, sound and clipboard), a Devices submenu, a Go To
-//! submenu for every tab, Run at Startup and Exit. Clicks either open the window on a tab (via the
-//! `tray:*` events) or act on the backend directly.
-
 mod actions;
 mod menu;
 

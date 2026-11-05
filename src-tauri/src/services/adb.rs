@@ -1,5 +1,3 @@
-//! Thin wrappers around the `adb` executable. No Tauri types here.
-
 use std::time::Duration;
 
 use crate::error::{AppError, Result};

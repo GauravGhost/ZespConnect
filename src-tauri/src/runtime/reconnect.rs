@@ -1,11 +1,3 @@
-//! Background reconnect for saved wireless phones: a phone that slept, rebooted or toggled
-//! Wireless debugging comes back on a new port, so we follow its mDNS announcement and
-//! `adb connect` it again. The UI owns the saved list and sends the phones to watch.
-//!
-//! Kept cheap on purpose: it sleeps until our mDNS browser sees a change or the device list
-//! changes, and those wake-ups only read in-memory state. Asking adb's own mDNS spawns a
-//! process, so that runs only on a slow fallback timer that backs off while a phone stays away.
-
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -19,6 +11,8 @@ use crate::services::mdns;
 use crate::services::wireless::{self, Reconnect};
 use crate::state::AppState;
 
+// Event-driven on purpose: wake-ups only read in-memory state. Asking adb's mDNS spawns a
+// process, so it only runs on this backing-off fallback timer.
 const FALLBACK_MIN: Duration = Duration::from_secs(30);
 const FALLBACK_MAX: Duration = Duration::from_secs(300);
 /// A failed address is left alone this long so an unreachable phone is not hammered.

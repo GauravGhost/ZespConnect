@@ -1,7 +1,3 @@
-//! What the phone the main window shows is playing. One phone-side loop reports media session
-//! changes, forwarded as `now-playing:changed`; at most one device is watched at a time, and only
-//! while the window asks for it, so nothing runs while the app idles in the tray.
-
 use std::collections::HashMap;
 use std::time::Duration;
 

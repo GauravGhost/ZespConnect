@@ -1,6 +1,3 @@
-//! ISO BMFF box builders for a fragmented MP4 (ISO/IEC 14496-12, 14496-15 for `avcC`,
-//! 14496-1 for `esds`).
-
 use super::{AudioConfig, VideoConfig};
 
 pub const VIDEO_TRACK: u32 = 1;

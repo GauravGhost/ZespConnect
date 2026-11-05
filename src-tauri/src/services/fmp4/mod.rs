@@ -1,7 +1,3 @@
-//! A small fragmented-MP4 writer for recordings: H.264 video as the phone encoded it, plus
-//! optional AAC sound, with no re-encoding. Every flushed fragment is complete on disk, so a
-//! file cut short by a crash or a lost phone still plays up to its last fragment.
-
 mod annexb;
 mod boxes;
 

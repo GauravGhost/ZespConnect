@@ -1,5 +1,3 @@
-//! App-owned Tauri windows that host in-app mirror sessions, each labelled `mirror-<session id>`.
-
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::error::{AppError, Result};

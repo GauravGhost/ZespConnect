@@ -9,12 +9,7 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/*
- * FALLBACK PALETTE ONLY. The real, switchable palettes live in
- * src/app/theme/presets.ts and are applied at runtime by the ThemeProvider
- * (which writes these same custom properties onto <html>). These defaults just
- * keep the pre-hydration paint sane. Edit themes in presets.ts, not here.
- */
+/* Pre-hydration fallback only; the switchable palettes live in src/app/theme/presets.ts. */
 :root {
   --radius: 1rem;
   --background: oklch(1 0 0);

@@ -2,15 +2,12 @@
 name = "zesp-connect"
 version = "0.1.0"
 license = "MIT"
+repository = "https://github.com/GauravGhost/Zesp-Connect"
 description = "Zesp Connect - manage Android devices over adb and scrcpy"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+# Distinct from the bin name, which would clash on Windows (rust-lang/cargo#8519).
 name = "zesp_connect_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
@@ -56,7 +53,6 @@ cpal = "0.18"
 mdns-sd = "0.21.7"
 h264-reader = "0.9"
 
-# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1
 lto = true

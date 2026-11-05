@@ -1,6 +1,3 @@
-//! Look up the latest upstream adb (platform-tools) and scrcpy versions so the UI can say
-//! "update available". Pure helpers are unit-tested; the network calls wrap the upstream APIs.
-
 use std::cmp::Ordering;
 use std::time::Duration;
 

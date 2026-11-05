@@ -193,7 +193,6 @@ export interface RecordingOutcome extends SavedCapture {
 /** What a phone's foreground media session is playing. */
 export interface NowPlaying {
   package: string;
-  /** The app's display name. */
   app: string;
   title: string;
   artist: string | null;

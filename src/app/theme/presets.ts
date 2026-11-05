@@ -1,8 +1,3 @@
-/**
- * Single source of truth for app themes: add a `defineTheme(...)` entry to `THEMES` and
- * nothing else changes. Values must be `oklch()`; each theme overrides only the accent on
- * top of the shared `NEUTRAL_LIGHT` / `NEUTRAL_DARK` surfaces.
- */
 import type { ThemePreset, ThemeTokens } from "./types";
 
 type SurfaceTokens = Omit<

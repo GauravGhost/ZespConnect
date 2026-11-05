@@ -1,8 +1,3 @@
-//! Bootstrap helpers for running scrcpy's *standalone server* ourselves: we push `scrcpy-server`
-//! to the device and read the video socket directly, configured to emit a plain H.264 stream (the
-//! metadata preamble off, the 12-byte frame header on) so no version-specific handshake is needed.
-//! scrcpy 4.0 renamed the metadata option, so the name is chosen from the detected version.
-
 use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, Result};

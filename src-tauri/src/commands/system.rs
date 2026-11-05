@@ -1,5 +1,3 @@
-//! Tool discovery and install commands (thin wrappers over `runtime::tools`).
-
 use tauri::{AppHandle, State};
 
 use crate::error::Result;

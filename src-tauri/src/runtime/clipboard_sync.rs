@@ -1,7 +1,3 @@
-//! Two-way clipboard sync with a device through a control-only scrcpy server: the server reports
-//! each phone copy, and the computer's clipboard is polled and pushed with `SET_CLIPBOARD`.
-//! Needs no helper app on the phone.
-
 use std::collections::VecDeque;
 use std::sync::mpsc as std_mpsc;
 use std::time::Duration;

@@ -1,7 +1,3 @@
-//! What tray menu items do. Device actions apply to the active phone: the one selected in the
-//! dashboard and tray, else the only connected one. Failures open the window with an error toast,
-//! since the tray has nowhere to show them.
-
 use std::future::Future;
 
 use tauri::{AppHandle, Emitter, Manager};

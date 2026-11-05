@@ -1,5 +1,3 @@
-//! The app launcher's settings and popup window.
-
 use tauri::{AppHandle, State};
 
 use crate::error::Result;

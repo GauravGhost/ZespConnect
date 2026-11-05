@@ -93,7 +93,6 @@ pub fn run() {
                 tauri::async_runtime::block_on(runtime::tools::resolve(&app.state::<AppState>()));
             app.state::<AppState>().set_tools(status);
 
-            // Start the push-based device tracker.
             let handle = app.handle().clone();
             let tracker = runtime::tracker::spawn(handle.clone());
             handle.state::<AppState>().set_tracker(tracker);
@@ -101,7 +100,6 @@ pub fn run() {
 
             clear_preview_cache(app.handle());
 
-            // Tray icon + menu.
             tray::build(app.handle())?;
             runtime::launcher::init(app.handle());
 

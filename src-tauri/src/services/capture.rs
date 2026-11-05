@@ -1,5 +1,3 @@
-//! Where screenshots and recordings are saved on the computer.
-
 use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, Result};

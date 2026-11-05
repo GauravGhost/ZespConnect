@@ -1,5 +1,3 @@
-/** Classifies device files by extension so the browser can show a matching icon. */
-
 export type FileKind =
   "image" | "video" | "audio" | "document" | "spreadsheet" | "archive" | "app" | "code" | "other";
 

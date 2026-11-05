@@ -1,5 +1,3 @@
-//! Android Virtual Device discovery and launch via the SDK `emulator` binary.
-
 use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};

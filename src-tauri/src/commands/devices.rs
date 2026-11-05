@@ -1,5 +1,3 @@
-//! Device commands (thin wrappers over `services::devices`).
-
 use tauri::{AppHandle, State};
 
 use crate::error::Result;

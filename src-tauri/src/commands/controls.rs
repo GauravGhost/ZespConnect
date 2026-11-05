@@ -1,5 +1,3 @@
-//! Quick-control commands (thin wrappers over `services::toggles`).
-
 use tauri::State;
 
 use crate::error::Result;

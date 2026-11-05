@@ -1,7 +1,3 @@
-//! Installed-app listing, name resolution with a disk cache, and app actions. Name pipeline:
-//! on-disk cache -> `scrcpy --list-apps` (real names) -> cached fallback -> `pm list packages`.
-//! Every parser is pure and unit-tested against fixtures.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -34,10 +30,6 @@ const SYSTEM_PREFIXES: &[&str] = &[
 
 /// serial → apps, persisted as JSON under the app data dir.
 type AppCache = HashMap<String, Vec<AppInfo>>;
-
-// ---------------------------------------------------------------------------
-// Parsers
-// ---------------------------------------------------------------------------
 
 /// Parse `scrcpy --list-apps` output. After the `List of apps` marker each line is one app: an
 /// optional `INFO:` prefix, `*` for system (or `-`/space for user), then label and package in
@@ -164,10 +156,6 @@ fn prettify(package: &str) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Cache
-// ---------------------------------------------------------------------------
-
 fn cache_file(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("apps-cache.json")
 }
@@ -228,10 +216,6 @@ fn from_cache(mut apps: Vec<AppInfo>, include_system: bool) -> AppListResult {
     }
     finish(apps, AppListSource::Cache, include_system)
 }
-
-// ---------------------------------------------------------------------------
-// I/O
-// ---------------------------------------------------------------------------
 
 async fn scrcpy_list(scrcpy: &str, serial: &str) -> Result<Vec<AppInfo>> {
     let args = vec![

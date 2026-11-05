@@ -1,5 +1,3 @@
-//! scrcpy control-message encoding (client -> device), following scrcpy's `control_msg.h`.
-
 use crate::error::{AppError, Result};
 use crate::models::{KeyAction, TouchAction};
 

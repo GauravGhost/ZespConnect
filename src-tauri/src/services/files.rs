@@ -1,6 +1,3 @@
-//! Device file browsing and transfer over adb. Listing uses `ls -la <path>/` (the trailing slash
-//! follows `/sdcard`, a symlink) and parses it into [`FileEntry`]s; parsing is pure and unit-tested.
-
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -16,10 +13,6 @@ const TRANSFER_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Where files dropped on a mirror window land, so it is clear they came from Zesp Connect.
 pub const DROP_DIR: &str = "/sdcard/Download/ZespConnect";
-
-// ---------------------------------------------------------------------------
-// Parsers
-// ---------------------------------------------------------------------------
 
 /// True for an `ls -la` permission column (`drwxr-xr-x`, `lrwxrwxrwx`, …).
 fn looks_like_permissions(value: &str) -> bool {
@@ -114,10 +107,6 @@ pub fn parse_ls(text: &str, base: &str) -> Vec<FileEntry> {
     });
     entries
 }
-
-// ---------------------------------------------------------------------------
-// I/O
-// ---------------------------------------------------------------------------
 
 fn ensure_success(output: &ProcessOutput) -> Result<()> {
     if output.success {

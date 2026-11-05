@@ -1,7 +1,3 @@
-//! Client-area sizing for in-app mirror windows: Tauri/tao has no aspect-ratio lock, so a
-//! mirror window keeps the video's shape by hand, correcting the size with [`lock_size`] after
-//! each resize.
-
 use crate::models::MirrorKind;
 
 /// Smallest client-area side a mirror window may shrink to; set as the OS minimum in both dimensions.

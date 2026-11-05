@@ -1,8 +1,4 @@
-/**
- * H.264 Annex-B decoder over WebCodecs. Frames arrive as `[flags][8-byte PTS][payload]`,
- * where `flags` bit 0 marks a key frame and bit 1 a codec-config (SPS/PPS) packet.
- */
-
+// Packets are `[flags][8-byte PTS][payload]`; bit 0 marks a key frame, bit 1 an SPS/PPS config.
 const FLAG_KEY = 0x1;
 const FLAG_CONFIG = 0x2;
 const HEADER_LEN = 9;

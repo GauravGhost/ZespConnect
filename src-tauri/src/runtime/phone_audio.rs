@@ -1,7 +1,3 @@
-//! Where a device's sound plays. Routing it to the computer runs an audio-only scrcpy server for
-//! that device (one per device, whatever windows are open), which silences the phone's speaker;
-//! stopping it gives the sound back to the phone.
-
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};

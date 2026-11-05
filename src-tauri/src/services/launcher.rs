@@ -1,5 +1,3 @@
-//! Pure rules for the app launcher popup: which phone it acts on and which apps it lists.
-
 use crate::models::{AppInfo, Device, LabelSource, LauncherTarget};
 
 /// The selected phone when it is known, else the only connected phone.

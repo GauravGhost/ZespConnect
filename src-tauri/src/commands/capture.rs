@@ -1,5 +1,3 @@
-//! Screenshots and recordings from mirror windows.
-
 use std::path::PathBuf;
 
 use tauri::Manager;

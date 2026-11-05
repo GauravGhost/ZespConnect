@@ -1,6 +1,3 @@
-//! Launching scrcpy's standalone server on a device and accepting its sockets over a reverse
-//! adb tunnel. Shared by mirror windows and the per-device background links (audio, clipboard).
-
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 

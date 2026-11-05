@@ -1,5 +1,3 @@
-//! Wireless debugging commands (Android 11+ pairing and Wi-Fi transport).
-
 use std::time::Duration;
 
 use tauri::{AppHandle, State};
@@ -18,7 +16,6 @@ const QR_TIMEOUT_DEFAULT_SECS: u64 = 180;
 const QR_TIMEOUT_MIN_SECS: u64 = 30;
 const QR_TIMEOUT_MAX_SECS: u64 = 300;
 
-/// Generate a fresh pairing QR payload to render in the UI.
 #[tauri::command]
 pub fn get_qr_payload() -> QrPayload {
     wireless::generate()
