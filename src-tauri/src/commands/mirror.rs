@@ -122,20 +122,22 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
     }
 
     let state = app.state::<AppState>();
-    // A flex display already takes the window's shape; fitting would undo the user's resize.
-    if state
-        .session(id)
-        .is_some_and(|session| session.flex_display)
-    {
-        return Ok(());
-    }
-
+    let inset = mirror_window::vertical_inset(state.session_kind(id));
     let window = app
         .get_webview_window(&session_window::label(id))
         .ok_or_else(|| AppError::Invalid("Unknown mirror window".into()))?;
 
+    // A flex display already takes the window's shape, so fitting would undo the user's resize.
+    // It is turned instead when the video flips between portrait and landscape, which is how an
+    // app that forces landscape (a game, or a video going full screen) gets a landscape window.
+    if state
+        .session(id)
+        .is_some_and(|session| session.flex_display)
+    {
+        return turn_window(&window, width > height, inset);
+    }
+
     let aspect = width as f64 / height as f64;
-    let inset = mirror_window::vertical_inset(state.session_kind(id));
     let long_side = mirror::window_long_side(&window, inset);
     state.set_aspect(id, aspect);
 
@@ -146,6 +148,30 @@ pub async fn fit_mirror_window(id: u64, width: u32, height: u32, app: AppHandle)
         .map_err(|error| AppError::Other(error.to_string()))?;
 
     Ok(())
+}
+
+/// Turn a window whose display follows it so its video area faces `landscape`. Nothing happens
+/// when it already does, or when the OS is showing the window maximized or full screen.
+fn turn_window(window: &tauri::WebviewWindow, landscape: bool, inset: f64) -> Result<()> {
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return Ok(());
+    }
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let size = window
+        .inner_size()
+        .map_err(|error| AppError::Other(error.to_string()))?;
+    let logical = (
+        f64::from(size.width) / scale,
+        f64::from(size.height) / scale,
+    );
+    let video = mirror_window::unpad(logical, inset);
+    if (video.0 > video.1) == landscape {
+        return Ok(());
+    }
+    let (width, height) = mirror_window::turned_size(logical, inset);
+    window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|error| AppError::Other(error.to_string()))
 }
 
 /// Stream a previously opened session's video into the calling window.

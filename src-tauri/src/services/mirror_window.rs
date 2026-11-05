@@ -96,6 +96,13 @@ pub fn lock_size(width: f64, aspect: f64) -> (f64, f64) {
     with_minimum(width, width / aspect, aspect)
 }
 
+/// The client size that turns a window by a quarter turn: its video area swaps sides, so the long
+/// side is unchanged and the inset is re-added below the video.
+pub fn turned_size((width, height): (f64, f64), inset: f64) -> (f64, f64) {
+    let (width, height) = unpad((width, height), inset);
+    pad((height, width), inset)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +138,13 @@ mod tests {
         // width 100 on a 2:1 landscape would put the height under the minimum, so
         // both sides scale up to satisfy it.
         assert_eq!(lock_size(100.0, 2.0), (480.0, 240.0));
+    }
+
+    #[test]
+    fn turns_a_window_by_a_quarter_turn() {
+        // A 410x820 phone window with a 36 px inset keeps its 784 px long side when it turns.
+        assert_eq!(turned_size((410.0, 820.0), 36.0), (784.0, 446.0));
+        assert_eq!(turned_size((784.0, 446.0), 36.0), (410.0, 820.0));
     }
 
     #[test]
