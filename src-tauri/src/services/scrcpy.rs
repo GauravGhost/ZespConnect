@@ -1,3 +1,4 @@
+use std::process::Stdio;
 use std::time::Duration;
 
 use once_cell::sync::Lazy;
@@ -5,6 +6,7 @@ use once_cell::sync::Lazy;
 use crate::error::{AppError, Result};
 use crate::models::{MirrorOptions, ToolStatus};
 use crate::services::{adb, updates};
+use crate::util::process;
 
 const API_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -242,7 +244,38 @@ s==1&&/SecondaryDisplayLauncher/{split($1,p,\"=\");sub(\",\",\"\",p[2]);app[p[2]
 s==2&&!/Application Not Responding/{split($1,p,\"=\");sub(\",\",\"\",p[2]);win[p[2]]=1} \
 END{for(d in app)if(!(d in win)){print \"launcherUnfocused\";exit}}'";
 
-/// What [`desktop_probe`] found.
+/// Printed after each probe so the reader knows a whole snapshot has arrived.
+pub const DESKTOP_PROBE_END: &str = "ZC-DESKTOP-PROBE-END";
+/// Seconds between probes; the lock screen is checked faster so unlocking shows the desktop quickly.
+const DESKTOP_PROBE_LOCKED_SECS: u32 = 1;
+const DESKTOP_PROBE_UNLOCKED_SECS: u32 = 2;
+
+/// The phone-side loop: run [`DESKTOP_PROBE_COMMAND`] and print it with [`DESKTOP_PROBE_END`] on
+/// every tick, since a stuck launcher is only acted on when two probes in a row report it.
+fn desktop_watch_script() -> String {
+    format!(
+        "while :; do p=$({DESKTOP_PROBE_COMMAND}); echo \"$p\"; echo {DESKTOP_PROBE_END}; \
+         case \"$p\" in *mKeyguardShowing=true*) sleep {DESKTOP_PROBE_LOCKED_SECS};; \
+         *) sleep {DESKTOP_PROBE_UNLOCKED_SECS};; esac; done"
+    )
+}
+
+/// Start the phone-side probe loop; dropping the child ends it on the phone too.
+pub fn spawn_desktop_watch(adb_path: &str, serial: &str) -> Result<tokio::process::Child> {
+    let args = vec![
+        "-s".to_string(),
+        serial.to_string(),
+        "shell".to_string(),
+        desktop_watch_script(),
+    ];
+    process::base_command(adb_path, &args)
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| AppError::CommandFailed(format!("Could not start adb shell: {e}")))
+}
+
+/// What one desktop probe found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DesktopProbe {
     /// Whether the lock screen is showing; while it is, Android hides the desktop and only the wallpaper draws.
@@ -251,8 +284,8 @@ pub struct DesktopProbe {
     pub launcher_unfocused: bool,
 }
 
-/// Parse [`DESKTOP_PROBE_COMMAND`]'s output.
-fn parse_desktop_probe(output: &str) -> DesktopProbe {
+/// Parse one [`DESKTOP_PROBE_COMMAND`] snapshot.
+pub fn parse_desktop_probe(output: &str) -> DesktopProbe {
     let mut probe = DesktopProbe {
         locked: None,
         launcher_unfocused: false,
@@ -266,14 +299,6 @@ fn parse_desktop_probe(output: &str) -> DesktopProbe {
         }
     }
     probe
-}
-
-/// Check a desktop session's phone; `None` when adb could not be reached.
-pub async fn desktop_probe(adb_path: &str, serial: &str) -> Option<DesktopProbe> {
-    let output = adb::shell(adb_path, serial, DESKTOP_PROBE_COMMAND, API_TIMEOUT)
-        .await
-        .ok()?;
-    Some(parse_desktop_probe(&output.stdout))
 }
 
 /// Put the phone to sleep after a desktop session; the short delay lets scrcpy's cleanup restore display power first.
@@ -522,6 +547,16 @@ mod tests {
         assert!(parse_desktop_prepare("35 true Awake").is_err());
         assert!(parse_desktop_prepare("36 false Awake").is_err());
         assert!(parse_desktop_prepare("").is_err());
+    }
+
+    #[test]
+    fn desktop_watch_probes_in_one_phone_side_loop() {
+        let script = desktop_watch_script();
+        assert!(script.starts_with("while :; do"));
+        assert!(script.contains(DESKTOP_PROBE_COMMAND));
+        assert!(script.contains(&format!("echo {DESKTOP_PROBE_END}")));
+        assert!(script.contains("*mKeyguardShowing=true*) sleep 1;;"));
+        assert!(script.contains("*) sleep 2;;"));
     }
 
     #[test]

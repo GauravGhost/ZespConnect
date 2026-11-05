@@ -2,9 +2,9 @@ use std::time::{Duration, Instant};
 
 use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use tokio::process::Child;
+use tokio::process::{Child, ChildStdout};
 use tokio::sync::mpsc;
 
 use crate::error::{AppError, Result};
@@ -12,14 +12,17 @@ use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
 use crate::runtime::recording::{VideoPacket, VideoTap};
 use crate::runtime::server_link::{self, ServerLink, Teardown};
 use crate::runtime::{mirror, phone_audio, session_window};
+use crate::services::scrcpy::DesktopProbe;
 use crate::services::{apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
 
 const EVENT_SESSION_STARTED: &str = "mirror:session:started";
 const EVENT_SESSION_EXITED: &str = "mirror:session:exited";
 const EVENT_SESSION_LOCKED: &str = "mirror:session:locked";
-const LOCKED_POLL: Duration = Duration::from_secs(1);
-const UNLOCKED_POLL: Duration = Duration::from_secs(2);
+/// The phone probes every 1-2 s; this long without a line means it went quiet.
+const PROBE_STALL: Duration = Duration::from_secs(5);
+/// Pause before restarting a probe loop that ended while its session is still open.
+const WATCH_RESTART: Duration = Duration::from_secs(2);
 const KEYCODE_HOME: u32 = 3;
 const START_APP_ATTEMPTS: usize = 6;
 const START_APP_RETRY: Duration = Duration::from_millis(900);
@@ -315,29 +318,75 @@ async fn watch_lock(
     serial: String,
     control: ControlChannel,
 ) {
-    let mut locked: Option<bool> = None;
-    let mut unfocused = false;
-    while app.state::<AppState>().session_control(id).is_some() {
-        if let Some(probe) = scrcpy::desktop_probe(&adb_bin, &serial).await {
-            if let Some(now) = probe.locked.filter(|now| locked != Some(*now)) {
-                on_lock_change(&app, id, &control, locked.is_none(), now);
-                locked = Some(now);
+    let mut watch = DesktopWatch {
+        locked: None,
+        unfocused: false,
+    };
+    while session_open(&app, id) {
+        if let Ok(mut child) = scrcpy::spawn_desktop_watch(&adb_bin, &serial) {
+            if let Some(stdout) = child.stdout.take() {
+                watch.follow(&app, id, &control, stdout).await;
             }
-            let stuck = probe.launcher_unfocused && locked == Some(false);
-            if stuck && unfocused {
-                let _ = control.send(control::inject_keycode(KeyAction::Down, KEYCODE_HOME, 0, 0));
-                let _ = control.send(control::inject_keycode(KeyAction::Up, KEYCODE_HOME, 0, 0));
-                unfocused = false;
-            } else {
-                unfocused = stuck;
-            }
+            // Dropping the child kills adb, which ends the loop on the phone.
         }
-        let wait = if locked == Some(true) {
-            LOCKED_POLL
+        if session_open(&app, id) {
+            tokio::time::sleep(WATCH_RESTART).await;
+        }
+    }
+}
+
+fn session_open(app: &AppHandle, id: u64) -> bool {
+    app.state::<AppState>().session_control(id).is_some()
+}
+
+/// What a desktop session's probes have shown so far.
+struct DesktopWatch {
+    locked: Option<bool>,
+    /// The previous probe found the launcher unfocused.
+    unfocused: bool,
+}
+
+impl DesktopWatch {
+    /// Apply each probe the phone sends until its loop ends or the session closes.
+    async fn follow(
+        &mut self,
+        app: &AppHandle,
+        id: u64,
+        control: &ControlChannel,
+        stdout: ChildStdout,
+    ) {
+        let mut lines = BufReader::new(stdout).lines();
+        let mut snapshot = String::new();
+        while session_open(app, id) {
+            // The timeout only rechecks the session when the phone goes quiet.
+            let line = match tokio::time::timeout(PROBE_STALL, lines.next_line()).await {
+                Ok(Ok(Some(line))) => line,
+                Ok(_) => return,
+                Err(_) => continue,
+            };
+            if line.trim() != scrcpy::DESKTOP_PROBE_END {
+                snapshot.push_str(&line);
+                snapshot.push('\n');
+                continue;
+            }
+            self.apply(app, id, control, scrcpy::parse_desktop_probe(&snapshot));
+            snapshot.clear();
+        }
+    }
+
+    fn apply(&mut self, app: &AppHandle, id: u64, control: &ControlChannel, probe: DesktopProbe) {
+        if let Some(now) = probe.locked.filter(|now| self.locked != Some(*now)) {
+            on_lock_change(app, id, control, self.locked.is_none(), now);
+            self.locked = Some(now);
+        }
+        let stuck = probe.launcher_unfocused && self.locked == Some(false);
+        if stuck && self.unfocused {
+            let _ = control.send(control::inject_keycode(KeyAction::Down, KEYCODE_HOME, 0, 0));
+            let _ = control.send(control::inject_keycode(KeyAction::Up, KEYCODE_HOME, 0, 0));
+            self.unfocused = false;
         } else {
-            UNLOCKED_POLL
-        };
-        tokio::time::sleep(wait).await;
+            self.unfocused = stuck;
+        }
     }
 }
 
