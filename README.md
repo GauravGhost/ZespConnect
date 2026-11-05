@@ -248,8 +248,9 @@ UI work should follow the theming guidelines in
 <summary><strong>Releasing (maintainers)</strong></summary>
 
 Add a section for the new version to [`CHANGELOG.md`](CHANGELOG.md) and commit it. Then
-push a version tag. This builds installers for every platform and attaches them to a draft
-GitHub release, using that changelog section as the release notes:
+push a version tag. This builds installers for every platform, attaches them to a GitHub
+release with that changelog section as the notes, and publishes it once every build
+succeeds. If any build fails, the release stays a draft:
 
 ```bash
 git tag v0.1.0
