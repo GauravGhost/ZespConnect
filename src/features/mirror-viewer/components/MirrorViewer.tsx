@@ -11,7 +11,7 @@ import { FileDropOverlay } from "@/components/app/FileDropOverlay";
 import { ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { TouchAction } from "@/types";
-import { useKeyboardForwarding, useMirrorStream } from "../hooks";
+import { useKeyboardForwarding, useMirrorStream, useWindowFlag } from "../hooks";
 import { androidButton, androidButtons, wheelNotches } from "../keymap";
 import { useRecording } from "../recording";
 import { CaptureButtons } from "./CaptureButtons";
@@ -44,10 +44,13 @@ export function MirrorViewer() {
     interactive,
     interactiveRef,
     locked,
+    landscape,
     phoneScreen,
     setPhoneScreen,
     session,
   } = useMirrorStream(canvasRef);
+  // Only a landscape app can open full screen (see `FullscreenButton`).
+  const fullscreen = useWindowFlag("isFullscreen", session?.kind === "app");
   const serial = session?.serial ?? null;
   // An app's Back is in its title bar, so its window has a small gap instead of a control bar.
   const controlBar = !desktop && session?.kind !== "app";
@@ -219,19 +222,28 @@ export function MirrorViewer() {
           recording={recording.recording}
         />
       ) : (
-        <MirrorTitleBar session={session} capture={capture} />
+        <MirrorTitleBar
+          session={session}
+          landscape={landscape}
+          fullscreen={fullscreen}
+          capture={capture}
+        />
       )}
       {/* A phone window keeps a control bar (an app a small gap) below rounded corners; a
           desktop fills the area under its title bar. Sized by `mirror_window::vertical_inset`. */}
       <div
         className={cn(
           "relative flex min-h-0 flex-1 items-center justify-center",
-          session?.kind === "app" && "pb-2",
+          session?.kind === "app" && !fullscreen && "pb-2",
         )}
       >
         <canvas
           ref={canvasRef}
-          className={cn("max-h-full max-w-full touch-none", !desktop && "rounded-[10px]")}
+          className={cn(
+            "max-h-full max-w-full touch-none",
+            !desktop && "rounded-[10px]",
+            fullscreen && "rounded-none",
+          )}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}

@@ -6,14 +6,22 @@ import type { MirrorSession } from "@/types";
 import { offersBack } from "../actions";
 import { useWindowTitle } from "../hooks";
 import { AlwaysOnTopButton } from "./AlwaysOnTopButton";
+import { FullscreenButton } from "./FullscreenButton";
 import { MirrorBackButton } from "./MirrorControlBar";
 import { PhoneSoundButton } from "./PhoneSoundButton";
 import { WindowControls } from "./WindowControls";
 
 export function MirrorTitleBar({
   session,
+  landscape,
+  fullscreen,
   capture,
-}: Readonly<{ session: MirrorSession | null; capture?: ReactNode }>) {
+}: Readonly<{
+  session: MirrorSession | null;
+  landscape: boolean;
+  fullscreen: boolean;
+  capture?: ReactNode;
+}>) {
   const title = useWindowTitle();
 
   return (
@@ -21,7 +29,10 @@ export function MirrorTitleBar({
       data-tauri-drag-region
       className={cn(
         "flex h-7 shrink-0 items-center gap-0.5 pr-1 select-none",
-        IS_MAC ? "pl-[78px]" : "pl-1",
+        // Room for the traffic lights, which macOS hides in full screen.
+        IS_MAC && !fullscreen ? "pl-[78px]" : "pl-1",
+        fullscreen &&
+          "absolute inset-x-0 top-0 z-10 bg-background/90 opacity-0 transition-opacity hover:opacity-100",
       )}
     >
       {session && offersBack(session.kind) ? <MirrorBackButton sessionId={session.id} /> : null}
@@ -33,6 +44,9 @@ export function MirrorTitleBar({
       </span>
       {capture}
       {session ? <PhoneSoundButton serial={session.serial} /> : null}
+      {session?.kind === "app" && (landscape || fullscreen) ? (
+        <FullscreenButton fullscreen={fullscreen} />
+      ) : null}
       <AlwaysOnTopButton />
       {IS_MAC ? null : <WindowControls />}
     </div>

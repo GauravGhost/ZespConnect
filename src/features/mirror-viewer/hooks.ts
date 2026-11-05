@@ -70,6 +70,25 @@ export function useWindowFlag(flag: "isFullscreen" | "isMaximized", enabled = tr
   return value;
 }
 
+/**
+ * Run `onEscape` on Escape while `active`, keeping the key from the device: a mirror window
+ * forwards Escape to Android as Back (see `keymap.ts`). Captured on the document so it runs
+ * before the forwarding listener on the window.
+ */
+export function useEscapeKey(active: boolean, onEscape: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onEscape();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [active, onEscape]);
+}
+
 export type MirrorStatus = "connecting" | "live" | "error";
 
 /** No decoded frame for this long, while data still arrives, means the decoder stalled. */
@@ -97,6 +116,8 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
   const [interactive, setInteractive] = useState(DESKTOP_WINDOW);
   // Android hides the desktop while the phone is locked (only the wallpaper draws).
   const [locked, setLocked] = useState(false);
+  // A landscape app may open full screen; the video, not the window, says which way it faces.
+  const [landscape, setLandscape] = useState(false);
   // Desktop mode turns the phone screen off; the side toggle turns it back on.
   const [phoneScreen, setPhoneScreen] = useState(false);
   // Known once the session starts; the sound switch is per device, not per window.
@@ -126,6 +147,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
             if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
               canvas.width = frame.displayWidth;
               canvas.height = frame.displayHeight;
+              if (!disposed) setLandscape(frame.displayWidth > frame.displayHeight);
               // Shape the window to the video aspect ratio on rotation, not on a pure
               // resolution change (which would only fight the user's own resize).
               const aspect = frame.displayWidth / frame.displayHeight;
@@ -241,6 +263,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
     interactive,
     interactiveRef,
     locked,
+    landscape,
     phoneScreen,
     setPhoneScreen,
     session,
