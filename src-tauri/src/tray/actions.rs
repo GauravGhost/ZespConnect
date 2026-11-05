@@ -143,10 +143,9 @@ pub(super) fn toggle_clipboard_sync(app: &AppHandle) {
     };
     run_reporting_errors(app, move |app| async move {
         let result = if app.state::<AppState>().clipboard_sync().contains(&serial) {
-            clipboard_sync::stop(&app, &serial);
-            Ok(())
+            clipboard_sync::disable(&app, &serial)
         } else {
-            clipboard_sync::start(&app, &serial).await
+            clipboard_sync::enable(&app, &serial).await
         };
         // The OS flips the check mark on click; a failed start must flip it back.
         super::sync(&app);

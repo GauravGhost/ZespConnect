@@ -1,5 +1,7 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc as std_mpsc;
+use std::sync::RwLock;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -9,15 +11,18 @@ use tokio::process::Child;
 use tokio::sync::mpsc;
 
 use crate::error::{AppError, Result};
+use crate::models::Device;
 use crate::runtime::server_link::{self, ServerLink};
 use crate::services::control::{self, DeviceMessage};
 use crate::services::scrcpy_server;
 use crate::state::AppState;
+use crate::util;
 
 pub const EVENT_CHANGED: &str = "clipboard-sync:changed";
 /// How often the computer's clipboard is checked for a new copy (no OS change event is used).
 const HOST_POLL: Duration = Duration::from_millis(500);
 const ECHO_MEMORY: usize = 4;
+const SAVED_FILE: &str = "clipboard-sync.json";
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +36,135 @@ fn announce(app: &AppHandle, serial: &str, on: bool) {
     crate::tray::sync(app);
 }
 
-pub async fn start(app: &AppHandle, serial: &str) -> Result<()> {
+/// A phone the user switched sync on for. Wireless serials change between connections, so the
+/// stable mDNS name also identifies it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct SavedPhone {
+    serial: String,
+    mdns_name: Option<String>,
+}
+
+impl SavedPhone {
+    fn of(device: &Device) -> Self {
+        SavedPhone {
+            serial: device.serial.clone(),
+            mdns_name: device.mdns_name.clone(),
+        }
+    }
+
+    fn is(&self, device: &Device) -> bool {
+        device.serial == self.serial
+            || (self.mdns_name.is_some() && device.mdns_name == self.mdns_name)
+    }
+}
+
+/// The phones that keep syncing across app restarts and reconnects. Only the user's own switch
+/// changes this; a link that ends on its own (cable out, phone rebooted) stays remembered.
+pub struct SavedPhones {
+    path: PathBuf,
+    phones: RwLock<Vec<SavedPhone>>,
+    /// Serials whose automatic start is in flight, so quick device-list changes start one link.
+    starting: RwLock<HashSet<String>>,
+}
+
+impl SavedPhones {
+    pub fn load(app_data_dir: &Path) -> Self {
+        let path = app_data_dir.join(SAVED_FILE);
+        let phones = util::read_json(&path).ok().flatten().unwrap_or_default();
+        SavedPhones {
+            path,
+            phones: RwLock::new(phones),
+            starting: RwLock::new(HashSet::new()),
+        }
+    }
+
+    fn update(&self, change: impl FnOnce(&mut Vec<SavedPhone>)) -> Result<()> {
+        let mut phones = self
+            .phones
+            .write()
+            .map_err(|_| AppError::Other("state poisoned".into()))?;
+        change(&mut phones);
+        util::write_json(&self.path, &*phones)
+    }
+
+    fn remember(&self, device: &Device) -> Result<()> {
+        self.update(|phones| {
+            phones.retain(|phone| !phone.is(device));
+            phones.push(SavedPhone::of(device));
+        })
+    }
+
+    fn forget(&self, device: &Device) -> Result<()> {
+        self.update(|phones| phones.retain(|phone| !phone.is(device)))
+    }
+
+    fn contains(&self, device: &Device) -> bool {
+        self.phones
+            .read()
+            .map(|phones| phones.iter().any(|phone| phone.is(device)))
+            .unwrap_or(false)
+    }
+
+    fn claim_start(&self, serial: &str) -> bool {
+        self.starting
+            .write()
+            .map(|mut starting| starting.insert(serial.to_string()))
+            .unwrap_or(false)
+    }
+
+    fn release_start(&self, serial: &str) {
+        if let Ok(mut starting) = self.starting.write() {
+            starting.remove(serial);
+        }
+    }
+}
+
+/// Switch sync on at the user's request and keep it on for this phone from now on.
+pub async fn enable(app: &AppHandle, serial: &str) -> Result<()> {
+    start(app, serial).await?;
+    let state = app.state::<AppState>();
+    match state.device(serial) {
+        Some(device) => state.clipboard_phones().remember(&device),
+        None => Ok(()),
+    }
+}
+
+/// Switch sync off at the user's request so it stays off after a restart or reconnect.
+pub fn disable(app: &AppHandle, serial: &str) -> Result<()> {
+    stop(app, serial);
+    let state = app.state::<AppState>();
+    match state.device(serial) {
+        Some(device) => state.clipboard_phones().forget(&device),
+        None => Ok(()),
+    }
+}
+
+/// Resume sync for remembered phones that are connected but not syncing.
+pub fn devices_changed(app: &AppHandle, devices: &[Device]) {
+    let state = app.state::<AppState>();
+    let phones = state.clipboard_phones();
+    for device in devices {
+        if !device.connected
+            || !phones.contains(device)
+            || state.clipboard_sync().contains(&device.serial)
+            || !phones.claim_start(&device.serial)
+        {
+            continue;
+        }
+        let app = app.clone();
+        let serial = device.serial.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = start(&app, &serial).await {
+                eprintln!("clipboard sync for {serial} did not resume: {error}");
+            }
+            app.state::<AppState>()
+                .clipboard_phones()
+                .release_start(&serial);
+        });
+    }
+}
+
+async fn start(app: &AppHandle, serial: &str) -> Result<()> {
     if app.state::<AppState>().clipboard_sync().contains(serial) {
         return Ok(());
     }
@@ -93,7 +226,7 @@ pub async fn start(app: &AppHandle, serial: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn stop(app: &AppHandle, serial: &str) {
+fn stop(app: &AppHandle, serial: &str) {
     app.state::<AppState>().clipboard_sync().stop(serial);
 }
 
@@ -225,6 +358,57 @@ impl HostClipboard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{DeviceState, DeviceTransport};
+
+    fn device(serial: &str, mdns_name: Option<&str>) -> Device {
+        Device {
+            serial: serial.to_string(),
+            display_name: String::new(),
+            model: String::new(),
+            android_version: None,
+            sdk: None,
+            transport: DeviceTransport::Wifi,
+            state: DeviceState::Device,
+            connected: true,
+            battery: None,
+            charging: None,
+            address: None,
+            mdns_name: mdns_name.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn a_saved_phone_is_known_by_serial_or_its_wireless_name() {
+        let saved = SavedPhone::of(&device("192.168.1.5:40001", Some("adb-ABC-x")));
+
+        assert!(saved.is(&device("192.168.1.5:40001", None)));
+        assert!(saved.is(&device("192.168.1.5:38211", Some("adb-ABC-x"))));
+        assert!(!saved.is(&device("192.168.1.5:38211", None)));
+        assert!(!saved.is(&device("192.168.1.9:5555", Some("adb-XYZ-y"))));
+    }
+
+    #[test]
+    fn saved_phones_survive_a_reload_until_forgotten() {
+        let dir = std::env::temp_dir().join(format!("zesp-clipboard-{}", uuid::Uuid::new_v4()));
+        let phone = device("adb-ABC-x._adb-tls-connect._tcp", Some("adb-ABC-x"));
+
+        SavedPhones::load(&dir).remember(&phone).unwrap();
+        let reloaded = SavedPhones::load(&dir);
+        assert!(reloaded.contains(&phone));
+
+        reloaded.forget(&phone).unwrap();
+        assert!(!SavedPhones::load(&dir).contains(&phone));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn one_automatic_start_per_serial_at_a_time() {
+        let phones = SavedPhones::load(&std::env::temp_dir().join("zesp-clipboard-unused"));
+        assert!(phones.claim_start("s"));
+        assert!(!phones.claim_start("s"));
+        phones.release_start("s");
+        assert!(phones.claim_start("s"));
+    }
 
     #[test]
     fn remembers_the_last_few_sent_texts_as_echoes() {

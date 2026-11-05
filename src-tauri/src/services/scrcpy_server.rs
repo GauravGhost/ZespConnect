@@ -7,6 +7,9 @@ use crate::services::{scrcpy, updates};
 /// scrcpy 4.0 renamed `send_codec_meta` to `send_stream_meta`.
 const STREAM_META_MIN_VERSION: &str = "4.0";
 
+/// scrcpy 4.0 added `keep_active`.
+const KEEP_ACTIVE_MIN_VERSION: &str = "4.0";
+
 /// The oldest scrcpy whose standalone-server options we target.
 pub const MIN_VERSION: &str = "3.0";
 
@@ -147,6 +150,11 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
         } else if scrcpy::vd_decorations_option_supported(Some(version)) {
             // Without decorations only the app is shown, so a cold start draws even while the phone sleeps.
             args.push("vd_system_decorations=false".to_string());
+        }
+        // A virtual display has its own power group that sleeps on the phone's idle timeout (a black window).
+        // `keep_active` pokes user activity on that display only, so the phone screen and its settings are untouched.
+        if updates::compare(version, KEEP_ACTIVE_MIN_VERSION).is_ge() {
+            args.push("keep_active=true".to_string());
         }
     }
 
@@ -334,10 +342,27 @@ mod tests {
     }
 
     #[test]
+    fn virtual_display_stays_active_without_touching_the_phone() {
+        let mut opts = options(MirrorKind::App);
+        opts.new_display = Some(String::new());
+
+        let args = options_args("4.0", "s", &opts);
+        assert!(args.contains(&"keep_active=true".to_string()));
+        assert!(!args.iter().any(|a| a.starts_with("screen_off_timeout")));
+        assert!(!args.iter().any(|a| a.starts_with("stay_awake")));
+
+        // scrcpy 3.x rejects the option as unknown.
+        assert!(!options_args("3.3", "s", &opts)
+            .iter()
+            .any(|a| a.starts_with("keep_active")));
+    }
+
+    #[test]
     fn main_display_app_omits_the_virtual_display() {
         let args = options_args("4.0", "s", &options(MirrorKind::ScreenApp));
 
         assert!(!args.iter().any(|a| a.starts_with("new_display")));
+        assert!(!args.iter().any(|a| a.starts_with("keep_active")));
         assert!(!args.iter().any(|a| a.starts_with("vd_system_decorations")));
     }
 

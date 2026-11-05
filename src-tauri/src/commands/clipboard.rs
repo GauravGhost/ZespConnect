@@ -14,9 +14,8 @@ pub fn list_clipboard_sync(state: State<'_, AppState>) -> Vec<String> {
 pub async fn set_clipboard_sync(serial: String, on: bool, app: AppHandle) -> Result<()> {
     validate_serial(&serial)?;
     if on {
-        clipboard_sync::start(&app, &serial).await
+        clipboard_sync::enable(&app, &serial).await
     } else {
-        clipboard_sync::stop(&app, &serial);
-        Ok(())
+        clipboard_sync::disable(&app, &serial)
     }
 }

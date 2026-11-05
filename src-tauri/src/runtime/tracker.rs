@@ -42,6 +42,7 @@ pub async fn refresh(app: &AppHandle) {
         crate::tray::sync(app);
         crate::runtime::reconnect::devices_changed();
         crate::runtime::recording::devices_changed(app, &list);
+        crate::runtime::clipboard_sync::devices_changed(app, &list);
     }
 }
 

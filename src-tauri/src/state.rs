@@ -7,6 +7,7 @@ use crate::models::{
     Device, LauncherSettings, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec,
     ReconnectTarget, ToolKind, ToolStatus,
 };
+use crate::runtime::clipboard_sync::SavedPhones;
 use crate::runtime::mirror_session::ControlChannel;
 use crate::runtime::recording::{Recordings, VideoTap};
 use crate::util;
@@ -106,6 +107,7 @@ pub struct AppState {
     selected: RwLock<Option<String>>,
     phone_audio: DeviceLinks,
     clipboard_sync: DeviceLinks,
+    clipboard_phones: SavedPhones,
     now_playing: DeviceLinks,
     recordings: Recordings,
     launcher_settings: RwLock<LauncherSettings>,
@@ -117,6 +119,7 @@ impl AppState {
     pub fn new(app_data_dir: PathBuf) -> Self {
         let overrides = load_overrides(&app_data_dir).unwrap_or_default();
         let selected = load_selected(&app_data_dir);
+        let clipboard_phones = SavedPhones::load(&app_data_dir);
         AppState {
             tools: RwLock::new(ToolStatus::default()),
             tool_overrides: RwLock::new(overrides),
@@ -137,6 +140,7 @@ impl AppState {
             selected: RwLock::new(selected),
             phone_audio: DeviceLinks::default(),
             clipboard_sync: DeviceLinks::default(),
+            clipboard_phones,
             now_playing: DeviceLinks::default(),
             recordings: Recordings::default(),
             launcher_settings: RwLock::new(LauncherSettings::default()),
@@ -153,6 +157,11 @@ impl AppState {
     /// Devices whose clipboard is kept in sync with the computer's.
     pub fn clipboard_sync(&self) -> &DeviceLinks {
         &self.clipboard_sync
+    }
+
+    /// Phones whose clipboard sync resumes on its own.
+    pub fn clipboard_phones(&self) -> &SavedPhones {
+        &self.clipboard_phones
     }
 
     /// The device whose media sessions the main window is watching (at most one).
