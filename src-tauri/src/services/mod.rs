@@ -1,4 +1,5 @@
 pub mod adb;
+pub mod apk_bundle;
 pub mod app_icons;
 pub mod apps;
 pub mod audio_out;

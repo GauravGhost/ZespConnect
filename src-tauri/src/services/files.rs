@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::error::{AppError, Result};
 use crate::models::{FileEntry, ToolStatus};
-use crate::services::adb;
+use crate::services::{adb, apk_bundle};
 use crate::util;
 use crate::util::process::ProcessOutput;
 use crate::util::validation::{shell_quote, validate_remote_path};
@@ -192,11 +192,10 @@ pub fn clear_previews(cache_root: &Path) {
     }
 }
 
-/// True when a dropped path should be installed rather than copied.
+/// True when a dropped path should be installed rather than copied: an APK or an APK bundle.
 pub fn is_apk(local: &str) -> bool {
-    Path::new(local)
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("apk"))
+    let path = Path::new(local);
+    apk_bundle::is_apk(path) || apk_bundle::is_bundle(path)
 }
 
 /// The device path a file or folder ends up at inside the device folder `dir`.
@@ -362,6 +361,8 @@ not a listing line
         assert!(is_apk("/home/me/App.APK"));
         assert!(!is_apk("/home/me/photo.jpg"));
         assert!(!is_apk("/home/me/apk"));
+        assert!(is_apk("/home/me/app.apks"));
+        assert!(is_apk("/home/me/game.XAPK"));
     }
 
     #[test]

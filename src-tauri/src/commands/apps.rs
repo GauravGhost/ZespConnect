@@ -73,6 +73,21 @@ pub async fn force_stop_app(
     apps_service::force_stop(&tools, &serial, &package).await
 }
 
+/// Returns the saved APK file, or the folder holding a split app's APKs.
+#[tauri::command]
+pub async fn export_apk(
+    serial: String,
+    package: String,
+    dir: String,
+    state: State<'_, AppState>,
+) -> Result<String> {
+    validate_serial(&serial)?;
+    validate_package(&package)?;
+    let tools = state.tools();
+    let saved = apps_service::export_apk(&tools, &serial, &package, Path::new(&dir)).await?;
+    Ok(saved.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub async fn install_apk(
     serial: String,

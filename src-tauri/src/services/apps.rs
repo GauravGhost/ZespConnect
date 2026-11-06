@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crate::error::{AppError, Result};
 use crate::models::{AppInfo, AppListResult, AppListSource, LabelSource, ToolStatus};
-use crate::services::{adb, app_icons};
+use crate::services::{adb, apk_bundle, app_icons, files};
 use crate::util;
 use crate::util::process::{self, ProcessOutput};
 use crate::util::validation::{shell_quote, validate_package};
@@ -352,12 +352,114 @@ pub async fn force_stop(tools: &ToolStatus, serial: &str, package: &str) -> Resu
     Ok(())
 }
 
-pub async fn install_apk(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
-    if !Path::new(path).is_file() {
-        return Err(AppError::Invalid(format!("APK not found: {path}")));
-    }
+/// Device paths of an app's APKs from `pm path`: one line, or a base plus splits.
+fn apk_paths(text: &str) -> Vec<String> {
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("package:"))
+        .map(str::to_string)
+        .collect()
+}
+
+/// A fresh folder under the system temp dir for packing or unpacking a bundle.
+fn scratch_dir() -> Result<PathBuf> {
+    util::ensure_dir(
+        std::env::temp_dir().join(format!("zesp-connect-apk-{}", uuid::Uuid::new_v4())),
+    )
+}
+
+async fn run_blocking<T: Send + 'static>(
+    job: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
+    tokio::task::spawn_blocking(job)
+        .await
+        .map_err(|error| AppError::Other(format!("APK bundle task failed: {error}")))?
+}
+
+/// Copy an app into `dir`: `<package>.apk` for a single APK, or one `<package>.apks` bundle when
+/// the app is split into several APKs. Returns the saved file.
+pub async fn export_apk(
+    tools: &ToolStatus,
+    serial: &str,
+    package: &str,
+    dir: &Path,
+) -> Result<PathBuf> {
     let adb_path = adb::adb_path(tools)?;
-    let args = vec!["install".to_string(), "-r".to_string(), path.to_string()];
+    let command = format!("pm path {}", shell_quote(package));
+    let output = adb::shell(&adb_path, serial, &command, ACTION_TIMEOUT).await?;
+    let remotes = apk_paths(&output.stdout);
+
+    match remotes.as_slice() {
+        [] => Err(AppError::CommandFailed(format!(
+            "No APK found for {package}"
+        ))),
+        [remote] => {
+            let saved = dir.join(format!("{package}.apk"));
+            files::pull(tools, serial, remote, &saved.to_string_lossy()).await?;
+            Ok(saved)
+        }
+        _ => {
+            let work = scratch_dir()?;
+            let bundle = dir.join(format!("{package}.apks"));
+            let result = pull_bundle(tools, serial, &remotes, &work, bundle).await;
+            let _ = std::fs::remove_dir_all(&work);
+            result
+        }
+    }
+}
+
+/// Pull every APK into `work` under its device file name, then zip them into `bundle`.
+async fn pull_bundle(
+    tools: &ToolStatus,
+    serial: &str,
+    remotes: &[String],
+    work: &Path,
+    bundle: PathBuf,
+) -> Result<PathBuf> {
+    let mut apks = Vec::with_capacity(remotes.len());
+    for remote in remotes {
+        let local = work.join(util::safe_file_name(
+            remote.rsplit('/').next().unwrap_or(remote),
+        ));
+        files::pull(tools, serial, remote, &local.to_string_lossy()).await?;
+        apks.push(local);
+    }
+    let target = bundle.clone();
+    run_blocking(move || apk_bundle::write(&target, &apks)).await?;
+    Ok(bundle)
+}
+
+/// Install an `.apk`, or every APK inside an `.apks` / `.xapk` bundle in one session.
+pub async fn install_apk(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
+    let path = Path::new(path);
+    if !path.is_file() {
+        return Err(AppError::Invalid(format!(
+            "APK not found: {}",
+            path.display()
+        )));
+    }
+    if !apk_bundle::is_bundle(path) {
+        return install_files(tools, serial, &[path.to_path_buf()]).await;
+    }
+
+    let work = scratch_dir()?;
+    let (bundle, dest) = (path.to_path_buf(), work.clone());
+    let result = match run_blocking(move || apk_bundle::extract(&bundle, &dest)).await {
+        Ok(apks) => install_files(tools, serial, &apks).await,
+        Err(error) => Err(error),
+    };
+    let _ = std::fs::remove_dir_all(&work);
+    result
+}
+
+async fn install_files(tools: &ToolStatus, serial: &str, apks: &[PathBuf]) -> Result<()> {
+    let adb_path = adb::adb_path(tools)?;
+    let command = if apks.len() == 1 {
+        "install"
+    } else {
+        "install-multiple"
+    };
+    let mut args = vec![command.to_string(), "-r".to_string()];
+    args.extend(apks.iter().map(|apk| apk.to_string_lossy().into_owned()));
     let output = adb::run_scoped(&adb_path, serial, &args, INSTALL_TIMEOUT).await?;
     if !succeeded(&output) {
         return Err(AppError::CommandFailed(output.text()));
@@ -376,6 +478,21 @@ mod tests {
 
     const SCRCPY: &str = include_str!("../../tests/fixtures/scrcpy_list_apps.txt");
     const PM: &str = include_str!("../../tests/fixtures/pm_list_packages.txt");
+
+    #[test]
+    fn reads_every_apk_path() {
+        let text = "package:/data/app/~~x==/com.a-y==/base.apk
+                    package:/data/app/~~x==/com.a-y==/split_config.en.apk
+";
+        assert_eq!(
+            apk_paths(text),
+            vec![
+                "/data/app/~~x==/com.a-y==/base.apk",
+                "/data/app/~~x==/com.a-y==/split_config.en.apk",
+            ]
+        );
+        assert!(apk_paths("").is_empty());
+    }
 
     #[test]
     fn parses_scrcpy_app_list() {

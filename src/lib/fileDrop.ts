@@ -16,7 +16,7 @@ export function fileName(path: string): string {
 
 /** Mirrors `services::files::is_apk`: the backend installs these instead of copying them. */
 export function isApk(path: string): boolean {
-  return /\.apk$/i.test(path);
+  return /\.(apk|apks|xapk)$/i.test(path);
 }
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;

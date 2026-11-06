@@ -23,6 +23,7 @@ import { useInstallApk } from "@/hooks/useInstallApk";
 import {
   useAppList,
   useClearAppData,
+  useExportApk,
   useLaunchApp,
   useRefreshAppList,
   useUninstallApp,
@@ -61,6 +62,7 @@ export function AppsPanel() {
   const launch = useLaunchApp();
   const installApk = useInstallApk();
   const clearData = useClearAppData();
+  const exportApk = useExportApk();
   const uninstall = useUninstallApp();
 
   const { windows } = useOpenWindows();
@@ -131,6 +133,7 @@ export function AppsPanel() {
       serial && openScreen.mutate({ serial, pkg: target.package, label: target.label }),
     onStop: (target) => windowFor(target.package).forEach((window) => stopWindow.mutate(window)),
     onLaunch: (target) => serial && launch.mutate({ serial, pkg: target.package }),
+    onExportApk: (target) => serial && exportApk.mutate({ serial, app: target }),
     onClearData: (target) => setConfirm({ app: target, action: "clearData" }),
     onUninstall: (target) => setConfirm({ app: target, action: "uninstall" }),
   };

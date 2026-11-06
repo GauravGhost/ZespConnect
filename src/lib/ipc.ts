@@ -66,6 +66,9 @@ export const ipc = {
     clearData: (serial: string, pkg: string) =>
       invoke<void>("clear_app_data", { serial, package: pkg }),
     installApk: (serial: string, path: string) => invoke<void>("install_apk", { serial, path }),
+    /** Save an app into `dir` as `.apk`, or `.apks` when split; resolves to the saved file. */
+    exportApk: (serial: string, pkg: string, dir: string) =>
+      invoke<string>("export_apk", { serial, package: pkg, dir }),
     /** Stop every process of an app. */
     forceStop: (serial: string, pkg: string) =>
       invoke<void>("force_stop_app", { serial, package: pkg }),

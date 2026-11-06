@@ -1,4 +1,13 @@
-import { Eraser, MonitorPlay, MoreVertical, Play, Smartphone, Square, Trash2 } from "lucide-react";
+import {
+  Eraser,
+  FileDown,
+  MonitorPlay,
+  MoreVertical,
+  Play,
+  Smartphone,
+  Square,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +24,7 @@ export interface AppActionHandlers {
   onOpenScreen: (app: AppInfo) => void;
   onStop: (app: AppInfo) => void;
   onLaunch: (app: AppInfo) => void;
+  onExportApk: (app: AppInfo) => void;
   onClearData: (app: AppInfo) => void;
   onUninstall: (app: AppInfo) => void;
 }
@@ -54,6 +64,7 @@ export function AppActionsMenu({
   onOpenScreen,
   onStop,
   onLaunch,
+  onExportApk,
   onClearData,
   onUninstall,
 }: Omit<AppItemProps, "busy">) {
@@ -83,6 +94,10 @@ export function AppActionsMenu({
         <DropdownMenuItem onSelect={() => onLaunch(app)}>
           <Play />
           Launch on phone
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onExportApk(app)}>
+          <FileDown />
+          Export APK
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onClearData(app)}>

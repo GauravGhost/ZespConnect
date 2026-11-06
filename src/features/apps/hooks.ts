@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { open } from "@tauri-apps/plugin-dialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 
 import { appsKey } from "@/hooks/useInstallApk";
 import { errorMessage, ipc } from "@/lib/ipc";
-import type { AppListResult } from "@/types";
+import type { AppInfo, AppListResult } from "@/types";
 
 export interface AppVars {
   serial: string;
@@ -58,6 +60,33 @@ export function useClearAppData() {
     mutationFn: ({ serial, pkg }: { serial: string; pkg: string }) =>
       ipc.apps.clearData(serial, pkg),
     onSuccess: (_result, vars) => toast.success(`Cleared data for ${vars.pkg}`),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+/** Ask for a folder, then save the app there as one `.apk` or `.apks` file. */
+export function useExportApk() {
+  return useMutation({
+    mutationFn: async ({ serial, app }: { serial: string; app: AppInfo }) => {
+      const dir = await open({ directory: true, title: `Export ${app.label} APK to` });
+      if (typeof dir !== "string") return null;
+      const exporting = toast.loading(`Exporting ${app.label}…`);
+      try {
+        return await ipc.apps.exportApk(serial, app.package, dir);
+      } finally {
+        toast.dismiss(exporting);
+      }
+    },
+    onSuccess: (saved, vars) => {
+      if (!saved) return;
+      toast.success(`Exported ${vars.app.label}`, {
+        description: saved,
+        action: {
+          label: "Show",
+          onClick: () => void revealItemInDir(saved).catch(() => undefined),
+        },
+      });
+    },
     onError: (error) => toast.error(errorMessage(error)),
   });
 }

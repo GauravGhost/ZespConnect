@@ -14,6 +14,8 @@ describe("isApk", () => {
     expect(isApk("C:\\Downloads\\App.APK")).toBe(true);
     expect(isApk("/home/me/photo.jpg")).toBe(false);
     expect(isApk("/home/me/apk")).toBe(false);
+    expect(isApk("C:\\Downloads\\app.apks")).toBe(true);
+    expect(isApk("/home/me/game.XAPK")).toBe(true);
   });
 });
 
