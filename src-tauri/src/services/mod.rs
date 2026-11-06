@@ -16,6 +16,7 @@ pub mod mdns;
 pub mod media_session;
 pub mod mirror_window;
 pub mod performance;
+pub mod ports;
 pub mod processes;
 pub mod recorder;
 pub mod scrcpy;

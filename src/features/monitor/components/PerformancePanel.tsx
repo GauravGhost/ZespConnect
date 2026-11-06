@@ -1,4 +1,4 @@
-import { Activity, AppWindow, Pause, Play } from "lucide-react";
+import { Activity, AppWindow, Loader2, Pause, Play } from "lucide-react";
 import { useState } from "react";
 
 import { NoDeviceState } from "@/components/app/EmptyState";
@@ -20,17 +20,21 @@ function LiveStatus({ live, waiting }: { live: boolean; waiting: boolean }) {
   const label = !live ? "Paused" : waiting ? "Connecting…" : "Live";
   return (
     <span className="bg-muted/70 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium">
-      <span className="relative flex size-2">
-        {live && !waiting ? (
-          <span className="bg-primary absolute inline-flex size-full animate-ping rounded-full opacity-60" />
-        ) : null}
-        <span
-          className={cn(
-            "relative inline-flex size-2 rounded-full",
-            live ? "bg-primary" : "bg-muted-foreground",
-          )}
-        />
-      </span>
+      {live && waiting ? (
+        <Loader2 className="text-primary size-3 animate-spin" />
+      ) : (
+        <span className="relative flex size-2">
+          {live ? (
+            <span className="bg-primary absolute inline-flex size-full animate-ping rounded-full opacity-60" />
+          ) : null}
+          <span
+            className={cn(
+              "relative inline-flex size-2 rounded-full",
+              live ? "bg-primary" : "bg-muted-foreground",
+            )}
+          />
+        </span>
+      )}
       {label}
     </span>
   );

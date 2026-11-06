@@ -1,10 +1,11 @@
-import { ScrollText, Terminal } from "lucide-react";
+import { Cable, ScrollText, Terminal } from "lucide-react";
 import { useState } from "react";
 
 import { NoDeviceState } from "@/components/app/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveDevice } from "@/hooks/useDevices";
 import { LogcatView } from "./LogcatView";
+import { PortsView } from "./PortsView";
 import { ShellView } from "./ShellView";
 
 export function ConsolePanel() {
@@ -15,7 +16,7 @@ export function ConsolePanel() {
     return (
       <NoDeviceState
         icon={Terminal}
-        description="Connect an Android device to run shell commands and watch logcat."
+        description="Connect an Android device to run shell commands, watch logcat and share ports."
       />
     );
   }
@@ -32,14 +33,22 @@ export function ConsolePanel() {
             <ScrollText />
             Logcat
           </TabsTrigger>
+          <TabsTrigger value="ports">
+            <Cable />
+            Ports
+          </TabsTrigger>
         </TabsList>
       </div>
 
-      <TabsContent value="shell" className="min-h-0">
+      {/* Kept mounted so open shells survive a visit to the other tabs. */}
+      <TabsContent value="shell" forceMount className="min-h-0 data-[state=inactive]:hidden">
         <ShellView serial={device.serial} />
       </TabsContent>
       <TabsContent value="logcat" className="min-h-0">
         <LogcatView serial={device.serial} />
+      </TabsContent>
+      <TabsContent value="ports" className="min-h-0">
+        <PortsView serial={device.serial} />
       </TabsContent>
     </Tabs>
   );

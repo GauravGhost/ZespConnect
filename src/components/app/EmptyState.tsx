@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import { Loader2, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ export function EmptyState({
       )}
     >
       <div className="bg-muted/60 text-muted-foreground flex size-16 items-center justify-center rounded-full">
-        <Icon className="size-7" />
+        <Icon className={cn("size-7", Icon === Loader2 && "animate-spin")} />
       </div>
       <div className="space-y-1">
         <p className="text-sm font-medium">{title}</p>

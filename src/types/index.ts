@@ -229,11 +229,8 @@ export interface CaptureDirs {
   videos: string;
 }
 
-export interface ShellResult {
-  stdout: string;
-  stderr: string;
-  code: number;
-}
+/** What a shell session streams: terminal output, then `exit` once (`code` null when killed). */
+export type ShellEvent = { kind: "output"; text: string } | { kind: "exit"; code: number | null };
 
 export type LogStream = "stdout" | "stderr";
 
@@ -247,6 +244,16 @@ export interface LogLine {
 export interface LogcatFilter {
   package: string | null;
   minLevel: string | null;
+}
+
+/** `forward`: the computer's port reaches the phone. `reverse`: the phone's port reaches the computer. */
+export type PortDirection = "forward" | "reverse";
+
+/** One adb port rule; each side is a socket spec such as `tcp:3000`. */
+export interface PortRule {
+  direction: PortDirection;
+  host: string;
+  device: string;
 }
 
 /** The app in front on the phone. */

@@ -18,6 +18,8 @@ import type {
   LogcatFilter,
   MediaKey,
   PerfSample,
+  PortDirection,
+  PortRule,
   ProcessInfo,
   MirrorAction,
   MdnsDevice,
@@ -32,7 +34,7 @@ import type {
   RebootMode,
   SendOutcome,
   SerializedAppError,
-  ShellResult,
+  ShellEvent,
   ToolKind,
   ToolStatus,
   TouchAction,
@@ -188,13 +190,28 @@ export const ipc = {
   },
 
   console: {
-    exec: (serial: string, command: string) =>
-      invoke<ShellResult>("shell_exec", { serial, command }),
+    /** Start an interactive shell streaming into the channel; resolves with its session id. */
+    openShell: (serial: string, channel: Channel<ShellEvent>) =>
+      invoke<number>("open_shell", { serial, channel }),
+    /** Raw input: a command line ends with "
+", Ctrl+C is "". */
+    writeShell: (id: number, input: string) => invoke<void>("write_shell", { id, input }),
+    closeShell: (id: number) => invoke<void>("close_shell", { id }),
     /** Stream `adb logcat` into the given channel until `closeLogcat`. */
     openLogcat: (serial: string, filter: LogcatFilter, channel: Channel<LogLine>) =>
       invoke<void>("open_logcat", { serial, filter, channel }),
     closeLogcat: (serial: string) => invoke<void>("close_logcat", { serial }),
     saveLog: (path: string, text: string) => invoke<void>("save_log", { path, text }),
+  },
+
+  /** adb port rules; every change resolves with the device's updated list. */
+  ports: {
+    list: (serial: string) => invoke<PortRule[]>("list_port_rules", { serial }),
+    add: (serial: string, direction: PortDirection, hostPort: number, devicePort: number) =>
+      invoke<PortRule[]>("add_port_rule", { serial, direction, hostPort, devicePort }),
+    remove: (serial: string, rule: PortRule) =>
+      invoke<PortRule[]>("remove_port_rule", { serial, rule }),
+    clear: (serial: string) => invoke<PortRule[]>("clear_port_rules", { serial }),
   },
 
   monitor: {
