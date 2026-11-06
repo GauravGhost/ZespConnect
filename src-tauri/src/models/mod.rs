@@ -2,6 +2,7 @@ pub mod apps;
 pub mod avd;
 pub mod console;
 pub mod controls;
+pub mod crashes;
 pub mod device;
 pub mod files;
 pub mod launcher;
@@ -17,6 +18,7 @@ pub use apps::{AppInfo, AppInstallProgress, AppListResult, AppListSource, LabelS
 pub use avd::Avd;
 pub use console::{LogLine, LogStream, LogcatFilter, ShellEvent};
 pub use controls::{DeviceInfo, QuickState, RebootMode, DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME};
+pub use crashes::{CrashKind, CrashReport};
 pub use device::{Device, DeviceState, DeviceTransport};
 pub use files::{FileEntry, SendOutcome};
 pub use launcher::{

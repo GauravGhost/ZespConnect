@@ -7,6 +7,7 @@ pub mod avd;
 pub mod capture;
 pub mod console;
 pub mod control;
+pub mod crashes;
 pub mod devices;
 pub mod file_stream;
 pub mod files;

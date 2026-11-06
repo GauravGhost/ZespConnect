@@ -8,19 +8,11 @@ import { Button } from "@/components/ui/button";
 import { fileStamp } from "@/lib/format";
 import { errorMessage, ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
+import { copyText } from "../copy";
 import { useLayoutCapture, type LayoutSnapshot } from "../hooks";
 import { formatBounds, nodeAt, nodeLabel, type Bounds, type LayoutNode } from "../layout";
 
 const INDENT_PX = 12;
-
-async function copy(value: string, label: string) {
-  try {
-    await navigator.clipboard.writeText(value);
-    toast.success(`${label} copied`);
-  } catch {
-    toast.error("Could not copy to clipboard");
-  }
-}
 
 function BoundsRect({ bounds, className }: { bounds: Bounds; className: string }) {
   return (
@@ -154,7 +146,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
           className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           aria-label={`Copy ${label.toLowerCase()}`}
           title={`Copy ${label.toLowerCase()}`}
-          onClick={() => void copy(value, label)}
+          onClick={() => void copyText(value, label)}
         >
           <Copy className="size-3.5" />
         </Button>

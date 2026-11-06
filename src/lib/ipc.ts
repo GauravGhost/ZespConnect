@@ -5,6 +5,7 @@ import type {
   AppListResult,
   Avd,
   CaptureDirs,
+  CrashReport,
   RecordingOutcome,
   SavedCapture,
   Device,
@@ -212,6 +213,13 @@ export const ipc = {
     dump: (serial: string) => invoke<string>("dump_layout", { serial }),
     /** A PNG of the current screen. */
     screenshot: (serial: string) => invoke<ArrayBuffer>("capture_screen", { serial }),
+  },
+
+  crashes: {
+    list: (serial: string) => invoke<CrashReport[]>("list_crashes", { serial }),
+    /** Resolves once the zip is written, after a few minutes. */
+    saveBugReport: (serial: string, path: string) =>
+      invoke<void>("save_bug_report", { serial, path }),
   },
 
   /** adb port rules; every change resolves with the device's updated list. */

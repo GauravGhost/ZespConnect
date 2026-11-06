@@ -92,7 +92,7 @@ export const NAV_GROUPS: NavGroup[] = [
         id: "console",
         label: "Console",
         icon: Terminal,
-        description: "Shell, logcat, ports and layout inspector",
+        description: "Shell, logcat, ports, layout inspector and crashes",
         shortcutKey: "8",
       },
       {

@@ -256,6 +256,23 @@ export interface PortRule {
   device: string;
 }
 
+export type CrashKind = "crash" | "nativeCrash" | "anr";
+
+/** One crash or ANR the phone recorded in its dropbox. */
+export interface CrashReport {
+  kind: CrashKind;
+  /** The dropbox tag, e.g. `data_app_crash`. */
+  source: string;
+  /** Device local time, `YYYY-MM-DD HH:MM:SS`. */
+  time: string;
+  /** Package name, or the process name for entries without one. */
+  app: string;
+  summary: string;
+  /** Headers, then the stack trace. */
+  details: string;
+  truncated: boolean;
+}
+
 /** The app in front on the phone. */
 export interface ForegroundApp {
   package: string;

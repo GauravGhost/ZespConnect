@@ -210,6 +210,8 @@ pub fn run() {
             commands::ports::clear_port_rules,
             commands::layout::dump_layout,
             commands::layout::capture_screen,
+            commands::crashes::list_crashes,
+            commands::crashes::save_bug_report,
             commands::monitor::open_performance,
             commands::monitor::close_performance,
             commands::monitor::open_processes,

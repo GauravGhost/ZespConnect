@@ -1,5 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -212,6 +212,38 @@ export function useChangePortRules(serial: string) {
       void queryClient.invalidateQueries({ queryKey: portRulesKey(serial) });
     },
   });
+}
+
+const crashesKey = (serial: string) => ["crashes", serial] as const;
+const bugReportKey = (serial: string) => ["bug-report", serial] as const;
+
+/** Read when the tab opens and on Refresh; never polled. */
+export function useCrashReports(serial: string) {
+  return useQuery({
+    queryKey: crashesKey(serial),
+    queryFn: () => ipc.crashes.list(serial),
+    staleTime: 0,
+  });
+}
+
+/** Toasts are set here, not per call, so they still show if the tab closes during the capture. */
+export function useSaveBugReport(serial: string) {
+  return useMutation({
+    mutationKey: bugReportKey(serial),
+    mutationFn: (path: string) => ipc.crashes.saveBugReport(serial, path),
+    onSuccess: () => toast.success("Bug report saved"),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+}
+
+/** When this device's running bug report started, or null. Read from the mutation cache so a
+ * capture started before the tab was reopened still shows. */
+export function useBugReportStart(serial: string): number | null {
+  const started = useMutationState({
+    filters: { mutationKey: bugReportKey(serial), status: "pending" },
+    select: (mutation) => mutation.state.submittedAt,
+  });
+  return started[0] ?? null;
 }
 
 export interface LogcatController {
