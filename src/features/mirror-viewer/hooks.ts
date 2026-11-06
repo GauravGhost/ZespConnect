@@ -7,9 +7,9 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { useBackendEvents } from "@/hooks/useBackendEvents";
 import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
-import type { MirrorSession } from "@/types";
+import type { GameOptions, MirrorSession } from "@/types";
 import { chatEnterStrokes, isChatApp } from "./chatEnter";
-import { H264Decoder } from "./decoder";
+import { H264Decoder, LOW_LATENCY_DECODE_QUEUE } from "./decoder";
 import { androidKeycode, androidMetaState, isTextKey } from "./keymap";
 import { mirrorSessionId } from "./session";
 
@@ -91,6 +91,13 @@ export function useEscapeKey(active: boolean, onEscape: () => void) {
 
 export type MirrorStatus = "connecting" | "live" | "error";
 
+/** Running totals the stats overlay samples; counted without re-rendering. */
+export interface StreamCounters {
+  frames: number;
+  bytes: number;
+  decoder: H264Decoder | null;
+}
+
 /** No decoded frame for this long, while data still arrives, means the decoder stalled. */
 const STALL_MS = 1500;
 /** How often the stall watchdog runs. */
@@ -122,6 +129,9 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
   const [phoneScreen, setPhoneScreen] = useState(false);
   // Known once the session starts; the sound switch is per device, not per window.
   const [session, setSession] = useState<MirrorSession | null>(null);
+  // A Game Mode session's toggles, updated live from the Game Mode page.
+  const [game, setGame] = useState<GameOptions | null>(null);
+  const countersRef = useRef<StreamCounters>({ frames: 0, bytes: 0, decoder: null });
 
   useEffect(() => {
     const id = sessionId;
@@ -142,6 +152,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
     const decoder = new H264Decoder({
       onFrame: (frame) => {
         lastFrameAt = performance.now();
+        countersRef.current.frames += 1;
         try {
           if (canvas && context) {
             if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
@@ -188,9 +199,13 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
       },
     });
 
+    const counters = countersRef.current;
+    counters.decoder = decoder;
+
     const channel = new Channel<ArrayBuffer>();
     channel.onmessage = (payload) => {
       lastDataAt = performance.now();
+      counters.bytes += payload.byteLength;
       decoder.push(payload);
     };
 
@@ -216,6 +231,8 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
         setInteractive(rich);
         setPhoneScreen(session.phoneScreen);
         setSession(session);
+        setGame(session.game);
+        if (session.game) decoder.maxQueue = LOW_LATENCY_DECODE_QUEUE;
       })
       .catch(async (failure) => {
         if (disposed) return;
@@ -230,6 +247,7 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
       disposed = true;
       window.clearInterval(watchdog);
       channel.onmessage = () => {};
+      counters.decoder = null;
       decoder.close();
     };
   }, [canvasRef, sessionId]);
@@ -242,6 +260,11 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
         events.mirrorSessionExited(({ payload }) => {
           // The session is gone either way; a failed stop needs no handling.
           if (payload.id === id) void ipc.mirror.stopSession(id).catch(() => undefined);
+        }),
+      );
+      track(
+        events.gameUpdated(({ payload }) => {
+          if (payload.id === id) setGame(payload.options);
         }),
       );
       track(
@@ -267,6 +290,8 @@ export function useMirrorStream(canvasRef: RefObject<HTMLCanvasElement | null>) 
     phoneScreen,
     setPhoneScreen,
     session,
+    game,
+    countersRef,
   };
 }
 

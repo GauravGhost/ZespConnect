@@ -7,16 +7,40 @@ use cpal::{FromSample, Sample, SampleFormat, SizedSample, StreamConfig};
 use crate::error::{AppError, Result};
 use crate::services::scrcpy_server::{PCM_CHANNELS, PCM_RATE};
 
-/// Buffered before playback starts (and again after an underrun), so network jitter does not crackle.
-const PRIME_FRAMES: usize = PCM_RATE as usize * 40 / 1000;
-/// A backlog past this is cut back to [`CATCH_UP_FRAMES`] so the sound never drifts behind the picture.
-const MAX_FRAMES: usize = PCM_RATE as usize * 200 / 1000;
-const CATCH_UP_FRAMES: usize = PCM_RATE as usize * 60 / 1000;
+const fn frames(ms: usize) -> usize {
+    PCM_RATE as usize * ms / 1000
+}
+
+/// How much sound is held back to ride out network jitter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Buffering {
+    /// Buffered before playback starts (and again after an underrun), so jitter does not crackle.
+    prime: usize,
+    /// A backlog past this is cut back to `catch_up` so the sound never drifts behind the picture.
+    max: usize,
+    catch_up: usize,
+}
+
+impl Buffering {
+    pub const NORMAL: Self = Buffering {
+        prime: frames(40),
+        max: frames(200),
+        catch_up: frames(60),
+    };
+    /// Game Mode: about half the delay, at a higher risk of crackle on a busy link.
+    pub const LOW_LATENCY: Self = Buffering {
+        prime: frames(20),
+        max: frames(80),
+        catch_up: frames(30),
+    };
+}
+
 const BYTES_PER_FRAME: usize = PCM_CHANNELS as usize * 2;
 
 /// Stereo frames waiting to be played, read out with linear-interpolation resampling.
 pub struct PcmBuffer {
     frames: VecDeque<[f32; 2]>,
+    buffering: Buffering,
     /// Source frames advanced per output frame (`PCM_RATE / device rate`).
     step: f64,
     position: f64,
@@ -24,9 +48,10 @@ pub struct PcmBuffer {
 }
 
 impl PcmBuffer {
-    pub fn new(output_rate: u32) -> Self {
+    pub fn new(output_rate: u32, buffering: Buffering) -> Self {
         PcmBuffer {
-            frames: VecDeque::with_capacity(MAX_FRAMES),
+            frames: VecDeque::with_capacity(buffering.max),
+            buffering,
             step: f64::from(PCM_RATE) / f64::from(output_rate.max(1)),
             position: 0.0,
             primed: false,
@@ -40,8 +65,8 @@ impl PcmBuffer {
             self.frames
                 .push_back([f32::from_sample(left), f32::from_sample(right)]);
         }
-        if self.frames.len() > MAX_FRAMES {
-            let excess = self.frames.len() - CATCH_UP_FRAMES;
+        if self.frames.len() > self.buffering.max {
+            let excess = self.frames.len() - self.buffering.catch_up;
             self.frames.drain(..excess);
         }
     }
@@ -64,7 +89,7 @@ impl PcmBuffer {
 
     fn next_frame(&mut self) -> [f32; 2] {
         if !self.primed {
-            if self.frames.len() < PRIME_FRAMES {
+            if self.frames.len() < self.buffering.prime {
                 return [0.0; 2];
             }
             self.primed = true;
@@ -95,10 +120,17 @@ pub struct Player {
 }
 
 impl Player {
-    /// Open the default output device, at 48 kHz when it supports that.
-    pub fn open() -> Result<Self> {
-        let device = cpal::default_host()
-            .default_output_device()
+    /// Open the output device named `device` (the default when `None` or no longer present), at
+    /// 48 kHz when it supports that.
+    pub fn open(device: Option<&str>, buffering: Buffering) -> Result<Self> {
+        let host = cpal::default_host();
+        let named = device.and_then(|name| {
+            host.output_devices()
+                .ok()?
+                .find(|candidate| device_name(candidate).as_deref() == Some(name))
+        });
+        let device = named
+            .or_else(|| host.default_output_device())
             .ok_or_else(|| AppError::Other("No audio output device on this computer".into()))?;
         let default = device
             .default_output_config()
@@ -117,7 +149,7 @@ impl Player {
 
         let format = config.sample_format();
         let config = config.config();
-        let buffer = Arc::new(Mutex::new(PcmBuffer::new(config.sample_rate)));
+        let buffer = Arc::new(Mutex::new(PcmBuffer::new(config.sample_rate, buffering)));
         let stream = match format {
             SampleFormat::F32 => build::<f32>(&device, config, buffer.clone()),
             SampleFormat::I16 => build::<i16>(&device, config, buffer.clone()),
@@ -143,6 +175,21 @@ impl Player {
             buffer.push(pcm);
         }
     }
+}
+
+/// The names of this computer's audio outputs.
+pub fn output_names() -> Vec<String> {
+    cpal::default_host()
+        .output_devices()
+        .map(|devices| devices.filter_map(|device| device_name(&device)).collect())
+        .unwrap_or_default()
+}
+
+fn device_name(device: &cpal::Device) -> Option<String> {
+    device
+        .description()
+        .ok()
+        .map(|description| description.name().to_string())
 }
 
 fn build<T>(
@@ -194,8 +241,8 @@ mod tests {
 
     #[test]
     fn stays_silent_until_primed() {
-        let mut buffer = PcmBuffer::new(PCM_RATE);
-        buffer.push(&pcm(PRIME_FRAMES - 1, i16::MAX, i16::MAX));
+        let mut buffer = PcmBuffer::new(PCM_RATE, Buffering::NORMAL);
+        buffer.push(&pcm(Buffering::NORMAL.prime - 1, i16::MAX, i16::MAX));
         let mut out = [1.0f32; 4];
         buffer.fill(&mut out, 2);
         assert_eq!(out, [0.0; 4]);
@@ -207,8 +254,8 @@ mod tests {
 
     #[test]
     fn maps_stereo_to_mono_and_surround() {
-        let mut buffer = PcmBuffer::new(PCM_RATE);
-        buffer.push(&pcm(PRIME_FRAMES, i16::MAX, 0));
+        let mut buffer = PcmBuffer::new(PCM_RATE, Buffering::NORMAL);
+        buffer.push(&pcm(Buffering::NORMAL.prime, i16::MAX, 0));
 
         let mut mono = [0.0f32; 1];
         buffer.fill(&mut mono, 1);
@@ -222,26 +269,38 @@ mod tests {
 
     #[test]
     fn drops_a_long_backlog_to_catch_up() {
-        let mut buffer = PcmBuffer::new(PCM_RATE);
-        buffer.push(&pcm(MAX_FRAMES + 1, 0, 0));
-        assert_eq!(buffer.frames.len(), CATCH_UP_FRAMES);
+        let mut buffer = PcmBuffer::new(PCM_RATE, Buffering::NORMAL);
+        buffer.push(&pcm(Buffering::NORMAL.max + 1, 0, 0));
+        assert_eq!(buffer.frames.len(), Buffering::NORMAL.catch_up);
+    }
+
+    #[test]
+    fn low_latency_starts_sooner_and_keeps_a_shorter_backlog() {
+        let mut buffer = PcmBuffer::new(PCM_RATE, Buffering::LOW_LATENCY);
+        buffer.push(&pcm(Buffering::LOW_LATENCY.prime, i16::MAX, i16::MAX));
+        let mut out = [0.0f32; 2];
+        buffer.fill(&mut out, 2);
+        assert!(out[0] > 0.99);
+
+        buffer.push(&pcm(Buffering::LOW_LATENCY.max + 1, 0, 0));
+        assert_eq!(buffer.frames.len(), Buffering::LOW_LATENCY.catch_up);
     }
 
     #[test]
     fn resamples_to_the_device_rate() {
-        let mut buffer = PcmBuffer::new(PCM_RATE / 2);
-        buffer.push(&pcm(PRIME_FRAMES, 0, 0));
+        let mut buffer = PcmBuffer::new(PCM_RATE / 2, Buffering::NORMAL);
+        buffer.push(&pcm(Buffering::NORMAL.prime, 0, 0));
         let mut out = vec![0.0f32; 2 * 10];
         buffer.fill(&mut out, 2);
         // Half the device rate consumes two source frames per output frame.
-        assert_eq!(buffer.frames.len(), PRIME_FRAMES - 20);
+        assert_eq!(buffer.frames.len(), Buffering::NORMAL.prime - 20);
     }
 
     #[test]
     fn reprimes_after_an_underrun() {
-        let mut buffer = PcmBuffer::new(PCM_RATE);
-        buffer.push(&pcm(PRIME_FRAMES, i16::MAX, i16::MAX));
-        let mut out = vec![0.0f32; 2 * PRIME_FRAMES];
+        let mut buffer = PcmBuffer::new(PCM_RATE, Buffering::NORMAL);
+        buffer.push(&pcm(Buffering::NORMAL.prime, i16::MAX, i16::MAX));
+        let mut out = vec![0.0f32; 2 * Buffering::NORMAL.prime];
         buffer.fill(&mut out, 2);
         assert!(!buffer.primed);
 

@@ -15,11 +15,14 @@ export function MirrorTitleBar({
   session,
   landscape,
   fullscreen,
+  overlay = false,
   capture,
 }: Readonly<{
   session: MirrorSession | null;
   landscape: boolean;
   fullscreen: boolean;
+  /** Float over the video, shown only on hover (full screen and Game Mode's clean capture). */
+  overlay?: boolean;
   capture?: ReactNode;
 }>) {
   const title = useWindowTitle();
@@ -31,7 +34,7 @@ export function MirrorTitleBar({
         "flex h-7 shrink-0 items-center gap-0.5 pr-1 select-none",
         // Room for the traffic lights, which macOS hides in full screen.
         IS_MAC && !fullscreen ? "pl-[78px]" : "pl-1",
-        fullscreen &&
+        (fullscreen || overlay) &&
           "absolute inset-x-0 top-0 z-10 bg-background/90 opacity-0 transition-opacity hover:opacity-100",
       )}
     >

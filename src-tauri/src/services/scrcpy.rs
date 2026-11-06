@@ -334,6 +334,38 @@ pub async fn lock_rotation(adb_path: &str, serial: &str) -> bool {
     .is_ok_and(|output| output.success)
 }
 
+/// The phone's rotation as `cmd window user-rotation` reports it (`free` or `lock <n>`), to hand
+/// back to [`set_user_rotation`] later.
+pub async fn user_rotation(adb_path: &str, serial: &str) -> Option<String> {
+    let output = adb::shell(adb_path, serial, "cmd window user-rotation", API_TIMEOUT)
+        .await
+        .ok()?;
+    let state = output.stdout.trim();
+    let valid = rotation_is_free(state)
+        || state
+            .strip_prefix("lock ")
+            .is_some_and(|rotation| rotation.parse::<u8>().is_ok());
+    (output.success && valid).then(|| state.to_string())
+}
+
+/// Apply a rotation state (`free` or `lock <n>`, as [`user_rotation`] reads it).
+pub async fn set_user_rotation(adb_path: &str, serial: &str, state: &str) -> Result<()> {
+    let output = adb::shell(
+        adb_path,
+        serial,
+        &format!("cmd window user-rotation {state}"),
+        API_TIMEOUT,
+    )
+    .await?;
+    if output.success {
+        Ok(())
+    } else {
+        Err(AppError::CommandFailed(
+            "The phone did not accept the rotation lock".into(),
+        ))
+    }
+}
+
 /// Turn auto-rotate back on; false when the phone could not be reached.
 pub async fn unlock_rotation(adb_path: &str, serial: &str) -> bool {
     adb::shell(

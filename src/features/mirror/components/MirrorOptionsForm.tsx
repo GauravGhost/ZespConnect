@@ -4,20 +4,18 @@ import { useState } from "react";
 import { ComboboxInput, type ComboboxOption } from "@/components/ui/combobox-input";
 import { Label } from "@/components/ui/label";
 import { ToggleChip } from "@/components/ui/toggle-chip";
-import { DEFAULT_BITRATE_MBPS, DEFAULT_FPS } from "@/lib/mirror";
+import {
+  BITRATE_PRESETS,
+  DEFAULT_BITRATE_MBPS,
+  DEFAULT_FPS,
+  FPS_PRESETS,
+  presetOptions,
+  RESOLUTION_PRESETS,
+} from "@/lib/mirror";
 import { cn } from "@/lib/utils";
 import type { MirrorOptions } from "@/types";
 
-const toOptions = (values: number[]): ComboboxOption[] =>
-  values.map((value) => ({ value: String(value), label: String(value) }));
-
-const RESOLUTION_PRESETS: ComboboxOption[] = [
-  { value: "", label: "Native" },
-  ...toOptions([720, 1080, 1440, 2160]),
-];
-const FPS_PRESETS = toOptions([30, 60, 90, 120]);
-const BITRATE_PRESETS = toOptions([2, 4, 8, 16, 24]);
-const ZOOM_PRESETS = toOptions([0.5, 1, 1.5, 2, 3, 5]);
+const ZOOM_PRESETS = presetOptions([0.5, 1, 1.5, 2, 3, 5]);
 
 interface MirrorOptionsFormProps {
   value: MirrorOptions;
@@ -27,7 +25,7 @@ interface MirrorOptionsFormProps {
 
 /** Numeric field with a preset dropdown. Keeps the raw text locally so partial
  * decimal input ("1.") survives while typing, committing only valid numbers. */
-function PresetNumberField({
+export function PresetNumberField({
   id,
   label,
   placeholder,

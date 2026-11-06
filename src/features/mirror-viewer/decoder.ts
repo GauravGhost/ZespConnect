@@ -9,6 +9,8 @@ const HEADER_LEN = 9;
  * then produces no `error` - the canvas just goes quiet and black.
  */
 const MAX_DECODE_QUEUE = 8;
+/** Game Mode trades an occasional resync for never showing a stale picture. */
+export const LOW_LATENCY_DECODE_QUEUE = 3;
 
 export interface DecoderHandlers {
   onFrame: (frame: VideoFrame) => void;
@@ -23,6 +25,10 @@ export class H264Decoder {
   private needsKeyframe = true;
   private closed = false;
   private readonly handlers: DecoderHandlers;
+  /** Decode requests allowed outstanding before the backlog is dropped. */
+  maxQueue = MAX_DECODE_QUEUE;
+  /** Times a backlog was dropped to catch up, for the stats overlay. */
+  dropped = 0;
 
   constructor(handlers: DecoderHandlers) {
     this.handlers = handlers;
@@ -51,7 +57,8 @@ export class H264Decoder {
     if (!key && (this.decoder === null || this.needsKeyframe)) return;
 
     // Backed up: drop the backlog and resync at the next key frame to jump to "now".
-    if (!key && this.pending > MAX_DECODE_QUEUE) {
+    if (!key && this.pending > this.maxQueue) {
+      this.dropped += 1;
       this.reset();
       return;
     }

@@ -6,6 +6,7 @@ import type {
   Avd,
   CaptureDirs,
   CrashReport,
+  Controller,
   RecordingOutcome,
   SavedCapture,
   Device,
@@ -13,6 +14,7 @@ import type {
   DeveloperToggleKey,
   DeviceInfo,
   FileEntry,
+  GameOptions,
   KeyAction,
   LauncherSettings,
   LauncherStatus,
@@ -152,6 +154,16 @@ export const ipc = {
     listSessions: () => invoke<MirrorSession[]>("list_mirror_sessions"),
     /** Reopen a session as an external window when in-app rendering is unavailable. */
     fallback: (id: number) => invoke<void>("mirror_session_fallback", { id }),
+  },
+
+  game: {
+    update: (id: number, options: GameOptions) => invoke<void>("update_game_mode", { id, options }),
+    audioOutputs: () => invoke<string[]>("list_audio_outputs"),
+    controllers: () => invoke<Controller[]>("list_controllers"),
+    /** Phones whose regular mirror windows take this computer's controllers. */
+    passthrough: () => invoke<string[]>("list_controller_passthrough"),
+    setPassthrough: (serial: string, on: boolean) =>
+      invoke<void>("set_controller_passthrough", { serial, on }),
   },
 
   controls: {

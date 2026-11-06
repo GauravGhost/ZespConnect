@@ -6,6 +6,7 @@ import {
   Activity,
   Bug,
   Gamepad2,
+  Joystick,
   ListTree,
   LayoutDashboard,
   Settings,
@@ -62,6 +63,13 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Smartphone,
         description: "Screen and camera windows",
         shortcutKey: "4",
+      },
+      {
+        id: "game",
+        label: "Game Mode",
+        icon: Joystick,
+        description: "Low-latency play and streaming",
+        shortcutKey: "g",
       },
       {
         id: "files",

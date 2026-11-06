@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::GameOptions;
+
 /// What a tracked scrcpy process is showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -93,6 +95,9 @@ pub struct MirrorSession {
     /// Camera: whether the torch started on.
     #[serde(default)]
     pub torch: bool,
+    /// A Game Mode session's current toggles.
+    #[serde(default)]
+    pub game: Option<GameOptions>,
 }
 
 /// Everything needed to start one in-app session, kept in `AppState` so a failed stream can fall back with the same settings.
@@ -125,4 +130,7 @@ pub struct MirrorOptions {
     pub camera_facing: Option<String>,
     pub camera_torch: bool,
     pub camera_zoom: Option<f64>,
+    /// Present only for a Game Mode session.
+    #[serde(default)]
+    pub game: Option<GameOptions>,
 }

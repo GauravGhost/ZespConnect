@@ -29,6 +29,13 @@ const CLIPBOARD_SYNC: LinkSource = {
   onChange: (handler) => events.clipboardSyncChanged(handler),
 };
 
+const CONTROLLER_PASSTHROUGH: LinkSource = {
+  key: ["controller-passthrough"],
+  list: ipc.game.passthrough,
+  set: ipc.game.setPassthrough,
+  onChange: (handler) => events.controllerPassthroughChanged(handler),
+};
+
 function useDeviceLink(source: LinkSource, serial: string | null) {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: source.key });
@@ -60,4 +67,9 @@ export function usePhoneAudio(serial: string | null) {
 /** Whether `serial`'s clipboard syncs with the computer's. */
 export function useClipboardSync(serial: string | null) {
   return useDeviceLink(CLIPBOARD_SYNC, serial);
+}
+
+/** Whether `serial`'s mirror windows take this computer's controllers. */
+export function useControllerPassthrough(serial: string | null) {
+  return useDeviceLink(CONTROLLER_PASSTHROUGH, serial);
 }

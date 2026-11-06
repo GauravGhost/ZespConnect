@@ -1,3 +1,4 @@
+import type { ComboboxOption } from "@/components/ui/combobox-input";
 import type { MirrorKind, MirrorOptions } from "@/types";
 
 /** Human labels for each mirror kind, shown in window lists. */
@@ -29,3 +30,13 @@ export const DEFAULT_MIRROR_OPTIONS: MirrorOptions = {
   camera_torch: false,
   camera_zoom: null,
 };
+
+export const presetOptions = (values: number[]): ComboboxOption[] =>
+  values.map((value) => ({ value: String(value), label: String(value) }));
+
+export const RESOLUTION_PRESETS: ComboboxOption[] = [
+  { value: "", label: "Native" },
+  ...presetOptions([720, 1080, 1440, 2160]),
+];
+export const FPS_PRESETS = presetOptions([30, 60, 90, 120]);
+export const BITRATE_PRESETS = presetOptions([2, 4, 8, 16, 24]);

@@ -1,6 +1,9 @@
 pub mod clipboard_sync;
+pub mod controller_passthrough;
+pub mod controllers;
 pub mod device_stream;
 pub mod file_stream;
+pub mod game_mode;
 pub mod launcher;
 pub mod logcat;
 pub mod mirror;

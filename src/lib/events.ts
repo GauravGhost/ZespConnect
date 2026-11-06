@@ -2,7 +2,9 @@ import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/eve
 
 import type {
   AppInfo,
+  Controller,
   Device,
+  GameOptions,
   InstallDone,
   InstallProgress,
   MirrorProcess,
@@ -21,6 +23,10 @@ export interface BackendEvents {
   "mirror:session:exited": MirrorSession;
   /** A desktop session's phone was locked or unlocked (the desktop only shows unlocked). */
   "mirror:session:locked": { id: number; locked: boolean; phoneScreen: boolean };
+  "game:updated": { id: number; options: GameOptions };
+  "game:warning": { id: number; message: string };
+  "game:controllers": Controller[];
+  "controller-passthrough:changed": { serial: string; on: boolean };
   "phone-audio:changed": { serial: string; onComputer: boolean };
   "clipboard-sync:changed": { serial: string; on: boolean };
   "now-playing:changed": { serial: string; nowPlaying: NowPlaying | null };
@@ -67,6 +73,15 @@ export const events = {
     onBackendEvent("mirror:session:exited", handler),
   mirrorSessionLocked: (handler: EventCallback<BackendEvents["mirror:session:locked"]>) =>
     onBackendEvent("mirror:session:locked", handler),
+  gameUpdated: (handler: EventCallback<BackendEvents["game:updated"]>) =>
+    onBackendEvent("game:updated", handler),
+  gameWarning: (handler: EventCallback<BackendEvents["game:warning"]>) =>
+    onBackendEvent("game:warning", handler),
+  gameControllers: (handler: EventCallback<Controller[]>) =>
+    onBackendEvent("game:controllers", handler),
+  controllerPassthroughChanged: (
+    handler: EventCallback<BackendEvents["controller-passthrough:changed"]>,
+  ) => onBackendEvent("controller-passthrough:changed", handler),
   phoneAudioChanged: (handler: EventCallback<BackendEvents["phone-audio:changed"]>) =>
     onBackendEvent("phone-audio:changed", handler),
   clipboardSyncChanged: (handler: EventCallback<BackendEvents["clipboard-sync:changed"]>) =>

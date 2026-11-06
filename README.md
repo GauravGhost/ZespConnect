@@ -166,7 +166,8 @@ sound, files and clipboard never leave the devices you connect.
 - [Node.js](https://nodejs.org) 20 or later
 - [Rust](https://www.rust-lang.org/tools/install) (stable)
 - The Tauri [system dependencies](https://tauri.app/start/prerequisites/) for your platform
-- On Linux, the ALSA headers for phone sound (`libasound2-dev` on Debian/Ubuntu)
+- On Linux, the ALSA headers for phone sound and udev headers for game controllers
+  (`libasound2-dev` and `libudev-dev` on Debian/Ubuntu)
 
 ### Run in development
 

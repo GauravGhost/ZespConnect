@@ -8,7 +8,7 @@ use tokio::process::Child;
 use crate::error::{AppError, Result};
 use crate::runtime::mirror_session::{parse_header, Packet, FRAME_HEADER};
 use crate::runtime::server_link::{self, ServerLink};
-use crate::services::audio_out::Player;
+use crate::services::audio_out::{Buffering, Player};
 use crate::services::scrcpy_server::{self, AudioStart};
 use crate::state::AppState;
 
@@ -17,6 +17,19 @@ pub const EVENT_CHANGED: &str = "phone-audio:changed";
 const START_TIMEOUT: Duration = Duration::from_secs(8);
 /// Raw packets are at most 1024 frames; anything far larger is a corrupt header.
 const MAX_PACKET: usize = 1 << 20;
+/// How long a stopped link may take to let go of its device before a restart gives up.
+const RESTART_WAIT: Duration = Duration::from_secs(3);
+const RESTART_POLL: Duration = Duration::from_millis(50);
+
+/// How the phone's sound is captured and played; the default is the normal phone sound switch.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AudioSettings {
+    /// The phone keeps playing its sound too (Android 13+).
+    pub keep_on_phone: bool,
+    pub low_latency: bool,
+    /// An output device name; `None` is the system default.
+    pub device: Option<String>,
+}
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,13 +51,33 @@ fn announce(app: &AppHandle, serial: &str, on_computer: bool) {
 
 /// Play the device's sound on the computer; returns once sound is flowing.
 pub async fn start(app: &AppHandle, serial: &str) -> Result<()> {
+    start_with(app, serial, &AudioSettings::default()).await
+}
+
+/// Replace any running link with one using `settings`.
+pub async fn restart_with(app: &AppHandle, serial: &str, settings: &AudioSettings) -> Result<()> {
+    stop(app, serial);
+    let deadline = tokio::time::Instant::now() + RESTART_WAIT;
+    while app.state::<AppState>().phone_audio().contains(serial) {
+        if tokio::time::Instant::now() >= deadline {
+            return Err(AppError::Other(
+                "The phone's sound did not stop in time".into(),
+            ));
+        }
+        tokio::time::sleep(RESTART_POLL).await;
+    }
+    start_with(app, serial, settings).await
+}
+
+/// Like [`start`], with `settings`; a link that is already running is kept as it is.
+pub async fn start_with(app: &AppHandle, serial: &str, settings: &AudioSettings) -> Result<()> {
     if app.state::<AppState>().phone_audio().contains(serial) {
         return Ok(());
     }
 
     let server = server_link::resolve(app)?;
     let scid = scrcpy_server::scid();
-    let options = scrcpy_server::audio_args(&server.version, &scid);
+    let options = scrcpy_server::audio_args(&server.version, &scid, settings.keep_on_phone);
     let ServerLink {
         mut child,
         streams,
@@ -52,7 +85,7 @@ pub async fn start(app: &AppHandle, serial: &str) -> Result<()> {
     } = server_link::open(app, &server, serial, &scid, options, 1).await?;
 
     let opened = match streams.into_iter().next() {
-        Some(stream) => begin(stream, &teardown.log_path).await,
+        Some(stream) => begin(stream, &teardown.log_path, settings).await,
         None => Err(AppError::Other("The scrcpy server did not connect".into())),
     };
     let (stream, player) = match opened {
@@ -101,6 +134,7 @@ pub fn stop(app: &AppHandle, serial: &str) {
 async fn begin(
     mut stream: TcpStream,
     log_path: &std::path::Path,
+    settings: &AudioSettings,
 ) -> Result<(BufReader<TcpStream>, Player)> {
     let mut codec = [0u8; 4];
     let read = tokio::time::timeout(START_TIMEOUT, stream.read_exact(&mut codec)).await;
@@ -124,7 +158,13 @@ async fn begin(
             )))
         }
     }
-    Ok((BufReader::new(stream), Player::open()?))
+    let buffering = if settings.low_latency {
+        Buffering::LOW_LATENCY
+    } else {
+        Buffering::NORMAL
+    };
+    let player = Player::open(settings.device.as_deref(), buffering)?;
+    Ok((BufReader::new(stream), player))
 }
 
 /// Feed each PCM packet to the speakers until the stream ends or the link is stopped.

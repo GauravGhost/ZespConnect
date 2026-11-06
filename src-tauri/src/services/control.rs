@@ -13,6 +13,9 @@ const TYPE_COLLAPSE_PANELS: u8 = 7;
 const TYPE_SET_CLIPBOARD: u8 = 9;
 const TYPE_SET_DISPLAY_POWER: u8 = 10;
 const TYPE_ROTATE_DEVICE: u8 = 11;
+const TYPE_UHID_CREATE: u8 = 12;
+const TYPE_UHID_INPUT: u8 = 13;
+const TYPE_UHID_DESTROY: u8 = 14;
 const TYPE_START_APP: u8 = 16;
 const TYPE_RESET_VIDEO: u8 = 17;
 // Types 18+ exist only from scrcpy 4.0; an older server drops the session on an unknown type.
@@ -238,6 +241,41 @@ pub fn set_display_power(on: bool) -> Vec<u8> {
     vec![TYPE_SET_DISPLAY_POWER, u8::from(on)]
 }
 
+/// `UHID_CREATE` (scrcpy 3.0+) - `[type][u16 id][u16 vendor][u16 product][u8 name length][name]
+/// [u16 descriptor length][descriptor]`; adds a virtual HID device to the phone.
+pub fn uhid_create(id: u16, name: &str, report_descriptor: &[u8]) -> Vec<u8> {
+    // The server reads the name with a one-byte length (`readString` tiny).
+    let name = &name.as_bytes()[..name.len().min(127)];
+    let mut message = Vec::with_capacity(10 + name.len() + report_descriptor.len());
+    message.push(TYPE_UHID_CREATE);
+    message.extend_from_slice(&id.to_be_bytes());
+    // No vendor or product, so Android maps the device with its generic gamepad layout.
+    message.extend_from_slice(&0u16.to_be_bytes());
+    message.extend_from_slice(&0u16.to_be_bytes());
+    message.push(name.len() as u8);
+    message.extend_from_slice(name);
+    message.extend_from_slice(&(report_descriptor.len() as u16).to_be_bytes());
+    message.extend_from_slice(report_descriptor);
+    message
+}
+
+/// `UHID_INPUT` - `[type][u16 id][u16 size][report]`.
+pub fn uhid_input(id: u16, report: &[u8]) -> Vec<u8> {
+    let mut message = Vec::with_capacity(5 + report.len());
+    message.push(TYPE_UHID_INPUT);
+    message.extend_from_slice(&id.to_be_bytes());
+    message.extend_from_slice(&(report.len() as u16).to_be_bytes());
+    message.extend_from_slice(report);
+    message
+}
+
+/// `UHID_DESTROY` - `[type][u16 id]`.
+pub fn uhid_destroy(id: u16) -> Vec<u8> {
+    let mut message = vec![TYPE_UHID_DESTROY];
+    message.extend_from_slice(&id.to_be_bytes());
+    message
+}
+
 /// `BACK_OR_SCREEN_ON` - `[type][u8 action]`. Presses BACK, or wakes the screen if it is off.
 pub fn back_or_screen_on(action: KeyAction) -> Vec<u8> {
     let action = match action {
@@ -424,6 +462,28 @@ mod tests {
             DeviceMessage::Clipboard("hello".into())
         );
         assert!(read_device_message(&mut reader).await.is_err());
+    }
+
+    #[test]
+    fn uhid_create_carries_ids_name_and_descriptor() {
+        let message = uhid_create(3, "Pad", &[0xA1, 0xC0]);
+        assert_eq!(
+            message,
+            vec![12, 0, 3, 0, 0, 0, 0, 3, b'P', b'a', b'd', 0, 2, 0xA1, 0xC0]
+        );
+    }
+
+    #[test]
+    fn uhid_create_truncates_a_long_name() {
+        let message = uhid_create(1, &"n".repeat(300), &[]);
+        assert_eq!(message[7], 127);
+        assert_eq!(message.len(), 8 + 127 + 2);
+    }
+
+    #[test]
+    fn uhid_input_and_destroy_frame_the_id() {
+        assert_eq!(uhid_input(4, &[9, 8]), vec![13, 0, 4, 0, 2, 9, 8]);
+        assert_eq!(uhid_destroy(4), vec![14, 0, 4]);
     }
 
     #[test]

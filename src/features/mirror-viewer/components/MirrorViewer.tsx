@@ -1,3 +1,4 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Loader2, Lock, MonitorX } from "lucide-react";
 import {
   useCallback,
@@ -18,6 +19,7 @@ import { CaptureButtons } from "./CaptureButtons";
 import { DesktopTitleBar } from "./DesktopTitleBar";
 import { MirrorControlBar } from "./MirrorControlBar";
 import { MirrorTitleBar } from "./MirrorTitleBar";
+import { StatsOverlay } from "./StatsOverlay";
 
 /** Mouse buttons sent with a desktop pointer event (Android `BUTTON_*` masks). */
 interface MouseButtons {
@@ -48,12 +50,17 @@ export function MirrorViewer() {
     phoneScreen,
     setPhoneScreen,
     session,
+    game,
+    countersRef,
   } = useMirrorStream(canvasRef);
+  // Game Mode's clean capture leaves only the picture for OBS; the title bar shows on hover.
+  const clean = game?.cleanCapture ?? false;
+  const alwaysOnTop = game?.alwaysOnTop;
   // Only a landscape app can open full screen (see `FullscreenButton`).
   const fullscreen = useWindowFlag("isFullscreen", session?.kind === "app");
   const serial = session?.serial ?? null;
   // An app's Back is in its title bar, so its window has a small gap instead of a control bar.
-  const controlBar = !desktop && session?.kind !== "app";
+  const controlBar = !desktop && session?.kind !== "app" && !clean;
   const recording = useRecording(sessionId);
   const capture = serial ? (
     <CaptureButtons
@@ -63,6 +70,14 @@ export function MirrorViewer() {
       recording={recording}
     />
   ) : null;
+
+  useEffect(() => {
+    if (alwaysOnTop === undefined) return;
+    // Best effort: the window keeps its stacking if the OS refuses.
+    void getCurrentWindow()
+      .setAlwaysOnTop(alwaysOnTop)
+      .catch(() => undefined);
+  }, [alwaysOnTop]);
 
   useEffect(
     () => () => {
@@ -212,7 +227,12 @@ export function MirrorViewer() {
   };
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+    <div
+      className={cn(
+        "relative flex h-screen w-screen flex-col overflow-hidden text-foreground",
+        clean ? "bg-black" : "bg-background",
+      )}
+    >
       {desktop ? (
         <DesktopTitleBar
           serial={serial}
@@ -226,6 +246,7 @@ export function MirrorViewer() {
           session={session}
           landscape={landscape}
           fullscreen={fullscreen}
+          overlay={clean}
           capture={capture}
         />
       )}
@@ -242,7 +263,7 @@ export function MirrorViewer() {
           className={cn(
             "max-h-full max-w-full touch-none",
             !desktop && "rounded-[10px]",
-            fullscreen && "rounded-none",
+            (fullscreen || clean) && "rounded-none cursor-none",
           )}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -252,6 +273,7 @@ export function MirrorViewer() {
           // Right-click belongs to the device (Android's context menus).
           onContextMenu={(event) => event.preventDefault()}
         />
+        {game?.stats && status === "live" ? <StatsOverlay counters={countersRef} /> : null}
         {status !== "live" ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/85 text-center">
             {status === "error" ? (

@@ -5,6 +5,7 @@ pub mod controls;
 pub mod crashes;
 pub mod device;
 pub mod files;
+pub mod game;
 pub mod launcher;
 pub mod media;
 pub mod mirror;
@@ -23,6 +24,7 @@ pub use controls::{
 pub use crashes::{CrashKind, CrashReport};
 pub use device::{Device, DeviceState, DeviceTransport};
 pub use files::{FileEntry, SendOutcome};
+pub use game::{Controller, GameOptions, GameOrientation};
 pub use launcher::{
     LauncherAppsChanged, LauncherSettings, LauncherStatus, LauncherTarget, DEFAULT_SHORTCUT,
 };

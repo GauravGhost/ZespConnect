@@ -13,6 +13,7 @@ pub mod devices;
 pub mod file_stream;
 pub mod files;
 pub mod fmp4;
+pub mod hid_gamepad;
 pub mod install;
 pub mod launcher;
 pub mod layout;

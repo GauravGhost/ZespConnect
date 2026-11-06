@@ -4,10 +4,12 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
 use crate::models::{
-    Device, LauncherSettings, MirrorKind, MirrorProcess, MirrorSession, MirrorSessionSpec,
-    ReconnectTarget, ToolKind, ToolStatus,
+    Device, GameOptions, LauncherSettings, MirrorKind, MirrorProcess, MirrorSession,
+    MirrorSessionSpec, ReconnectTarget, ToolKind, ToolStatus,
 };
 use crate::runtime::clipboard_sync::SavedPhones;
+use crate::runtime::controller_passthrough::Passthrough;
+use crate::runtime::game_mode::GameSessions;
 use crate::runtime::mirror_session::ControlChannel;
 use crate::runtime::recording::{Recordings, VideoTap};
 use crate::runtime::shell::ShellSessions;
@@ -116,6 +118,8 @@ pub struct AppState {
     processes: DeviceLinks,
     recordings: Recordings,
     shells: ShellSessions,
+    games: GameSessions,
+    controller_passthrough: Passthrough,
     launcher_settings: RwLock<LauncherSettings>,
     launcher_registered: AtomicBool,
     launcher_refreshed: RwLock<HashSet<String>>,
@@ -126,6 +130,7 @@ impl AppState {
         let overrides = load_overrides(&app_data_dir).unwrap_or_default();
         let selected = load_selected(&app_data_dir);
         let clipboard_phones = SavedPhones::load(&app_data_dir);
+        let controller_passthrough = Passthrough::load(&app_data_dir);
         AppState {
             tools: RwLock::new(ToolStatus::default()),
             tool_overrides: RwLock::new(overrides),
@@ -153,6 +158,8 @@ impl AppState {
             processes: DeviceLinks::default(),
             recordings: Recordings::default(),
             shells: ShellSessions::default(),
+            games: GameSessions::default(),
+            controller_passthrough,
             launcher_settings: RwLock::new(LauncherSettings::default()),
             launcher_registered: AtomicBool::new(false),
             launcher_refreshed: RwLock::new(HashSet::new()),
@@ -404,6 +411,24 @@ impl AppState {
 
     pub fn shells(&self) -> &ShellSessions {
         &self.shells
+    }
+
+    /// Phones whose mirror windows take this computer's controllers.
+    pub fn controller_passthrough(&self) -> &Passthrough {
+        &self.controller_passthrough
+    }
+
+    pub fn games(&self) -> &GameSessions {
+        &self.games
+    }
+
+    /// Record a Game Mode session's applied toggles, so a window listing sessions sees them.
+    pub fn set_session_game(&self, id: u64, game: GameOptions) {
+        if let Ok(mut guard) = self.sessions.write() {
+            if let Some(handle) = guard.get_mut(&id) {
+                handle.info.game = Some(game);
+            }
+        }
     }
 
     pub fn session_control(&self, id: u64) -> Option<ControlChannel> {

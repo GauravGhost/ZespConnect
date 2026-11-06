@@ -1,15 +1,16 @@
-import { ArrowLeftRight, Volume2 } from "lucide-react";
+import { ArrowLeftRight, Gamepad2, Volume2 } from "lucide-react";
 
 import { FeatureRow, Section } from "@/components/app/FeatureSection";
 import { PhoneSoundToggle } from "@/components/app/PhoneSoundToggle";
 import { Switch } from "@/components/ui/switch";
-import { useClipboardSync, usePhoneAudio } from "@/hooks/useDeviceLinks";
+import { useClipboardSync, useControllerPassthrough, usePhoneAudio } from "@/hooks/useDeviceLinks";
 import type { Device } from "@/types";
 
 /** Ongoing links with the phone, each switched on or off per device. */
 export function ConnectedFeatures({ device }: { device: Device }) {
   const clipboard = useClipboardSync(device.serial);
   const audio = usePhoneAudio(device.serial);
+  const controllers = useControllerPassthrough(device.serial);
 
   return (
     <Section title="This phone">
@@ -35,6 +36,20 @@ export function ConnectedFeatures({ device }: { device: Device }) {
           busy={audio.pending}
         >
           <PhoneSoundToggle onComputer={audio.on} disabled={audio.pending} onChange={audio.set} />
+        </FeatureRow>
+        <FeatureRow
+          icon={Gamepad2}
+          label="Controller passthrough"
+          hint="Controllers on this PC work in this phone's mirror windows"
+          busy={controllers.pending}
+          htmlFor="feature-controller-passthrough"
+        >
+          <Switch
+            id="feature-controller-passthrough"
+            checked={controllers.on}
+            disabled={controllers.pending}
+            onCheckedChange={controllers.set}
+          />
         </FeatureRow>
       </div>
     </Section>

@@ -8,6 +8,7 @@ pub mod controls;
 pub mod crashes;
 pub mod devices;
 pub mod files;
+pub mod game;
 pub mod launcher;
 pub mod layout;
 pub mod media;

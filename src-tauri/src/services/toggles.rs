@@ -55,6 +55,18 @@ pub async fn quick_state(tools: &ToolStatus, serial: &str) -> Result<QuickState>
     Ok(info.quick)
 }
 
+/// Whether Do Not Disturb is on in any of its modes (`zen_mode` other than 0).
+pub async fn dnd_on(tools: &ToolStatus, serial: &str) -> Result<bool> {
+    let adb = adb::adb_path(tools)?;
+    let output = adb::shell(&adb, serial, "settings get global zen_mode", READ_TIMEOUT).await?;
+    ensure_ok(&output)?;
+    Ok(zen_mode_on(&output.stdout))
+}
+
+fn zen_mode_on(output: &str) -> bool {
+    output.trim().parse::<u32>().is_ok_and(|mode| mode != 0)
+}
+
 pub async fn set_toggle(tools: &ToolStatus, serial: &str, key: &str, on: bool) -> Result<()> {
     let adb = adb::adb_path(tools)?;
     let command = toggle_command(key, on)?;
@@ -206,6 +218,20 @@ mod tests {
             toggle_command("data", true).unwrap(),
             "settings put global mobile_data 1 && svc data enable"
         );
+    }
+
+    #[test]
+    fn reads_any_zen_mode_but_off_as_dnd() {
+        assert!(!zen_mode_on(
+            "0
+"
+        ));
+        assert!(zen_mode_on(
+            "1
+"
+        ));
+        assert!(zen_mode_on("3"));
+        assert!(!zen_mode_on("null"));
     }
 
     #[test]

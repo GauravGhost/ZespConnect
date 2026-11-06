@@ -87,6 +87,8 @@ pub struct ServerOptions {
     pub camera_zoom: Option<f64>,
     pub camera_torch: bool,
     pub stay_awake: bool,
+    /// Run scrcpy's cleanup process, which restores stay-awake and a switched-off phone screen on exit.
+    pub cleanup: bool,
 }
 
 fn meta_option(version: &str) -> &'static str {
@@ -113,7 +115,7 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
     ];
 
     // scrcpy applies `stay_awake` only from its CleanUp thread (needs `cleanup=true`); our teardown drops the server.
-    args.push(format!("cleanup={}", opts.stay_awake));
+    args.push(format!("cleanup={}", opts.cleanup));
 
     if let Some(fps) = opts.max_fps {
         args.push(format!("max_fps={fps}"));
@@ -165,22 +167,29 @@ pub fn options_args(version: &str, scid: &str, opts: &ServerOptions) -> Vec<Stri
     args
 }
 
-/// Audio-only server: the phone's whole output as raw PCM ([`PCM_RATE`] Hz, [`PCM_CHANNELS`]
-/// channels, s16le). The `output` source silences the phone's own speaker while it runs.
+/// Audio-only server: the phone's sound as raw PCM ([`PCM_RATE`] Hz, [`PCM_CHANNELS`] channels,
+/// s16le). The `output` source silences the phone's own speaker while it runs; with
+/// `keep_on_phone` app playback is duplicated instead, so the phone keeps playing (Android 13+).
 /// The stream meta stays on so the first 4 bytes tell whether capture started (see [`AudioStart`]).
-pub fn audio_args(version: &str, scid: &str) -> Vec<String> {
-    vec![
+pub fn audio_args(version: &str, scid: &str, keep_on_phone: bool) -> Vec<String> {
+    let mut args = vec![
         format!("scid={scid}"),
         "video=false".to_string(),
         "control=false".to_string(),
         "audio_codec=raw".to_string(),
-        "audio_source=output".to_string(),
         "send_device_meta=false".to_string(),
         "send_dummy_byte=false".to_string(),
         "send_frame_meta=true".to_string(),
         format!("{}=true", meta_option(version)),
         "cleanup=false".to_string(),
-    ]
+    ];
+    if keep_on_phone {
+        args.push("audio_source=playback".to_string());
+        args.push("audio_dup=true".to_string());
+    } else {
+        args.push("audio_source=output".to_string());
+    }
+    args
 }
 
 /// Audio-only server for a recording: AAC straight from the phone's encoder, captured from app
@@ -274,6 +283,7 @@ mod tests {
             camera_zoom: None,
             camera_torch: false,
             stay_awake: false,
+            cleanup: false,
         }
     }
 
@@ -376,6 +386,7 @@ mod tests {
     fn enables_cleanup_so_stay_awake_takes_effect() {
         let mut awake = options(MirrorKind::Mirror);
         awake.stay_awake = true;
+        awake.cleanup = true;
         let args = options_args("4.0", "s", &awake);
         assert!(args.contains(&"cleanup=true".to_string()));
         assert!(args.contains(&"stay_awake=true".to_string()));
@@ -439,7 +450,7 @@ mod tests {
 
     #[test]
     fn audio_server_streams_raw_output_with_its_codec_header() {
-        let args = audio_args("4.1", "abcd1234");
+        let args = audio_args("4.1", "abcd1234", false);
         for expected in [
             "video=false",
             "control=false",
@@ -450,7 +461,15 @@ mod tests {
         ] {
             assert!(args.contains(&expected.to_string()), "missing {expected}");
         }
-        assert!(audio_args("3.3", "s").contains(&"send_codec_meta=true".to_string()));
+        assert!(audio_args("3.3", "s", false).contains(&"send_codec_meta=true".to_string()));
+    }
+
+    #[test]
+    fn audio_server_can_leave_the_sound_on_the_phone() {
+        let args = audio_args("4.1", "s", true);
+        assert!(args.contains(&"audio_source=playback".to_string()));
+        assert!(args.contains(&"audio_dup=true".to_string()));
+        assert!(!args.contains(&"audio_source=output".to_string()));
     }
 
     #[test]

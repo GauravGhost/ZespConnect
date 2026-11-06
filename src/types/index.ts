@@ -117,6 +117,28 @@ export type MirrorAction =
   | "zoom-in"
   | "zoom-out";
 
+export type GameOrientation = "auto" | "portrait" | "landscape";
+
+/** Game Mode's toggles, mirroring the Rust `GameOptions`. */
+export interface GameOptions {
+  orientation: GameOrientation;
+  doNotDisturb: boolean;
+  screenOff: boolean;
+  cleanCapture: boolean;
+  alwaysOnTop: boolean;
+  stats: boolean;
+  soundOnComputer: boolean;
+  soundOnPhone: boolean;
+  lowLatencyAudio: boolean;
+  audioDevice: string | null;
+  controllers: boolean;
+}
+
+export interface Controller {
+  id: number;
+  name: string;
+}
+
 export interface MirrorOptions {
   resolution: number | null;
   fps: number | null;
@@ -131,6 +153,8 @@ export interface MirrorOptions {
   camera_facing: string | null;
   camera_torch: boolean;
   camera_zoom: number | null;
+  /** Present only for a Game Mode session. */
+  game?: GameOptions | null;
 }
 
 export interface MirrorProcess {
@@ -158,6 +182,8 @@ export interface MirrorSession {
   cameraControls: boolean;
   /** Camera: whether the torch started on. */
   torch: boolean;
+  /** A Game Mode session's applied toggles. */
+  game: GameOptions | null;
 }
 
 export type QuickToggleKey =

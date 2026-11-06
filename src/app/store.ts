@@ -9,6 +9,7 @@ export type TabId =
   | "features"
   | "apps"
   | "mirror"
+  | "game"
   | "wireless"
   | "files"
   | "console"

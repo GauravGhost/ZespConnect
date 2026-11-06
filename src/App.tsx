@@ -13,6 +13,7 @@ import { DebuggingPanel } from "@/features/debugging";
 import { OverviewPanel } from "@/features/devices";
 import { EmulatorsPanel } from "@/features/emulators";
 import { FilesPanel } from "@/features/files";
+import { GameModePanel } from "@/features/game-mode";
 import { MirrorPanel } from "@/features/mirror";
 import { PerformancePanel, ProcessesPanel } from "@/features/monitor";
 import { DependencyCheck } from "@/features/onboarding";
@@ -27,6 +28,7 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "features") return <FeaturesPanel />;
   if (tab === "apps") return <AppsPanel />;
   if (tab === "mirror") return <MirrorPanel />;
+  if (tab === "game") return <GameModePanel />;
   if (tab === "wireless") return <WirelessPanel />;
   if (tab === "files") return <FilesPanel />;
   if (tab === "console") return <ConsolePanel />;

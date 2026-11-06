@@ -11,7 +11,7 @@ use crate::error::{AppError, Result};
 use crate::models::{KeyAction, MirrorKind, MirrorSession, MirrorSessionSpec};
 use crate::runtime::recording::{VideoPacket, VideoTap};
 use crate::runtime::server_link::{self, ServerLink, Teardown};
-use crate::runtime::{mirror, phone_audio, session_window};
+use crate::runtime::{controller_passthrough, game_mode, mirror, phone_audio, session_window};
 use crate::services::scrcpy::DesktopProbe;
 use crate::services::{apps, control, scrcpy, scrcpy_server};
 use crate::state::AppState;
@@ -201,6 +201,7 @@ pub async fn start(
         display_scale: display_scale.unwrap_or(1.0),
         camera_controls: extended_controls && kind == MirrorKind::Camera,
         torch: spec.options.camera_torch,
+        game: spec.options.game.clone(),
     };
 
     // Seed the toggle before `watch_lock`, which confirms it on its first check.
@@ -213,8 +214,22 @@ pub async fn start(
     // Tell every window the session is live so the app list can flip its button to "close".
     let _ = app.emit(EVENT_SESSION_STARTED, &info);
 
+    // Game Mode applies its toggles, sound included, once the video is live.
+    if let Some(game) = spec.options.game.clone() {
+        game_mode::begin(app, id, &spec.serial, control_channel.clone(), game).await;
+    } else {
+        // Like Game Mode, controllers attach once capture is up and the server takes control messages.
+        let handle = app.clone();
+        let serial = spec.serial.clone();
+        tauri::async_runtime::spawn(async move {
+            if game_mode::wait_for_stream(&handle, id).await {
+                controller_passthrough::session_started(&handle, &serial);
+            }
+        });
+    }
+
     // The window's Audio option routes the phone's sound here; it stays a per-device choice after.
-    if spec.options.audio {
+    if spec.options.audio && spec.options.game.is_none() {
         let handle = app.clone();
         let serial = spec.serial.clone();
         tauri::async_runtime::spawn(async move {
@@ -302,7 +317,11 @@ async fn supervise(
     if info.kind == MirrorKind::Desktop {
         finish_desktop(teardown.adb_bin(), &info.serial, phone_screen_on).await;
     }
+    if info.game.is_some() {
+        game_mode::finish(&app, id).await;
+    }
     app.state::<AppState>().remove_session(id);
+    controller_passthrough::session_ended(&app, id, &info.serial);
     let _ = app.emit(EVENT_SESSION_EXITED, &info);
 }
 
@@ -502,6 +521,8 @@ async fn session_options(
         camera_torch: spec.options.camera_torch,
         // scrcpy's cleanup (which restores the screen timeout on close) only runs with `stay_awake`.
         stay_awake: spec.options.stay_awake || desktop,
+        // Game Mode may switch the phone screen off; cleanup turns it back on when the session ends.
+        cleanup: spec.options.stay_awake || desktop || spec.options.game.is_some(),
     };
 
     Ok((options, virtual_display))

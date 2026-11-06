@@ -57,6 +57,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libasound2-dev \
+            libudev-dev \
             patchelf
 
       - name: Install frontend dependencies
