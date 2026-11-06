@@ -2,7 +2,7 @@ use tauri::{AppHandle, State};
 
 use crate::error::Result;
 use crate::models::{Device, DeviceInfo};
-use crate::services::devices as devices_service;
+use crate::services::{devices as devices_service, toggles};
 use crate::state::AppState;
 use crate::tray;
 use crate::util::validation::validate_serial;
@@ -17,8 +17,7 @@ pub async fn list_devices(state: State<'_, AppState>) -> Result<Vec<Device>> {
 #[tauri::command]
 pub async fn get_device_info(serial: String, state: State<'_, AppState>) -> Result<DeviceInfo> {
     validate_serial(&serial)?;
-    let tools = state.tools();
-    devices_service::info(&tools, &serial).await
+    toggles::device_info(&state.tools(), &serial).await
 }
 
 /// Remember the active device and reflect it in the tray menu.

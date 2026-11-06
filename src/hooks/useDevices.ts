@@ -9,8 +9,9 @@ import type { Device } from "@/types";
 import { useBackendEvents } from "./useBackendEvents";
 
 export const devicesKey = ["devices"] as const;
+export const deviceInfoKey = (serial: string) => ["device-info", serial] as const;
 
-/** Live device list: seeded by `list_devices`, kept fresh by `devices:changed`. */
+/** Live device list: seeded by `list_devices`, kept fresh by `devices:changed` (no polling). */
 export function useDevices() {
   const queryClient = useQueryClient();
 
@@ -28,7 +29,6 @@ export function useDevices() {
   return useQuery({
     queryKey: devicesKey,
     queryFn: () => ipc.devices.list(),
-    refetchInterval: 15_000,
   });
 }
 
@@ -54,13 +54,17 @@ export function useActiveDevice() {
   return { device, devices, selectedSerial, setSelectedSerial, isLoading };
 }
 
-/** Detailed info (model/android/battery/quick state) for the active device. */
+/** Device info polling interval; one observer drives it so the phone runs one script per tick. */
+export const DEVICE_INFO_POLL_MS = 5_000;
+
+/**
+ * Detailed info (model/android/battery/quick state) for the active device. Read-only here:
+ * `useQuickState` polls the same query while the quick settings shade is shown.
+ */
 export function useDeviceInfo(serial: string | null) {
   return useQuery({
-    queryKey: ["device-info", serial],
+    queryKey: deviceInfoKey(serial ?? ""),
     queryFn: () => ipc.devices.info(serial as string),
     enabled: Boolean(serial),
-    // Mostly battery here; the toggles poll faster via `useQuickState`.
-    refetchInterval: 20_000,
   });
 }

@@ -34,7 +34,6 @@ import type {
   MirrorProcess,
   MirrorSession,
   QrPayload,
-  QuickState,
   QuickToggleKey,
   RebootMode,
   SendOutcome,
@@ -168,7 +167,6 @@ export const ipc = {
   },
 
   controls: {
-    quickState: (serial: string) => invoke<QuickState>("get_quick_state", { serial }),
     setToggle: (serial: string, key: QuickToggleKey, on: boolean) =>
       invoke<void>("set_toggle", { serial, key, on }),
     setBrightness: (serial: string, percent: number) =>

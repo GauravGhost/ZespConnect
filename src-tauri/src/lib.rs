@@ -155,7 +155,6 @@ pub fn run() {
             commands::apps::force_stop_app,
             commands::apps::install_apk,
             commands::apps::export_apk,
-            commands::controls::get_quick_state,
             commands::controls::set_toggle,
             commands::controls::set_brightness,
             commands::controls::set_volume,

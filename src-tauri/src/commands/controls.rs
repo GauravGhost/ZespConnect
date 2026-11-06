@@ -1,16 +1,10 @@
 use tauri::State;
 
 use crate::error::Result;
-use crate::models::{DeveloperState, QuickState, RebootMode};
+use crate::models::{DeveloperState, RebootMode};
 use crate::services::{developer, toggles};
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
-
-#[tauri::command]
-pub async fn get_quick_state(serial: String, state: State<'_, AppState>) -> Result<QuickState> {
-    validate_serial(&serial)?;
-    toggles::quick_state(&state.tools(), &serial).await
-}
 
 #[tauri::command]
 pub async fn set_toggle(

@@ -5,7 +5,7 @@ use std::time::Duration;
 use once_cell::sync::Lazy;
 
 use crate::error::{AppError, Result};
-use crate::models::{QuickState, RebootMode, ToolStatus, DEFAULT_BRIGHTNESS_MAX};
+use crate::models::{DeviceInfo, RebootMode, ToolStatus, DEFAULT_BRIGHTNESS_MAX};
 use crate::services::{adb, devices};
 use crate::util::process::ProcessOutput;
 
@@ -48,11 +48,11 @@ fn toggle_command(key: &str, on: bool) -> Result<String> {
 }
 
 /// Battery + version + quick state, with the real brightness ceiling folded in.
-pub async fn quick_state(tools: &ToolStatus, serial: &str) -> Result<QuickState> {
+pub async fn device_info(tools: &ToolStatus, serial: &str) -> Result<DeviceInfo> {
     let mut info = devices::info(tools, serial).await?;
     let adb = adb::adb_path(tools)?;
     info.quick.brightness_max = brightness_max(&adb, serial).await;
-    Ok(info.quick)
+    Ok(info)
 }
 
 /// Whether Do Not Disturb is on in any of its modes (`zen_mode` other than 0).
