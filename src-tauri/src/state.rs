@@ -5,7 +5,7 @@ use std::sync::RwLock;
 
 use crate::models::{
     Device, GameOptions, LauncherSettings, MirrorKind, MirrorProcess, MirrorSession,
-    MirrorSessionSpec, ReconnectTarget, ToolKind, ToolStatus,
+    MirrorSessionSpec, ReconnectTarget, SoundRoute, ToolKind, ToolStatus,
 };
 use crate::runtime::clipboard_sync::SavedPhones;
 use crate::runtime::controller_passthrough::Passthrough;
@@ -111,6 +111,8 @@ pub struct AppState {
     reconnect_targets: RwLock<Vec<ReconnectTarget>>,
     selected: RwLock<Option<String>>,
     phone_audio: DeviceLinks,
+    /// Devices whose running sound link also keeps the sound on the phone.
+    phone_audio_shared: RwLock<HashSet<String>>,
     clipboard_sync: DeviceLinks,
     clipboard_phones: SavedPhones,
     now_playing: DeviceLinks,
@@ -151,6 +153,7 @@ impl AppState {
             reconnect_targets: RwLock::new(Vec::new()),
             selected: RwLock::new(selected),
             phone_audio: DeviceLinks::default(),
+            phone_audio_shared: RwLock::new(HashSet::new()),
             clipboard_sync: DeviceLinks::default(),
             clipboard_phones,
             now_playing: DeviceLinks::default(),
@@ -169,6 +172,34 @@ impl AppState {
     /// Devices whose sound plays on the computer.
     pub fn phone_audio(&self) -> &DeviceLinks {
         &self.phone_audio
+    }
+
+    /// Where the device's sound plays.
+    pub fn phone_audio_route(&self, serial: &str) -> SoundRoute {
+        if !self.phone_audio.contains(serial) {
+            return SoundRoute::Phone;
+        }
+        let shared = self
+            .phone_audio_shared
+            .read()
+            .map(|guard| guard.contains(serial))
+            .unwrap_or(false);
+        if shared {
+            SoundRoute::Both
+        } else {
+            SoundRoute::Computer
+        }
+    }
+
+    /// Record whether the device's newly started sound link keeps the sound on the phone too.
+    pub fn set_phone_audio_shared(&self, serial: &str, shared: bool) {
+        if let Ok(mut guard) = self.phone_audio_shared.write() {
+            if shared {
+                guard.insert(serial.to_string());
+            } else {
+                guard.remove(serial);
+            }
+        }
     }
 
     /// Devices whose clipboard is kept in sync with the computer's.

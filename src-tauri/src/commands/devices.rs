@@ -9,8 +9,7 @@ use crate::util::validation::validate_serial;
 
 #[tauri::command]
 pub async fn list_devices(state: State<'_, AppState>) -> Result<Vec<Device>> {
-    let tools = state.tools();
-    let list = devices_service::list(&tools).await?;
+    let list = devices_service::list(&state.tools(), &state.devices()).await?;
     state.set_devices(list.clone());
     Ok(list)
 }

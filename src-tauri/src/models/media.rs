@@ -23,3 +23,13 @@ pub enum MediaKey {
     Next,
     Previous,
 }
+
+/// Where a phone's sound plays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SoundRoute {
+    Phone,
+    Computer,
+    /// The computer and the phone together (Android 13+).
+    Both,
+}

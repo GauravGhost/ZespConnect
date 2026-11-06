@@ -35,8 +35,8 @@ async fn run(app: AppHandle) {
 
 /// Fetch the full list, store it, notify the UI, and refresh the tray menu.
 pub async fn refresh(app: &AppHandle) {
-    let tools = app.state::<AppState>().tools();
-    if let Ok(list) = devices::list(&tools).await {
+    let state = app.state::<AppState>();
+    if let Ok(list) = devices::list(&state.tools(), &state.devices()).await {
         app.state::<AppState>().set_devices(list.clone());
         let _ = app.emit(EVENT_DEVICES_CHANGED, &list);
         crate::tray::sync(app);

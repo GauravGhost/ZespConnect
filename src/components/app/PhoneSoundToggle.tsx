@@ -1,29 +1,34 @@
-import { Laptop, Smartphone } from "lucide-react";
+import { Laptop, MonitorSmartphone, Smartphone } from "lucide-react";
 
 import { SegmentedChoice } from "@/components/ui/segmented-choice";
+import { soundRouteChoices } from "@/lib/phoneSound";
+import type { SoundRoute } from "@/types";
 
 const ROUTES = [
   { value: "phone", label: "Phone", icon: Smartphone },
   { value: "computer", label: "Computer", icon: Laptop },
+  { value: "both", label: "Both", icon: MonitorSmartphone },
 ] as const;
 
-/** Segmented Phone / Computer choice for where a device's sound plays. */
+/** Segmented Phone / Computer / Both choice for where a device's sound plays. */
 export function PhoneSoundToggle({
-  onComputer,
+  route,
+  sdk,
   disabled,
   onChange,
 }: Readonly<{
-  onComputer: boolean;
+  route: SoundRoute;
+  sdk: string | null;
   disabled?: boolean;
-  onChange: (onComputer: boolean) => void;
+  onChange: (route: SoundRoute) => void;
 }>) {
   return (
     <SegmentedChoice
       label="Play phone sound on"
-      options={ROUTES}
-      value={onComputer ? "computer" : "phone"}
+      options={soundRouteChoices(ROUTES, sdk, route)}
+      value={route}
       disabled={disabled}
-      onChange={(route) => onChange(route === "computer")}
+      onChange={onChange}
     />
   );
 }

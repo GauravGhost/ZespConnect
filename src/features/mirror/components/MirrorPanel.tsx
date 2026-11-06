@@ -95,7 +95,7 @@ export function MirrorPanel() {
       </Section>
 
       <div className="grid items-start gap-3 md:grid-cols-2">
-        {serial ? <PhoneSoundCard serial={serial} /> : null}
+        {device ? <PhoneSoundCard serial={device.serial} sdk={device.sdk} /> : null}
         <OpenWindowsSection />
       </div>
     </div>

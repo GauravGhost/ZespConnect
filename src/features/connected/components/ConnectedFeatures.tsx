@@ -4,7 +4,13 @@ import { FeatureRow, Section } from "@/components/app/FeatureSection";
 import { PhoneSoundToggle } from "@/components/app/PhoneSoundToggle";
 import { Switch } from "@/components/ui/switch";
 import { useClipboardSync, useControllerPassthrough, usePhoneAudio } from "@/hooks/useDeviceLinks";
-import type { Device } from "@/types";
+import type { Device, SoundRoute } from "@/types";
+
+const SOUND_HINT: Record<SoundRoute, string> = {
+  phone: "Where the phone's sound plays",
+  computer: "The phone's speaker is silent",
+  both: "Playing on the phone and this computer",
+};
 
 /** Ongoing links with the phone, each switched on or off per device. */
 export function ConnectedFeatures({ device }: { device: Device }) {
@@ -32,10 +38,15 @@ export function ConnectedFeatures({ device }: { device: Device }) {
         <FeatureRow
           icon={Volume2}
           label="Phone sound"
-          hint={audio.on ? "The phone's speaker is silent" : "Where the phone's sound plays"}
+          hint={SOUND_HINT[audio.route]}
           busy={audio.pending}
         >
-          <PhoneSoundToggle onComputer={audio.on} disabled={audio.pending} onChange={audio.set} />
+          <PhoneSoundToggle
+            route={audio.route}
+            sdk={device.sdk}
+            disabled={audio.pending}
+            onChange={audio.set}
+          />
         </FeatureRow>
         <FeatureRow
           icon={Gamepad2}

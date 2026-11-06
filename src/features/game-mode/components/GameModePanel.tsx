@@ -32,6 +32,7 @@ import { useActiveDevice } from "@/hooks/useDevices";
 import { useToolsStatus } from "@/hooks/useTools";
 import { ipc } from "@/lib/ipc";
 import { BITRATE_PRESETS, FPS_PRESETS, RESOLUTION_PRESETS } from "@/lib/mirror";
+import { supportsSoundOnBoth } from "@/lib/phoneSound";
 import { supportsInAppMirror } from "@/lib/webcodecs";
 import type { GameOptions, GameOrientation } from "@/types";
 import {
@@ -42,9 +43,6 @@ import {
   useStopGame,
 } from "../hooks";
 import { DEFAULT_GAME_BITRATE_MBPS, DEFAULT_GAME_FPS, useGameModeStore } from "../store";
-
-/** Keeping the sound on the phone too needs Android 13 (API 33). */
-const SOUND_ON_PHONE_MIN_SDK = 33;
 
 const ORIENTATIONS = [
   { value: "auto", label: "Auto", icon: RotateCcw },
@@ -73,8 +71,7 @@ export function GameModePanel() {
   const scrcpyReady = Boolean(tools?.scrcpy.found);
   const inApp = supportsInAppMirror();
   const running = session !== null;
-  const sdk = Number.parseInt(device.sdk ?? "", 10);
-  const soundOnPhoneSupported = Number.isFinite(sdk) && sdk >= SOUND_ON_PHONE_MIN_SDK;
+  const soundOnPhoneSupported = supportsSoundOnBoth(device.sdk);
 
   /** Save a change and, while a session runs, apply it to the phone and window right away. */
   function change<K extends keyof GameOptions>(key: K, value: GameOptions[K]) {

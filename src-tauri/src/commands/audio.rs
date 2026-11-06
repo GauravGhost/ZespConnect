@@ -1,22 +1,29 @@
+use std::collections::HashMap;
+
 use tauri::{AppHandle, State};
 
 use crate::error::Result;
+use crate::models::SoundRoute;
 use crate::runtime::phone_audio;
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
+/// Devices whose sound plays on the computer, with or without the phone too.
 #[tauri::command]
-pub fn list_phone_audio(state: State<'_, AppState>) -> Vec<String> {
-    state.phone_audio().serials()
+pub fn list_phone_audio(state: State<'_, AppState>) -> HashMap<String, SoundRoute> {
+    state
+        .phone_audio()
+        .serials()
+        .into_iter()
+        .map(|serial| {
+            let route = state.phone_audio_route(&serial);
+            (serial, route)
+        })
+        .collect()
 }
 
 #[tauri::command]
-pub async fn set_phone_audio(serial: String, on_computer: bool, app: AppHandle) -> Result<()> {
+pub async fn set_phone_audio(serial: String, route: SoundRoute, app: AppHandle) -> Result<()> {
     validate_serial(&serial)?;
-    if on_computer {
-        phone_audio::start(&app, &serial).await
-    } else {
-        phone_audio::stop(&app, &serial);
-        Ok(())
-    }
+    phone_audio::set_route(&app, &serial, route).await
 }

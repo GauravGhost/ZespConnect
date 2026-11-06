@@ -28,7 +28,7 @@ pub use game::{Controller, GameOptions, GameOrientation};
 pub use launcher::{
     LauncherAppsChanged, LauncherSettings, LauncherStatus, LauncherTarget, DEFAULT_SHORTCUT,
 };
-pub use media::{MediaKey, NowPlaying};
+pub use media::{MediaKey, NowPlaying, SoundRoute};
 pub use mirror::{
     KeyAction, MirrorAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession,
     MirrorSessionSpec, TouchAction,

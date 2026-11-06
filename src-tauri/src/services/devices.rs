@@ -44,6 +44,9 @@ static VOLUME_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"volume is (\d+) in range \[(\d+)\.\.(\d+)\]").expect("valid regex"));
 
 const INFO_TIMEOUT: Duration = Duration::from_secs(25);
+const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
+/// Release on the first line, API level on the second.
+const VERSION_COMMAND: &str = "getprop ro.build.version.release; getprop ro.build.version.sdk";
 /// The 12-bit screen-brightness ceiling used since Android 12 (8-bit before).
 const BRIGHTNESS_MAX_12BIT: i32 = 4095;
 
@@ -245,7 +248,8 @@ pub fn parse_volume_levels(text: &str) -> Option<(i32, i32, i32)> {
     (high > low).then_some((current, low, high))
 }
 
-pub async fn list(tools: &ToolStatus) -> Result<Vec<Device>> {
+/// The current devices; Android versions are reused from `known` and only read for new connections.
+pub async fn list(tools: &ToolStatus, known: &[Device]) -> Result<Vec<Device>> {
     let adb = adb::adb_path(tools)?;
     let output = adb::list_devices_raw(&adb).await?;
     if !output.success {
@@ -253,7 +257,37 @@ pub async fn list(tools: &ToolStatus) -> Result<Vec<Device>> {
     }
     let mut devices = parse_devices(&output.stdout);
     attach_mdns_names(&mut devices, &mdns::services());
+    attach_versions(&adb, &mut devices, known).await;
     Ok(devices)
+}
+
+async fn attach_versions(adb: &str, devices: &mut [Device], known: &[Device]) {
+    for device in devices.iter_mut().filter(|device| device.connected) {
+        let cached = known
+            .iter()
+            .find(|old| old.serial == device.serial && old.sdk.is_some());
+        if let Some(old) = cached {
+            device.android_version = old.android_version.clone();
+            device.sdk = old.sdk.clone();
+            continue;
+        }
+        if let Ok(output) = adb::shell(adb, &device.serial, VERSION_COMMAND, VERSION_TIMEOUT).await
+        {
+            (device.android_version, device.sdk) = parse_versions(&output.stdout);
+        }
+    }
+}
+
+/// The release and API level printed by [`VERSION_COMMAND`]; an empty line is unknown.
+fn parse_versions(text: &str) -> (Option<String>, Option<String>) {
+    let mut lines = text.lines().map(|line| {
+        Some(line.trim())
+            .filter(|value| !value.is_empty())
+            .map(String::from)
+    });
+    let release = lines.next().flatten();
+    let sdk = lines.next().flatten();
+    (release, sdk)
 }
 
 /// Name `ip:port` transports after the connect service announced at that address.
@@ -294,6 +328,27 @@ mod tests {
     const DEVICES_L: &str = include_str!("../../tests/fixtures/adb_devices_l.txt");
     const WIRELESS: &str = include_str!("../../tests/fixtures/adb_devices_wireless.txt");
     const INFO: &str = include_str!("../../tests/fixtures/dumpsys_info.txt");
+
+    #[test]
+    fn parses_release_and_api_level() {
+        assert_eq!(
+            parse_versions(
+                "16
+36
+"
+            ),
+            (Some("16".into()), Some("36".into()))
+        );
+        assert_eq!(
+            parse_versions(
+                "
+36
+"
+            ),
+            (None, Some("36".into()))
+        );
+        assert_eq!(parse_versions(""), (None, None));
+    }
 
     #[test]
     fn parses_usb_devices() {

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { events } from "@/lib/events";
 import { errorMessage, ipc } from "@/lib/ipc";
+import type { SoundRoute } from "@/types";
 
 import { useBackendEvents } from "./useBackendEvents";
 
@@ -14,13 +15,6 @@ interface LinkSource {
   set: (serial: string, on: boolean) => Promise<void>;
   onChange: (handler: () => void) => Promise<UnlistenFn>;
 }
-
-const PHONE_AUDIO: LinkSource = {
-  key: ["phone-audio"],
-  list: ipc.audio.onComputer,
-  set: ipc.audio.setOnComputer,
-  onChange: (handler) => events.phoneAudioChanged(handler),
-};
 
 const CLIPBOARD_SYNC: LinkSource = {
   key: ["clipboard-sync"],
@@ -59,9 +53,32 @@ function useDeviceLink(source: LinkSource, serial: string | null) {
   };
 }
 
-/** Whether `serial`'s sound plays on the computer instead of the phone. */
+const PHONE_AUDIO_KEY = ["phone-audio"] as const;
+
+/** Where `serial`'s sound plays: the phone, the computer, or both. */
 export function usePhoneAudio(serial: string | null) {
-  return useDeviceLink(PHONE_AUDIO, serial);
+  const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: PHONE_AUDIO_KEY });
+
+  useBackendEvents((track) => track(events.phoneAudioChanged(refresh)), [queryClient]);
+
+  const { data } = useQuery({ queryKey: PHONE_AUDIO_KEY, queryFn: ipc.audio.routes });
+  const mutation = useMutation({
+    mutationFn: (route: SoundRoute) => ipc.audio.setRoute(serial as string, route),
+    onError: (error) => toast.error(errorMessage(error)),
+    onSettled: refresh,
+  });
+
+  const route: SoundRoute = (serial && data?.[serial]) || "phone";
+  return {
+    route,
+    /** The sound plays on the computer, alone or with the phone. */
+    on: route !== "phone",
+    pending: mutation.isPending,
+    set: (next: SoundRoute) => {
+      if (serial) mutation.mutate(next);
+    },
+  };
 }
 
 /** Whether `serial`'s clipboard syncs with the computer's. */

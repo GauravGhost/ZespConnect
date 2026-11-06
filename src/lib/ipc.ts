@@ -38,6 +38,7 @@ import type {
   QuickToggleKey,
   RebootMode,
   SendOutcome,
+  SoundRoute,
   SerializedAppError,
   ShellEvent,
   ToolKind,
@@ -269,10 +270,10 @@ export const ipc = {
   },
 
   audio: {
-    /** Devices whose sound plays on the computer (the phone's own speaker is silent meanwhile). */
-    onComputer: () => invoke<string[]>("list_phone_audio"),
-    setOnComputer: (serial: string, onComputer: boolean) =>
-      invoke<void>("set_phone_audio", { serial, onComputer }),
+    /** Devices whose sound plays on the computer, keyed by serial; absent ones play on the phone. */
+    routes: () => invoke<Partial<Record<string, SoundRoute>>>("list_phone_audio"),
+    setRoute: (serial: string, route: SoundRoute) =>
+      invoke<void>("set_phone_audio", { serial, route }),
   },
 
   media: {

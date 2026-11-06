@@ -117,6 +117,9 @@ export type MirrorAction =
   | "zoom-in"
   | "zoom-out";
 
+/** Where a phone's sound plays; `both` needs Android 13+. */
+export type SoundRoute = "phone" | "computer" | "both";
+
 export type GameOrientation = "auto" | "portrait" | "landscape";
 
 /** Game Mode's toggles, mirroring the Rust `GameOptions`. */

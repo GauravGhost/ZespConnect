@@ -6,6 +6,7 @@ use tokio::net::TcpStream;
 use tokio::process::Child;
 
 use crate::error::{AppError, Result};
+use crate::models::SoundRoute;
 use crate::runtime::mirror_session::{parse_header, Packet, FRAME_HEADER};
 use crate::runtime::server_link::{self, ServerLink};
 use crate::services::audio_out::{Buffering, Player};
@@ -52,6 +53,22 @@ fn announce(app: &AppHandle, serial: &str, on_computer: bool) {
 /// Play the device's sound on the computer; returns once sound is flowing.
 pub async fn start(app: &AppHandle, serial: &str) -> Result<()> {
     start_with(app, serial, &AudioSettings::default()).await
+}
+
+/// Play the device's sound on `route`, restarting a running link that plays elsewhere.
+pub async fn set_route(app: &AppHandle, serial: &str, route: SoundRoute) -> Result<()> {
+    if app.state::<AppState>().phone_audio_route(serial) == route {
+        return Ok(());
+    }
+    if route == SoundRoute::Phone {
+        stop(app, serial);
+        return Ok(());
+    }
+    let settings = AudioSettings {
+        keep_on_phone: route == SoundRoute::Both,
+        ..AudioSettings::default()
+    };
+    restart_with(app, serial, &settings).await
 }
 
 /// Replace any running link with one using `settings`.
@@ -108,6 +125,8 @@ pub async fn start_with(app: &AppHandle, serial: &str, settings: &AudioSettings)
         teardown.run().await;
         return Ok(());
     };
+    app.state::<AppState>()
+        .set_phone_audio_shared(serial, settings.keep_on_phone);
     announce(app, serial, true);
 
     let handle = app.clone();

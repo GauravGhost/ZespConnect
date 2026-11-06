@@ -262,7 +262,7 @@ export function QuickSettingsShade({ device }: { device: Device }) {
             ))}
           </div>
 
-          <MediaCard serial={serial} />
+          <MediaCard serial={serial} sdk={device.sdk} />
 
           <ShadeSlider
             label="Media volume"

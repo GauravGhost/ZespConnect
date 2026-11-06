@@ -14,7 +14,7 @@ export function PhoneSoundButton({ serial }: Readonly<{ serial: string }>) {
       iconClassName={audio.pending ? "animate-spin" : undefined}
       pressed={audio.on}
       disabled={audio.pending}
-      onClick={() => audio.set(!audio.on)}
+      onClick={() => audio.set(audio.on ? "phone" : "computer")}
     />
   );
 }

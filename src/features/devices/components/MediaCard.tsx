@@ -1,6 +1,7 @@
 import {
   Laptop,
   Loader2,
+  MonitorSmartphone,
   Music,
   Pause,
   Play,
@@ -21,15 +22,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePhoneAudio } from "@/hooks/useDeviceLinks";
 import { useNowPlaying } from "@/hooks/useNowPlaying";
+import { soundRouteChoices } from "@/lib/phoneSound";
 import { cn } from "@/lib/utils";
 
 const OUTPUTS = [
-  { onComputer: false, label: "This phone", icon: Smartphone },
-  { onComputer: true, label: "Computer", icon: Laptop },
+  { value: "phone", label: "This phone", icon: Smartphone },
+  { value: "computer", label: "Computer", icon: Laptop },
+  { value: "both", label: "Both", icon: MonitorSmartphone },
 ] as const;
 
 /** The shade's media player, like Android's: what plays, its buttons and where it plays. */
-export function MediaCard({ serial }: { serial: string }) {
+export function MediaCard({ serial, sdk }: { serial: string; sdk: string | null }) {
   const { nowPlaying, pressing, press } = useNowPlaying(serial);
   // Android hides the player when nothing plays.
   if (!nowPlaying) return null;
@@ -47,7 +50,7 @@ export function MediaCard({ serial }: { serial: string }) {
           <Music className="size-3.5 shrink-0" />
           <span className="truncate">{nowPlaying.app}</span>
         </span>
-        <OutputSwitcher serial={serial} />
+        <OutputSwitcher serial={serial} sdk={sdk} />
       </div>
 
       <div className="flex items-center gap-1">
@@ -123,10 +126,10 @@ function MediaButton({
   );
 }
 
-/** The output chip: plays the phone's sound on the phone or on this computer. */
-function OutputSwitcher({ serial }: { serial: string }) {
+/** The output chip: plays the phone's sound on the phone, on this computer, or on both. */
+function OutputSwitcher({ serial, sdk }: { serial: string; sdk: string | null }) {
   const audio = usePhoneAudio(serial);
-  const current = OUTPUTS.find((output) => output.onComputer === audio.on) ?? OUTPUTS[0];
+  const current = OUTPUTS.find((output) => output.value === audio.route) ?? OUTPUTS[0];
   const Icon = audio.pending ? Loader2 : current.icon;
 
   return (
@@ -145,16 +148,18 @@ function OutputSwitcher({ serial }: { serial: string }) {
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuLabel>Play on</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {OUTPUTS.map(({ onComputer, label, icon: OutputIcon }) => (
-          <DropdownMenuCheckboxItem
-            key={label}
-            checked={audio.on === onComputer}
-            onCheckedChange={() => audio.set(onComputer)}
-          >
-            <OutputIcon />
-            {label}
-          </DropdownMenuCheckboxItem>
-        ))}
+        {soundRouteChoices(OUTPUTS, sdk, audio.route).map(
+          ({ value: route, label, icon: OutputIcon }) => (
+            <DropdownMenuCheckboxItem
+              key={route}
+              checked={audio.route === route}
+              onCheckedChange={() => audio.set(route)}
+            >
+              <OutputIcon />
+              {label}
+            </DropdownMenuCheckboxItem>
+          ),
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
