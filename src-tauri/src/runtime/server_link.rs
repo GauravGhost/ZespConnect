@@ -96,13 +96,8 @@ pub async fn open(
     let tunnel = scrcpy_server::tunnel_name(scid);
     let remote = scrcpy_server::remote_jar(scid);
 
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .await
-        .map_err(|error| AppError::Io(error.to_string()))?;
-    let port = listener
-        .local_addr()
-        .map_err(|error| AppError::Io(error.to_string()))?
-        .port();
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+    let port = listener.local_addr()?.port();
 
     let teardown = Teardown {
         adb_bin: tools.adb_bin.clone(),

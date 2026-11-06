@@ -1,14 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { formatElapsed } from "@/lib/format";
 import { ipc, toAppError } from "@/lib/ipc";
 import type { QrPayload } from "@/types";
 
 import { devicesKey } from "./useDevices";
+import { useNow } from "./useNow";
 
 /** Seconds a QR pairing code stays valid, matching the backend's cap. */
 const PAIR_TIMEOUT_SECS = 180;
+const COUNTDOWN_TICK_MS = 1000;
 
 export type QrPairStatus =
   | { kind: "idle" }
@@ -32,7 +35,6 @@ export function useQrPairing(): QrPairing {
   const [qr, setQr] = useState<QrPayload | null>(null);
   const [status, setStatus] = useState<QrPairStatus>({ kind: "idle" });
   const [generating, setGenerating] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
   const sessionRef = useRef(0);
 
   const generate = useCallback(async () => {
@@ -44,7 +46,6 @@ export function useQrPairing(): QrPairing {
       const payload = await ipc.wireless.qrPayload();
       if (session !== sessionRef.current) return;
       setQr(payload);
-      setNow(Date.now());
       setStatus({ kind: "waiting" });
       setGenerating(false);
 
@@ -72,14 +73,10 @@ export function useQrPairing(): QrPairing {
     setGenerating(false);
   }, []);
 
-  useEffect(() => {
-    if (!qr) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [qr]);
+  const now = useNow(COUNTDOWN_TICK_MS, qr !== null);
 
   const secondsLeft = qr ? Math.max(0, qr.created + PAIR_TIMEOUT_SECS - Math.floor(now / 1000)) : 0;
-  const timer = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
+  const timer = formatElapsed(secondsLeft * 1000);
 
   return { qr, status, generating, secondsLeft, timer, generate, cancel };
 }

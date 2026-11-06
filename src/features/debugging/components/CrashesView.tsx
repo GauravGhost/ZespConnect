@@ -1,11 +1,12 @@
 import { save } from "@tauri-apps/plugin-dialog";
 import { Bug, Copy, Download, FileArchive, Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { Elapsed } from "@/components/app/Elapsed";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { fileStamp, formatElapsed } from "@/lib/format";
+import { fileStamp } from "@/lib/format";
 import { errorMessage, ipc } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 import type { CrashKind, CrashReport } from "@/types";
@@ -25,16 +26,6 @@ function KindBadge({ kind }: { kind: CrashKind }) {
       {KIND_LABELS[kind]}
     </Badge>
   );
-}
-
-/** Ticks once a second while a bug report runs. */
-function Elapsed({ since }: { since: number }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  return <span className="tabular-nums">{formatElapsed(Math.max(0, now - since))}</span>;
 }
 
 function BugReportButton({ serial }: { serial: string }) {

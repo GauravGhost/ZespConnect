@@ -62,10 +62,7 @@ async fn track_stream(app: &AppHandle, adb_path: &str) -> crate::error::Result<(
     loop {
         // Each frame is a 4-character hex length followed by that many bytes.
         let mut length_bytes = [0u8; 4];
-        stdout
-            .read_exact(&mut length_bytes)
-            .await
-            .map_err(|e| crate::error::AppError::Io(e.to_string()))?;
+        stdout.read_exact(&mut length_bytes).await?;
 
         let length_text = String::from_utf8_lossy(&length_bytes);
         let length = usize::from_str_radix(length_text.trim(), 16).map_err(|_| {
@@ -73,10 +70,7 @@ async fn track_stream(app: &AppHandle, adb_path: &str) -> crate::error::Result<(
         })?;
 
         let mut payload = vec![0u8; length];
-        stdout
-            .read_exact(&mut payload)
-            .await
-            .map_err(|e| crate::error::AppError::Io(e.to_string()))?;
+        stdout.read_exact(&mut payload).await?;
 
         refresh(app).await;
     }

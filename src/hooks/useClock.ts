@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
+import { useNow } from "./useNow";
+
+const CLOCK_TICK_MS = 15_000;
 
 /** Wall-clock time, re-rendered every 15s - close enough for a status bar. */
 export function useClock() {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 15_000);
-    return () => window.clearInterval(id);
-  }, []);
-  return now;
+  return new Date(useNow(CLOCK_TICK_MS));
 }
 
 const uses24Hour = !new Intl.DateTimeFormat([], { hour: "numeric" }).resolvedOptions().hour12;
