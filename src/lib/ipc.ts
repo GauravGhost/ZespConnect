@@ -207,6 +207,13 @@ export const ipc = {
     saveLog: (path: string, text: string) => invoke<void>("save_log", { path, text }),
   },
 
+  layout: {
+    /** The current screen's view hierarchy as uiautomator XML. */
+    dump: (serial: string) => invoke<string>("dump_layout", { serial }),
+    /** A PNG of the current screen. */
+    screenshot: (serial: string) => invoke<ArrayBuffer>("capture_screen", { serial }),
+  },
+
   /** adb port rules; every change resolves with the device's updated list. */
   ports: {
     list: (serial: string) => invoke<PortRule[]>("list_port_rules", { serial }),

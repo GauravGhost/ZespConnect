@@ -208,6 +208,8 @@ pub fn run() {
             commands::ports::add_port_rule,
             commands::ports::remove_port_rule,
             commands::ports::clear_port_rules,
+            commands::layout::dump_layout,
+            commands::layout::capture_screen,
             commands::monitor::open_performance,
             commands::monitor::close_performance,
             commands::monitor::open_processes,
