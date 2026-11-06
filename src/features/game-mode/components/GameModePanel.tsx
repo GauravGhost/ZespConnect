@@ -1,6 +1,8 @@
 import {
   Activity,
   BellOff,
+  Check,
+  ChevronDown,
   Coffee,
   Gamepad2,
   Headphones,
@@ -25,6 +27,12 @@ import { NoDeviceState } from "@/components/app/EmptyState";
 import { FeatureRow, Section } from "@/components/app/FeatureSection";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SegmentedChoice } from "@/components/ui/segmented-choice";
 import { Switch } from "@/components/ui/switch";
 import { PresetNumberField } from "@/features/mirror";
@@ -252,6 +260,17 @@ function SoundSection({
   const outputs = useAudioOutputs();
   const selectId = useId();
   const soundOff = !options.soundOnComputer;
+  const saved = options.audioDevice ?? null;
+  const available = outputs.data ?? [];
+  const choices: { value: string | null; label: string }[] = [
+    { value: null, label: "System default" },
+    ...available.map((name) => ({ value: name, label: name })),
+    // A saved device that is unplugged stays selected; the default plays meanwhile.
+    ...(saved && !available.includes(saved)
+      ? [{ value: saved, label: `${saved} (not found)` }]
+      : []),
+  ];
+  const selectedLabel = choices.find((choice) => choice.value === saved)?.label ?? "System default";
 
   return (
     <Section title="Sound">
@@ -282,24 +301,28 @@ function SoundSection({
         busy={outputs.isFetching}
         htmlFor={selectId}
       >
-        <select
-          id={selectId}
-          className="bg-background h-8 max-w-48 rounded-full border px-3 text-sm disabled:opacity-50"
-          disabled={soundOff}
-          value={options.audioDevice ?? ""}
-          onChange={(event) => onDevice(event.target.value || null)}
-        >
-          <option value="">System default</option>
-          {(outputs.data ?? []).map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-          {/* A saved device that is unplugged stays selected; the default plays meanwhile. */}
-          {options.audioDevice && !outputs.data?.includes(options.audioDevice) ? (
-            <option value={options.audioDevice}>{options.audioDevice} (not found)</option>
-          ) : null}
-        </select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              id={selectId}
+              variant="outline"
+              size="sm"
+              className="max-w-48"
+              disabled={soundOff}
+            >
+              <span className="truncate">{selectedLabel}</span>
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {choices.map((choice) => (
+              <DropdownMenuItem key={choice.value ?? ""} onSelect={() => onDevice(choice.value)}>
+                <span className="flex-1">{choice.label}</span>
+                {choice.value === saved ? <Check className="size-4" /> : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </FeatureRow>
     </Section>
   );
