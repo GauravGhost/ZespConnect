@@ -36,14 +36,16 @@ pub async fn start_app(
     label: &str,
     display: AppDisplay,
 ) -> Result<MirrorProcess> {
-    let tools = app.state::<AppState>().tools();
+    let state = app.state::<AppState>();
+    let tools = state.tools();
     let scrcpy_bin = scrcpy::scrcpy_path(&tools)?;
     let adb_bin = adb::adb_path(&tools)?;
 
     let use_virtual = match display {
         AppDisplay::Screen => false,
         AppDisplay::Window => {
-            scrcpy::virtual_display_safe(scrcpy::android_api(&adb_bin, serial).await)
+            let known = state.device_api_level(serial);
+            scrcpy::virtual_display_safe(scrcpy::android_api(known, &adb_bin, serial).await)
         }
     };
     let version = tools.scrcpy.version.as_deref();

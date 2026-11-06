@@ -92,6 +92,17 @@ pub async fn start_with(app: &AppHandle, serial: &str, settings: &AudioSettings)
         return Ok(());
     }
 
+    // A saved setting may ask for both on an older phone; it silences the phone there instead.
+    let keep_on_phone = settings.keep_on_phone
+        && app
+            .state::<AppState>()
+            .device_api_level(serial)
+            .is_none_or(|api| api >= scrcpy_server::AUDIO_DUP_MIN_SDK);
+    let settings = &AudioSettings {
+        keep_on_phone,
+        ..settings.clone()
+    };
+
     let server = server_link::resolve(app)?;
     let scid = scrcpy_server::scid();
     let options = scrcpy_server::audio_args(&server.version, &scid, settings.keep_on_phone);

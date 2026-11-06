@@ -31,6 +31,7 @@ import {
   useStopOpenWindow,
 } from "@/hooks/useMirrors";
 import { useToolsStatus } from "@/hooks/useTools";
+import { atLeastApi } from "@/lib/android";
 import { batteryIcon, LOW_BATTERY_PERCENT } from "@/lib/battery";
 import { deviceName, hasBatteryLevel, stateLabel, transportLabel } from "@/lib/format";
 import { DEFAULT_MIRROR_OPTIONS, KIND_LABEL } from "@/lib/mirror";
@@ -198,7 +199,7 @@ export function QuickActions({ device }: { device: Device }) {
   const startDesktop = useStartDesktop();
   const installApk = useInstallApk();
   const { data: info } = useDeviceInfo(device.state === "device" ? serial : null);
-  const desktopSupported = Number(info?.sdk || device.sdk) >= MIN_DESKTOP_SDK;
+  const desktopSupported = atLeastApi(info?.sdk || device.sdk, MIN_DESKTOP_SDK);
 
   return (
     <Section title="Quick actions">

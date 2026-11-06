@@ -22,11 +22,7 @@ pub async fn open(
     let scope = match filter.package.as_deref() {
         Some(package) => {
             validate_package(package)?;
-            let sdk = state
-                .device(serial)
-                .and_then(|device| device.sdk)
-                .and_then(|sdk| sdk.parse().ok())
-                .unwrap_or(0);
+            let sdk = state.device_api_level(serial).unwrap_or(0);
             Some(console::app_scope(&adb_path, serial, package, sdk).await?)
         }
         None => None,

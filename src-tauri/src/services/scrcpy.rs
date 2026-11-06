@@ -50,8 +50,8 @@ pub fn virtual_display_safe(api: Option<u32>) -> bool {
     }
 }
 
-/// The device's Android API level (`ro.build.version.sdk`), if readable.
-pub async fn android_api(adb_path: &str, serial: &str) -> Option<u32> {
+/// The device's Android API level (`ro.build.version.sdk`) read from the phone, if readable.
+async fn read_android_api(adb_path: &str, serial: &str) -> Option<u32> {
     let output = adb::shell(
         adb_path,
         serial,
@@ -61,6 +61,14 @@ pub async fn android_api(adb_path: &str, serial: &str) -> Option<u32> {
     .await
     .ok()?;
     output.stdout.trim().parse().ok()
+}
+
+/// The device's Android API level, from the device list when known so no adb round trip is needed.
+pub async fn android_api(known: Option<u32>, adb_path: &str, serial: &str) -> Option<u32> {
+    match known {
+        Some(api) => Some(api),
+        None => read_android_api(adb_path, serial).await,
+    }
 }
 
 /// The phone's screen density (`wm density`, an override winning over the physical value).

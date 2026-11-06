@@ -277,6 +277,11 @@ impl AppState {
             .and_then(|guard| guard.iter().find(|device| device.serial == serial).cloned())
     }
 
+    /// A connected device's Android API level from the device list, without asking the phone.
+    pub fn device_api_level(&self, serial: &str) -> Option<u32> {
+        self.device(serial)?.api_level()
+    }
+
     pub fn set_devices(&self, devices: Vec<Device>) {
         if let Ok(mut guard) = self.devices.write() {
             *guard = devices;

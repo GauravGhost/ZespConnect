@@ -13,6 +13,9 @@ const KEEP_ACTIVE_MIN_VERSION: &str = "4.0";
 /// The oldest scrcpy whose standalone-server options we target.
 pub const MIN_VERSION: &str = "3.0";
 
+/// Capturing app playback while the phone keeps playing it (`audio_dup`) arrived in Android 13.
+pub const AUDIO_DUP_MIN_SDK: u32 = 33;
+
 /// How long the phone may idle before sleeping during a desktop session; scrcpy's cleanup restores the user's timeout.
 const DESKTOP_SCREEN_OFF_TIMEOUT_MS: u32 = 24 * 60 * 60 * 1000;
 

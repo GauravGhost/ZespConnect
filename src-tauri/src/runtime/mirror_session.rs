@@ -128,7 +128,7 @@ pub async fn start(
     let adb_bin = server.adb_bin.clone();
     let scid = scrcpy_server::scid();
 
-    let (mut options, virtual_display) = session_options(&adb_bin, &spec).await?;
+    let (mut options, virtual_display) = session_options(app, &adb_bin, &spec).await?;
     let kind = options.kind;
 
     // Camera controls and resizable displays arrived together in scrcpy 4.0.
@@ -467,12 +467,14 @@ pub fn stop_all(app: &AppHandle) {
 /// Translate the requested mirror into server options, downgrading an app window where a virtual display is unsafe.
 /// Also returns whether the session uses a virtual display.
 async fn session_options(
+    app: &AppHandle,
     adb_bin: &str,
     spec: &MirrorSessionSpec,
 ) -> Result<(scrcpy_server::ServerOptions, bool)> {
     let virtual_display = match spec.kind {
         MirrorKind::App => {
-            scrcpy::virtual_display_safe(scrcpy::android_api(adb_bin, &spec.serial).await)
+            let known = app.state::<AppState>().device_api_level(&spec.serial);
+            scrcpy::virtual_display_safe(scrcpy::android_api(known, adb_bin, &spec.serial).await)
         }
         _ => false,
     };

@@ -10,10 +10,10 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::error::{AppError, Result};
 use crate::models::{Device, MirrorKind};
-use crate::runtime::recording_audio::{self, AudioPacket, RecordingAudio, RECORDING_AUDIO_MIN_SDK};
+use crate::runtime::recording_audio::{self, AudioPacket, RecordingAudio};
 use crate::runtime::session_window;
 use crate::services::recorder::{Ended, RecorderCore};
-use crate::services::{adb, capture, control, files, scrcpy};
+use crate::services::{adb, capture, control, files, scrcpy, scrcpy_server};
 use crate::state::AppState;
 
 pub const EVENT_CHANGED: &str = "recording:changed";
@@ -291,10 +291,7 @@ async fn prepare(
         .as_ref()
         .map(|device| device.model.clone())
         .unwrap_or_default();
-    let sdk = device
-        .and_then(|device| device.sdk)
-        .and_then(|sdk| sdk.parse::<u32>().ok())
-        .unwrap_or(0);
+    let sdk = device.and_then(|device| device.api_level()).unwrap_or(0);
     let adb_bin = adb::adb_path(&state.tools())?;
 
     let name = capture::file_name(&model, &session.serial, stamp, "mp4");
@@ -308,7 +305,7 @@ async fn prepare(
         AppError::Io(format!("Could not record to {}: {error}", path.display()))
     })?;
 
-    let (audio, notice) = if sdk >= RECORDING_AUDIO_MIN_SDK {
+    let (audio, notice) = if sdk >= scrcpy_server::AUDIO_DUP_MIN_SDK {
         match recording_audio::open(app, &session.serial).await {
             Ok(audio) => (Some(audio), None),
             Err(error) => (None, Some(format!("Recorded without sound: {error}"))),

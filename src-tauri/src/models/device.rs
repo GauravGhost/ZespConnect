@@ -49,3 +49,10 @@ pub struct Device {
     /// The phone's stable wireless debugging name, when it is announced over mDNS.
     pub mdns_name: Option<String>,
 }
+
+impl Device {
+    /// The Android API level, when it was read.
+    pub fn api_level(&self) -> Option<u32> {
+        self.sdk.as_deref()?.parse().ok()
+    }
+}

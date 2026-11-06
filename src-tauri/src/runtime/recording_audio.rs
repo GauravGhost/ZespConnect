@@ -11,8 +11,6 @@ use crate::runtime::server_link::{self, ServerLink};
 use crate::services::fmp4::AudioConfig;
 use crate::services::scrcpy_server::{self, AudioStart};
 
-/// Playback capture with duplication arrived in Android 13.
-pub const RECORDING_AUDIO_MIN_SDK: u32 = 33;
 const START_TIMEOUT: Duration = Duration::from_secs(8);
 /// AAC frames are a few hundred bytes; anything far larger is a corrupt header.
 const MAX_PACKET: usize = 1 << 16;
