@@ -134,7 +134,7 @@ async fn volume_levels(adb: &str, serial: &str) -> Result<(i32, i32, i32)> {
     ))
 }
 
-fn ensure_ok(output: &ProcessOutput) -> Result<()> {
+pub(crate) fn ensure_ok(output: &ProcessOutput) -> Result<()> {
     if output.success || output.text().is_empty() {
         Ok(())
     } else {

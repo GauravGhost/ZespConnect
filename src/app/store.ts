@@ -12,6 +12,7 @@ export type TabId =
   | "wireless"
   | "files"
   | "console"
+  | "debugging"
   | "performance"
   | "processes"
   | "emulators"

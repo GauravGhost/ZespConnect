@@ -1,11 +1,9 @@
-import { Bug, Cable, LayoutTemplate, ScrollText, Terminal } from "lucide-react";
+import { Cable, ScrollText, Terminal } from "lucide-react";
 import { useState } from "react";
 
 import { NoDeviceState } from "@/components/app/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveDevice } from "@/hooks/useDevices";
-import { CrashesView } from "./CrashesView";
-import { LayoutView } from "./LayoutView";
 import { LogcatView } from "./LogcatView";
 import { PortsView } from "./PortsView";
 import { ShellView } from "./ShellView";
@@ -18,7 +16,7 @@ export function ConsolePanel() {
     return (
       <NoDeviceState
         icon={Terminal}
-        description="Connect an Android device to run shell commands, watch logcat, share ports, inspect layouts and read crash reports."
+        description="Connect an Android device to run shell commands, watch logcat and share ports."
       />
     );
   }
@@ -39,14 +37,6 @@ export function ConsolePanel() {
             <Cable />
             Ports
           </TabsTrigger>
-          <TabsTrigger value="layout">
-            <LayoutTemplate />
-            Layout
-          </TabsTrigger>
-          <TabsTrigger value="crashes">
-            <Bug />
-            Crashes
-          </TabsTrigger>
         </TabsList>
       </div>
 
@@ -59,13 +49,6 @@ export function ConsolePanel() {
       </TabsContent>
       <TabsContent value="ports" className="min-h-0">
         <PortsView serial={device.serial} />
-      </TabsContent>
-      {/* Kept mounted so a capture survives a look at another tab. */}
-      <TabsContent value="layout" forceMount className="min-h-0 data-[state=inactive]:hidden">
-        <LayoutView serial={device.serial} />
-      </TabsContent>
-      <TabsContent value="crashes" className="min-h-0">
-        <CrashesView serial={device.serial} />
       </TabsContent>
     </Tabs>
   );

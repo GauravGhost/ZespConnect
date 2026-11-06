@@ -163,6 +163,18 @@ export interface MirrorSession {
 export type QuickToggleKey =
   "wifi" | "bluetooth" | "darkmode" | "airplane" | "data" | "location" | "dnd" | "rotate";
 
+export type DeveloperToggleKey =
+  "show_taps" | "pointer_location" | "layout_bounds" | "gpu_overdraw";
+
+export interface DeveloperState {
+  show_taps: boolean;
+  pointer_location: boolean;
+  layout_bounds: boolean;
+  gpu_overdraw: boolean;
+  /** Shared window/transition/animator scale; null when they differ. */
+  animation_scale: number | null;
+}
+
 export type RebootMode = "normal" | "bootloader" | "recovery";
 
 export interface FileEntry {

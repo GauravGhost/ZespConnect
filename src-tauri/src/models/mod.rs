@@ -17,7 +17,9 @@ pub mod wireless;
 pub use apps::{AppInfo, AppInstallProgress, AppListResult, AppListSource, LabelSource};
 pub use avd::Avd;
 pub use console::{LogLine, LogStream, LogcatFilter, ShellEvent};
-pub use controls::{DeviceInfo, QuickState, RebootMode, DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME};
+pub use controls::{
+    DeveloperState, DeviceInfo, QuickState, RebootMode, DEFAULT_BRIGHTNESS_MAX, DEFAULT_VOLUME,
+};
 pub use crashes::{CrashKind, CrashReport};
 pub use device::{Device, DeviceState, DeviceTransport};
 pub use files::{FileEntry, SendOutcome};

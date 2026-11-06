@@ -9,6 +9,7 @@ import { useAppStore, type TabId } from "@/app/store";
 import { AppsPanel } from "@/features/apps";
 import { FeaturesPanel, useRecordingResults } from "@/features/connected";
 import { ConsolePanel } from "@/features/console";
+import { DebuggingPanel } from "@/features/debugging";
 import { OverviewPanel } from "@/features/devices";
 import { EmulatorsPanel } from "@/features/emulators";
 import { FilesPanel } from "@/features/files";
@@ -29,6 +30,7 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "wireless") return <WirelessPanel />;
   if (tab === "files") return <FilesPanel />;
   if (tab === "console") return <ConsolePanel />;
+  if (tab === "debugging") return <DebuggingPanel />;
   if (tab === "performance") return <PerformancePanel />;
   if (tab === "processes") return <ProcessesPanel />;
   if (tab === "emulators") return <EmulatorsPanel />;

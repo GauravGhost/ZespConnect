@@ -21,8 +21,9 @@ describe("tabForShortcut", () => {
   it("opens tabs with Ctrl elsewhere", () => {
     expect(tabForShortcut(press("6", { ctrlKey: true }), false)).toBe("processes");
     expect(tabForShortcut(press("7", { ctrlKey: true }), false)).toBe("performance");
-    expect(tabForShortcut(press("9", { ctrlKey: true }), false)).toBe("emulators");
-    expect(tabForShortcut(press("0", { ctrlKey: true }), false)).toBe("wireless");
+    expect(tabForShortcut(press("9", { ctrlKey: true }), false)).toBe("debugging");
+    expect(tabForShortcut(press("0", { ctrlKey: true }), false)).toBe("emulators");
+    expect(tabForShortcut(press(".", { ctrlKey: true }), false)).toBe("wireless");
   });
 
   it("ignores the other platform's modifier", () => {

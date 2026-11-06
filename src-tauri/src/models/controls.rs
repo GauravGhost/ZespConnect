@@ -38,6 +38,16 @@ impl Default for QuickState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DeveloperState {
+    pub show_taps: bool,
+    pub pointer_location: bool,
+    pub layout_bounds: bool,
+    pub gpu_overdraw: bool,
+    /// The shared window/transition/animator scale, `None` when the three differ.
+    pub animation_scale: Option<f32>,
+}
+
 /// Whitelisted reboot targets; anything else is rejected before it reaches adb.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

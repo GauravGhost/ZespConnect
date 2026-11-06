@@ -9,6 +9,8 @@ import type {
   RecordingOutcome,
   SavedCapture,
   Device,
+  DeveloperState,
+  DeveloperToggleKey,
   DeviceInfo,
   FileEntry,
   KeyAction,
@@ -160,6 +162,11 @@ export const ipc = {
       invoke<void>("set_brightness", { serial, percent }),
     setVolume: (serial: string, percent: number) => invoke<void>("set_volume", { serial, percent }),
     reboot: (serial: string, mode: RebootMode) => invoke<void>("reboot", { serial, mode }),
+    developerState: (serial: string) => invoke<DeveloperState>("get_developer_state", { serial }),
+    setDeveloperToggle: (serial: string, key: DeveloperToggleKey, on: boolean) =>
+      invoke<void>("set_developer_toggle", { serial, key, on }),
+    setAnimationScale: (serial: string, scale: number) =>
+      invoke<void>("set_animation_scale", { serial, scale }),
   },
 
   wireless: {
