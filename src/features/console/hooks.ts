@@ -16,7 +16,7 @@ const SHELL_FLUSH_MS = 40;
 
 export interface ShellTab {
   key: number;
-  title: string;
+  number: number;
   output: string;
   status: "starting" | "running" | "ended";
   /** Exit code once ended; null when the shell was killed or never started. */
@@ -37,6 +37,11 @@ export interface ShellSessions {
   clear: (key: number) => void;
 }
 
+/** One past the highest open tab number; numbering starts over once every tab is closed. */
+function nextTabNumber(tabs: ShellTab[]): number {
+  return Math.max(0, ...tabs.map((tab) => tab.number)) + 1;
+}
+
 /** One long-lived `adb shell` per tab, so cd, exports and su carry over between commands. All
  * shells close when the device changes or the view unmounts. */
 export function useShellSessions(serial: string): ShellSessions {
@@ -45,7 +50,6 @@ export function useShellSessions(serial: string): ShellSessions {
   // Tab key -> its session id (null when the shell failed to start).
   const sessions = useRef(new Map<number, Promise<number | null>>());
   const nextKey = useRef(1);
-  const titleCount = useRef(0);
   const pending = useRef(new Map<number, string>());
   const flushTimer = useRef<number | null>(null);
 
@@ -110,16 +114,17 @@ export function useShellSessions(serial: string): ShellSessions {
 
   const openTab = useCallback(() => {
     const key = nextKey.current++;
-    titleCount.current += 1;
-    const tab: ShellTab = {
-      key,
-      title: `Shell ${titleCount.current}`,
-      output: "",
-      status: "starting",
-      exitCode: null,
-      error: null,
-    };
-    setTabs((prev) => [...prev, tab]);
+    setTabs((prev) => [
+      ...prev,
+      {
+        key,
+        number: nextTabNumber(prev),
+        output: "",
+        status: "starting",
+        exitCode: null,
+        error: null,
+      },
+    ]);
     setActiveKey(key);
     startSession(key);
   }, [startSession]);
@@ -129,7 +134,6 @@ export function useShellSessions(serial: string): ShellSessions {
     openTab();
     return () => {
       for (const key of [...open.keys()]) stopSession(key);
-      titleCount.current = 0;
       setTabs([]);
       setActiveKey(null);
     };

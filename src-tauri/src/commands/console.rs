@@ -1,22 +1,33 @@
 use tauri::ipc::Channel;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::error::Result;
-use crate::models::{LogLine, LogcatFilter, ShellResult};
-use crate::runtime::logcat;
-use crate::services::console as console_service;
+use crate::models::{LogLine, LogcatFilter, ShellEvent};
+use crate::runtime::{logcat, shell};
 use crate::state::AppState;
 use crate::util::validation::validate_serial;
 
+/// Start an interactive shell streaming into `channel`; returns the id later calls address it by.
 #[tauri::command]
-pub async fn shell_exec(
+pub fn open_shell(
     serial: String,
-    command: String,
+    channel: Channel<ShellEvent>,
+    app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<ShellResult> {
+) -> Result<u64> {
     validate_serial(&serial)?;
-    let tools = state.tools();
-    console_service::exec(&tools, &serial, &command).await
+    shell::open(&app, &state, &serial, channel)
+}
+
+/// Send raw input to a shell: a command line ends with a newline, Ctrl+C is the byte 0x03.
+#[tauri::command]
+pub fn write_shell(id: u64, input: String, state: State<'_, AppState>) -> Result<()> {
+    state.shells().write(id, input)
+}
+
+#[tauri::command]
+pub fn close_shell(id: u64, state: State<'_, AppState>) {
+    state.shells().close(id);
 }
 
 /// Stream `adb logcat` into the calling window until [`close_logcat`] runs or the window goes away.

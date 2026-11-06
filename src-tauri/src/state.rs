@@ -10,6 +10,7 @@ use crate::models::{
 use crate::runtime::clipboard_sync::SavedPhones;
 use crate::runtime::mirror_session::ControlChannel;
 use crate::runtime::recording::{Recordings, VideoTap};
+use crate::runtime::shell::ShellSessions;
 use crate::util;
 
 /// A tracked scrcpy window plus the channel that asks its watcher to stop it.
@@ -114,6 +115,7 @@ pub struct AppState {
     performance: DeviceLinks,
     processes: DeviceLinks,
     recordings: Recordings,
+    shells: ShellSessions,
     launcher_settings: RwLock<LauncherSettings>,
     launcher_registered: AtomicBool,
     launcher_refreshed: RwLock<HashSet<String>>,
@@ -150,6 +152,7 @@ impl AppState {
             performance: DeviceLinks::default(),
             processes: DeviceLinks::default(),
             recordings: Recordings::default(),
+            shells: ShellSessions::default(),
             launcher_settings: RwLock::new(LauncherSettings::default()),
             launcher_registered: AtomicBool::new(false),
             launcher_refreshed: RwLock::new(HashSet::new()),
@@ -397,6 +400,10 @@ impl AppState {
 
     pub fn recordings(&self) -> &Recordings {
         &self.recordings
+    }
+
+    pub fn shells(&self) -> &ShellSessions {
+        &self.shells
     }
 
     pub fn session_control(&self, id: u64) -> Option<ControlChannel> {

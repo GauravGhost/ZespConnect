@@ -12,5 +12,6 @@ pub mod recording;
 pub mod recording_audio;
 pub mod server_link;
 pub mod session_window;
+pub mod shell;
 pub mod tools;
 pub mod tracker;

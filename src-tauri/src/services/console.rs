@@ -1,30 +1,39 @@
+use std::process::Stdio;
 use std::time::Duration;
 
 use crate::error::{AppError, Result};
-use crate::models::{ShellResult, ToolStatus};
 use crate::services::adb;
 use crate::util::process;
 use crate::util::validation::shell_quote;
 
-const SHELL_TIMEOUT: Duration = Duration::from_secs(60);
 const LOOKUP_TIMEOUT: Duration = Duration::from_secs(15);
 const LOG_LEVELS: &str = "VDIWEF";
 /// `logcat --uid` arrived in Android 12; older phones can only follow one process id.
 const UID_FILTER_MIN_SDK: u32 = 31;
 
-pub async fn exec(tools: &ToolStatus, serial: &str, command: &str) -> Result<ShellResult> {
-    if command.trim().is_empty() {
-        return Err(AppError::Invalid("Empty command".into()));
-    }
+/// Spawn an interactive `adb shell` with stdin piped. `-tt` forces a terminal on the device even
+/// though our stdin is a pipe: that gives the prompt with cwd and exit code, echo, and Ctrl+C
+/// (byte 0x03) interrupting the running command. The child is killed when dropped.
+pub fn spawn_shell(adb_path: &str, serial: &str) -> Result<tokio::process::Child> {
+    let args = ["-s", serial, "shell", "-tt"].map(str::to_string);
+    process::base_command(adb_path, &args)
+        .stdin(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| AppError::CommandFailed(format!("Could not start adb shell: {e}")))
+}
 
-    let adb_path = adb::adb_path(tools)?;
-    let output = adb::shell(&adb_path, serial, command, SHELL_TIMEOUT).await?;
-    let code = output.code.unwrap_or(if output.success { 0 } else { 1 });
-    Ok(ShellResult {
-        stdout: output.stdout,
-        stderr: output.stderr,
-        code,
-    })
+/// Append `bytes` to `pending` and take out the longest valid UTF-8 text, keeping a character
+/// split across reads for the next call. Invalid bytes become U+FFFD.
+pub fn take_utf8(pending: &mut Vec<u8>, bytes: &[u8]) -> String {
+    pending.extend_from_slice(bytes);
+    let complete = match std::str::from_utf8(pending) {
+        Err(error) if error.error_len().is_none() => error.valid_up_to(),
+        _ => pending.len(),
+    };
+    let text = String::from_utf8_lossy(&pending[..complete]).into_owned();
+    pending.drain(..complete);
+    text
 }
 
 /// Which lines of one app logcat keeps. Uids survive app restarts; a pid does not.
@@ -138,6 +147,16 @@ mod tests {
             logcat_args(Some(&AppScope::Pid(42)), None),
             ["-v", "threadtime", "--pid=42"]
         );
+    }
+
+    #[test]
+    fn keeps_split_characters_for_the_next_read() {
+        let mut pending = Vec::new();
+        let bytes = "é!".as_bytes();
+        assert_eq!(take_utf8(&mut pending, &bytes[..1]), "");
+        assert_eq!(take_utf8(&mut pending, &bytes[1..]), "é!");
+        assert!(pending.is_empty());
+        assert_eq!(take_utf8(&mut pending, b"a\xffb"), "a\u{FFFD}b");
     }
 
     #[test]

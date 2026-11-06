@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-/// The result of one `adb shell` command.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShellResult {
-    pub stdout: String,
-    pub stderr: String,
-    /// The remote command's exit code (`adb shell` propagates it).
-    pub code: i32,
+/// What a shell session streams to its tab: terminal output or the end of the session.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ShellEvent {
+    Output {
+        text: String,
+    },
+    /// `code` is `None` when adb was killed rather than exiting on its own.
+    Exit {
+        code: Option<i32>,
+    },
 }
 
 /// Which OS pipe a streamed logcat line arrived on.
