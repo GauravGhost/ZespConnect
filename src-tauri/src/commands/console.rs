@@ -2,7 +2,7 @@ use tauri::ipc::Channel;
 use tauri::State;
 
 use crate::error::Result;
-use crate::models::{LogLine, ShellResult};
+use crate::models::{LogLine, LogcatFilter, ShellResult};
 use crate::runtime::logcat;
 use crate::services::console as console_service;
 use crate::state::AppState;
@@ -23,16 +23,24 @@ pub async fn shell_exec(
 #[tauri::command]
 pub async fn open_logcat(
     serial: String,
+    filter: LogcatFilter,
     channel: Channel<LogLine>,
     state: State<'_, AppState>,
 ) -> Result<()> {
     validate_serial(&serial)?;
-    logcat::open(&state, &serial, channel)
+    logcat::open(&state, &serial, filter, channel).await
 }
 
 #[tauri::command]
 pub fn close_logcat(serial: String, state: State<'_, AppState>) -> Result<()> {
     validate_serial(&serial)?;
     state.stop_logcat(&serial);
+    Ok(())
+}
+
+/// Write exported log text to a path the user picked in a save dialog.
+#[tauri::command]
+pub async fn save_log(path: String, text: String) -> Result<()> {
+    tokio::fs::write(&path, text).await?;
     Ok(())
 }

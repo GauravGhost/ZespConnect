@@ -23,3 +23,12 @@ pub struct LogLine {
     pub stream: LogStream,
     pub text: String,
 }
+
+/// What `adb logcat` should stream: one app's lines and/or a minimum severity.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogcatFilter {
+    pub package: Option<String>,
+    /// One of `VDIWEF`; lower levels are dropped on the device.
+    pub min_level: Option<char>,
+}

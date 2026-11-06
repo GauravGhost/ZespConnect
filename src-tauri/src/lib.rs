@@ -200,6 +200,7 @@ pub fn run() {
             commands::console::shell_exec,
             commands::console::open_logcat,
             commands::console::close_logcat,
+            commands::console::save_log,
             commands::monitor::open_performance,
             commands::monitor::close_performance,
             commands::monitor::open_processes,

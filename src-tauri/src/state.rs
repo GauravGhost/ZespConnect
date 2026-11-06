@@ -101,6 +101,8 @@ pub struct AppState {
     app_data_dir: PathBuf,
     tracker: RwLock<Option<tauri::async_runtime::JoinHandle<()>>>,
     logcats: RwLock<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
+    /// Bumped by every stop, so a stream whose app lookup outlived a stop never starts.
+    logcat_epoch: AtomicU64,
     pairing: AtomicBool,
     pairing_cancel: RwLock<Option<tokio::sync::oneshot::Sender<()>>>,
     reconnect_targets: RwLock<Vec<ReconnectTarget>>,
@@ -136,6 +138,7 @@ impl AppState {
             app_data_dir,
             tracker: RwLock::new(None),
             logcats: RwLock::new(HashMap::new()),
+            logcat_epoch: AtomicU64::new(0),
             pairing: AtomicBool::new(false),
             pairing_cancel: RwLock::new(None),
             reconnect_targets: RwLock::new(Vec::new()),
@@ -525,21 +528,38 @@ impl AppState {
         }
     }
 
-    /// Track a device's logcat streamer, aborting any previous one.
-    pub fn set_logcat(&self, serial: &str, handle: tauri::async_runtime::JoinHandle<()>) {
-        if let Ok(mut guard) = self.logcats.write() {
-            if let Some(previous) = guard.insert(serial.to_string(), handle) {
-                previous.abort();
-            }
+    /// Track a device's logcat streamer, aborting any previous one. A streamer opened before the
+    /// latest stop (`epoch` is stale) is aborted instead.
+    pub fn set_logcat(
+        &self,
+        serial: &str,
+        epoch: u64,
+        handle: tauri::async_runtime::JoinHandle<()>,
+    ) {
+        let Ok(mut guard) = self.logcats.write() else {
+            handle.abort();
+            return;
+        };
+        if self.logcat_epoch.load(Ordering::SeqCst) != epoch {
+            handle.abort();
+            return;
+        }
+        if let Some(previous) = guard.insert(serial.to_string(), handle) {
+            previous.abort();
         }
     }
 
-    pub fn stop_logcat(&self, serial: &str) {
-        if let Ok(mut guard) = self.logcats.write() {
+    /// Stop a device's logcat streamer and return the epoch a new stream must start under.
+    pub fn stop_logcat(&self, serial: &str) -> u64 {
+        // Bumped while holding the lock so `set_logcat` sees either the old stream or the new epoch.
+        let guard = self.logcats.write();
+        let epoch = self.logcat_epoch.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Ok(mut guard) = guard {
             if let Some(handle) = guard.remove(serial) {
                 handle.abort();
             }
         }
+        epoch
     }
 
     /// Claim the single wireless-pairing slot. Returns a guard that releases it

@@ -2,17 +2,38 @@ use tauri::ipc::Channel;
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 
 use crate::error::{AppError, Result};
-use crate::models::{LogLine, LogStream};
+use crate::models::{LogLine, LogStream, LogcatFilter};
 use crate::services::{adb, console};
 use crate::state::AppState;
+use crate::util::validation::validate_package;
 
 /// Stream `serial`'s logcat into `channel` until [`AppState::stop_logcat`] runs or the window goes
 /// away (the emitted lines stop once its channel is dropped). Replaces any stream already running.
-pub fn open(state: &AppState, serial: &str, channel: Channel<LogLine>) -> Result<()> {
+pub async fn open(
+    state: &AppState,
+    serial: &str,
+    filter: LogcatFilter,
+    channel: Channel<LogLine>,
+) -> Result<()> {
     let adb_path = adb::adb_path(&state.tools())?;
-    state.stop_logcat(serial);
+    let epoch = state.stop_logcat(serial);
 
-    let mut child = console::spawn_logcat(&adb_path, serial)?;
+    let min_level = filter.min_level.map(console::validate_level).transpose()?;
+    let scope = match filter.package.as_deref() {
+        Some(package) => {
+            validate_package(package)?;
+            let sdk = state
+                .device(serial)
+                .and_then(|device| device.sdk)
+                .and_then(|sdk| sdk.parse().ok())
+                .unwrap_or(0);
+            Some(console::app_scope(&adb_path, serial, package, sdk).await?)
+        }
+        None => None,
+    };
+    let args = console::logcat_args(scope.as_ref(), min_level);
+
+    let mut child = console::spawn_logcat(&adb_path, serial, &args)?;
     let stdout = child
         .stdout
         .take()
@@ -31,7 +52,7 @@ pub fn open(state: &AppState, serial: &str, channel: Channel<LogLine>) -> Result
         drop(child);
     });
 
-    state.set_logcat(serial, handle);
+    state.set_logcat(serial, epoch, handle);
     Ok(())
 }
 

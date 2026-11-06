@@ -15,6 +15,7 @@ import type {
   LauncherStatus,
   LauncherTarget,
   LogLine,
+  LogcatFilter,
   MediaKey,
   PerfSample,
   ProcessInfo,
@@ -190,9 +191,10 @@ export const ipc = {
     exec: (serial: string, command: string) =>
       invoke<ShellResult>("shell_exec", { serial, command }),
     /** Stream `adb logcat` into the given channel until `closeLogcat`. */
-    openLogcat: (serial: string, channel: Channel<LogLine>) =>
-      invoke<void>("open_logcat", { serial, channel }),
+    openLogcat: (serial: string, filter: LogcatFilter, channel: Channel<LogLine>) =>
+      invoke<void>("open_logcat", { serial, filter, channel }),
     closeLogcat: (serial: string) => invoke<void>("close_logcat", { serial }),
+    saveLog: (path: string, text: string) => invoke<void>("save_log", { path, text }),
   },
 
   monitor: {

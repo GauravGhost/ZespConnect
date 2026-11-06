@@ -243,6 +243,12 @@ export interface LogLine {
   text: string;
 }
 
+/** What the device streams: one app's lines and/or a minimum severity (`VDIWEF`). */
+export interface LogcatFilter {
+  package: string | null;
+  minLevel: string | null;
+}
+
 /** The app in front on the phone. */
 export interface ForegroundApp {
   package: string;
