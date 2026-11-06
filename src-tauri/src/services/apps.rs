@@ -341,6 +341,17 @@ pub async fn clear_data(tools: &ToolStatus, serial: &str, package: &str) -> Resu
     Ok(())
 }
 
+/// Stop every process of an app, the only way an adb shell may end another user's process.
+pub async fn force_stop(tools: &ToolStatus, serial: &str, package: &str) -> Result<()> {
+    let adb_path = adb::adb_path(tools)?;
+    let command = format!("am force-stop {}", shell_quote(package));
+    let output = adb::shell(&adb_path, serial, &command, ACTION_TIMEOUT).await?;
+    if !output.success {
+        return Err(AppError::CommandFailed(output.text()));
+    }
+    Ok(())
+}
+
 pub async fn install_apk(tools: &ToolStatus, serial: &str, path: &str) -> Result<()> {
     if !Path::new(path).is_file() {
         return Err(AppError::Invalid(format!("APK not found: {path}")));

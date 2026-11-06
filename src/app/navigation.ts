@@ -3,7 +3,9 @@ import {
   AppWindow,
   Blocks,
   FolderOpen,
+  Activity,
   Gamepad2,
+  ListTree,
   LayoutDashboard,
   Settings,
   Smartphone,
@@ -73,25 +75,32 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Tools",
     items: [
       {
+        id: "processes",
+        label: "Processes",
+        icon: ListTree,
+        description: "What is running on the device",
+        shortcutKey: "6",
+      },
+      {
+        id: "performance",
+        label: "Performance",
+        icon: Activity,
+        description: "Live CPU, memory, FPS, battery and network",
+        shortcutKey: "7",
+      },
+      {
         id: "console",
         label: "Console",
         icon: Terminal,
         description: "Shell and logcat",
-        shortcutKey: "6",
-      },
-      {
-        id: "wireless",
-        label: "Wireless",
-        icon: Wifi,
-        description: "Pair and connect over Wi-Fi",
-        shortcutKey: "7",
+        shortcutKey: "8",
       },
       {
         id: "emulators",
         label: "Emulators",
         icon: Gamepad2,
         description: "Android Virtual Devices on this computer",
-        shortcutKey: "8",
+        shortcutKey: "9",
       },
     ],
   },
@@ -105,7 +114,19 @@ export const SETTINGS_NAV: NavItem = {
   shortcutKey: ",",
 };
 
-const NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((group) => group.items), SETTINGS_NAV];
+/** Pinned to the sidebar's foot: how devices connect, apart from what is done with them. */
+export const FOOTER_NAV: NavItem[] = [
+  {
+    id: "wireless",
+    label: "Wireless",
+    icon: Wifi,
+    description: "Pair and connect over Wi-Fi",
+    shortcutKey: "0",
+  },
+  SETTINGS_NAV,
+];
+
+const NAV_ITEMS: NavItem[] = [...NAV_GROUPS.flatMap((group) => group.items), ...FOOTER_NAV];
 
 export const TAB_IDS: TabId[] = NAV_ITEMS.map((item) => item.id);
 

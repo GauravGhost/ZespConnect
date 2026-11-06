@@ -109,6 +109,8 @@ pub struct AppState {
     clipboard_sync: DeviceLinks,
     clipboard_phones: SavedPhones,
     now_playing: DeviceLinks,
+    performance: DeviceLinks,
+    processes: DeviceLinks,
     recordings: Recordings,
     launcher_settings: RwLock<LauncherSettings>,
     launcher_registered: AtomicBool,
@@ -142,6 +144,8 @@ impl AppState {
             clipboard_sync: DeviceLinks::default(),
             clipboard_phones,
             now_playing: DeviceLinks::default(),
+            performance: DeviceLinks::default(),
+            processes: DeviceLinks::default(),
             recordings: Recordings::default(),
             launcher_settings: RwLock::new(LauncherSettings::default()),
             launcher_registered: AtomicBool::new(false),
@@ -167,6 +171,16 @@ impl AppState {
     /// The device whose media sessions the main window is watching (at most one).
     pub fn now_playing(&self) -> &DeviceLinks {
         &self.now_playing
+    }
+
+    /// The device whose vitals the Performance page is streaming.
+    pub fn performance(&self) -> &DeviceLinks {
+        &self.performance
+    }
+
+    /// The device whose process table the Processes page is streaming.
+    pub fn processes(&self) -> &DeviceLinks {
+        &self.processes
     }
 
     pub fn app_data_dir(&self) -> PathBuf {

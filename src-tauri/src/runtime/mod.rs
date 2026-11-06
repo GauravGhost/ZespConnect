@@ -1,4 +1,5 @@
 pub mod clipboard_sync;
+pub mod device_stream;
 pub mod file_stream;
 pub mod launcher;
 pub mod logcat;

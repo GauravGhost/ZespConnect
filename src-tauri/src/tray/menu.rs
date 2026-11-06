@@ -27,15 +27,17 @@ const DEVICE_PREFIX: &str = "device:";
 const NAV_PREFIX: &str = "nav:";
 
 /// The app's tabs as the frontend names them (see `src/app/navigation.ts`), in sidebar order.
-const TABS: [(&str, &str); 9] = [
+const TABS: [(&str, &str); 11] = [
     ("overview", "Overview"),
     ("features", "Features"),
     ("apps", "Apps"),
     ("mirror", "Mirror"),
     ("files", "Files"),
+    ("processes", "Processes"),
+    ("performance", "Performance"),
     ("console", "Console"),
-    ("wireless", "Wireless"),
     ("emulators", "Emulators"),
+    ("wireless", "Wireless"),
     ("settings", "Settings"),
 ];
 

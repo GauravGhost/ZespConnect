@@ -62,6 +62,18 @@ pub async fn clear_app_data(
 }
 
 #[tauri::command]
+pub async fn force_stop_app(
+    serial: String,
+    package: String,
+    state: State<'_, AppState>,
+) -> Result<()> {
+    validate_serial(&serial)?;
+    validate_package(&package)?;
+    let tools = state.tools();
+    apps_service::force_stop(&tools, &serial, &package).await
+}
+
+#[tauri::command]
 pub async fn install_apk(
     serial: String,
     path: String,

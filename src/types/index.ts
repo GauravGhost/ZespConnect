@@ -243,6 +243,49 @@ export interface LogLine {
   text: string;
 }
 
+/** The app in front on the phone. */
+export interface ForegroundApp {
+  package: string;
+  label: string;
+}
+
+/** One second of a phone's vitals; `null` when the phone does not expose a value. */
+export interface PerfSample {
+  /** Busy share of all cores, 0-100. */
+  cpu: number | null;
+  cores: (number | null)[];
+  memUsedKb: number | null;
+  memTotalKb: number | null;
+  /** Frames the foreground app drew per second. */
+  fps: number | null;
+  /** Share of recent frames that missed their deadline, 0-100. */
+  jank: number | null;
+  refreshHz: number | null;
+  foreground: ForegroundApp | null;
+  batteryLevel: number | null;
+  batteryTempC: number | null;
+  batteryMa: number | null;
+  batteryWatts: number | null;
+  charging: boolean | null;
+  netRxBps: number | null;
+  netTxBps: number | null;
+}
+
+/** One row of the phone's process table. */
+export interface ProcessInfo {
+  pid: number;
+  user: string;
+  /** Share of one core, so it can exceed 100 on a multi-core phone. */
+  cpu: number;
+  mem: number;
+  resKb: number;
+  state: string;
+  name: string;
+  /** The app package the process belongs to, when it is an app. */
+  package: string | null;
+  label: string | null;
+}
+
 export interface Avd {
   name: string;
   running: boolean;

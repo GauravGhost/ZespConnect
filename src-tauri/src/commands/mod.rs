@@ -10,5 +10,6 @@ pub mod files;
 pub mod launcher;
 pub mod media;
 pub mod mirror;
+pub mod monitor;
 pub mod system;
 pub mod wireless;

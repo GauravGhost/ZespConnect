@@ -13,6 +13,7 @@ import { OverviewPanel } from "@/features/devices";
 import { EmulatorsPanel } from "@/features/emulators";
 import { FilesPanel } from "@/features/files";
 import { MirrorPanel } from "@/features/mirror";
+import { PerformancePanel, ProcessesPanel } from "@/features/monitor";
 import { DependencyCheck } from "@/features/onboarding";
 import { SettingsPanel } from "@/features/settings";
 import { useWirelessReconnect, WirelessPanel } from "@/features/wireless";
@@ -28,6 +29,8 @@ function ActiveFeature({ tab }: { tab: TabId }) {
   if (tab === "wireless") return <WirelessPanel />;
   if (tab === "files") return <FilesPanel />;
   if (tab === "console") return <ConsolePanel />;
+  if (tab === "performance") return <PerformancePanel />;
+  if (tab === "processes") return <ProcessesPanel />;
   if (tab === "emulators") return <EmulatorsPanel />;
   if (tab === "settings") return <SettingsPanel />;
   return null;

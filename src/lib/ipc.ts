@@ -16,6 +16,8 @@ import type {
   LauncherTarget,
   LogLine,
   MediaKey,
+  PerfSample,
+  ProcessInfo,
   MirrorAction,
   MdnsDevice,
   ReconnectTarget,
@@ -61,6 +63,9 @@ export const ipc = {
     clearData: (serial: string, pkg: string) =>
       invoke<void>("clear_app_data", { serial, package: pkg }),
     installApk: (serial: string, path: string) => invoke<void>("install_apk", { serial, path }),
+    /** Stop every process of an app. */
+    forceStop: (serial: string, pkg: string) =>
+      invoke<void>("force_stop_app", { serial, package: pkg }),
   },
 
   mirror: {
@@ -188,6 +193,17 @@ export const ipc = {
     openLogcat: (serial: string, channel: Channel<LogLine>) =>
       invoke<void>("open_logcat", { serial, channel }),
     closeLogcat: (serial: string) => invoke<void>("close_logcat", { serial }),
+  },
+
+  monitor: {
+    /** Stream the phone's vitals once a second until `closePerformance`. */
+    openPerformance: (serial: string, channel: Channel<PerfSample>) =>
+      invoke<void>("open_performance", { serial, channel }),
+    closePerformance: (serial: string) => invoke<void>("close_performance", { serial }),
+    /** Stream the phone's process table every few seconds until `closeProcesses`. */
+    openProcesses: (serial: string, channel: Channel<ProcessInfo[]>) =>
+      invoke<void>("open_processes", { serial, channel }),
+    closeProcesses: (serial: string) => invoke<void>("close_processes", { serial }),
   },
 
   clipboard: {

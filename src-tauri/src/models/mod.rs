@@ -7,6 +7,8 @@ pub mod files;
 pub mod launcher;
 pub mod media;
 pub mod mirror;
+pub mod performance;
+pub mod processes;
 pub mod tools;
 pub mod wireless;
 
@@ -24,6 +26,8 @@ pub use mirror::{
     KeyAction, MirrorAction, MirrorKind, MirrorOptions, MirrorProcess, MirrorSession,
     MirrorSessionSpec, TouchAction,
 };
+pub use performance::{ForegroundApp, PerfSample};
+pub use processes::ProcessInfo;
 pub use tools::{
     InstallDone, InstallProgress, ToolInfo, ToolKind, ToolSource, ToolStatus, UpdateInfo,
 };

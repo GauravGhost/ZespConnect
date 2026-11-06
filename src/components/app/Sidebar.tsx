@@ -1,4 +1,4 @@
-import { NAV_GROUPS, SETTINGS_NAV, shortcutLabel, type NavItem } from "@/app/navigation";
+import { FOOTER_NAV, NAV_GROUPS, shortcutLabel, type NavItem } from "@/app/navigation";
 import { useAppStore } from "@/app/store";
 import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -58,7 +58,11 @@ export function Sidebar() {
         ))}
       </div>
 
-      <NavButton item={SETTINGS_NAV} />
+      <div className="flex flex-col gap-0.5 border-t border-sidebar-border pt-2">
+        {FOOTER_NAV.map((item) => (
+          <NavButton key={item.id} item={item} />
+        ))}
+      </div>
     </nav>
   );
 }
