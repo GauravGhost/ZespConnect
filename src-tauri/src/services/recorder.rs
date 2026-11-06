@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::borrow::Cow;
+use std::io::{self, Seek, Write};
 use std::time::Instant;
 
 use crate::services::fmp4::{AudioConfig, Fmp4Writer, VideoConfig};
@@ -19,12 +20,15 @@ struct Anchor {
 
 /// The video and sound servers' timestamps share no origin, so each stream is anchored to when
 /// its first packet reached the computer.
-pub struct RecorderCore<W: Write> {
+pub struct RecorderCore<W: Write + Seek> {
     out: Option<W>,
     audio_config: Option<AudioConfig>,
     writer: Option<Fmp4Writer<W>>,
     size: Option<(u32, u32)>,
     pending_config: Option<VideoConfig>,
+    /// The config of a restarted encoder, waiting for its first key frame. The file header keeps
+    /// the first config, so the new one goes in front of that key frame for the decoder to use.
+    restart_config: Option<Vec<u8>>,
     /// When the first video frame arrived: time zero of the file.
     origin: Option<Instant>,
     video: Option<Anchor>,
@@ -32,7 +36,7 @@ pub struct RecorderCore<W: Write> {
     last_video_us: u64,
 }
 
-impl<W: Write> RecorderCore<W> {
+impl<W: Write + Seek> RecorderCore<W> {
     pub fn new(out: W, audio: Option<AudioConfig>) -> Self {
         Self {
             out: Some(out),
@@ -40,6 +44,7 @@ impl<W: Write> RecorderCore<W> {
             writer: None,
             size: None,
             pending_config: None,
+            restart_config: None,
             origin: None,
             video: None,
             audio: None,
@@ -76,6 +81,15 @@ impl<W: Write> RecorderCore<W> {
             self.writer = Some(Fmp4Writer::new(out, video, self.audio_config.clone())?);
             self.origin = Some(arrived);
         }
+        let mut sample = Cow::Borrowed(data);
+        if let Some(config) = &self.restart_config {
+            // Frames from before the restart can no longer be decoded.
+            if !key {
+                return Ok(None);
+            }
+            sample = [config.as_slice(), data].concat().into();
+            self.restart_config = None;
+        }
 
         let anchor = match self.video {
             Some(anchor) => anchor,
@@ -90,7 +104,7 @@ impl<W: Write> RecorderCore<W> {
         let time_us = anchor.at_us + pts.saturating_sub(anchor.pts);
         self.last_video_us = time_us;
         if let Some(writer) = self.writer.as_mut() {
-            writer.push_video(time_us, key, data)?;
+            writer.push_video(time_us, key, &sample)?;
         }
         Ok(None)
     }
@@ -131,6 +145,7 @@ impl<W: Write> RecorderCore<W> {
             }
             // A new config means a restarted encoder, whose timestamps start over.
             self.video = None;
+            self.restart_config = Some(data.to_vec());
             return None;
         }
         self.size = Some(size);
@@ -147,12 +162,18 @@ impl<W: Write> RecorderCore<W> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use std::time::Duration;
 
     use super::*;
 
     const SPS_720P: [u8; 25] = [
         0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9, 0x40, 0x50, 0x05, 0xbb, 0x01, 0x6c, 0x80, 0x00, 0x00,
+        0x03, 0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18, 0xcb,
+    ];
+    /// [`SPS_720P`] at level 4.0 instead of 3.1, as a restarted encoder may choose.
+    const SPS_720P_RESTARTED: [u8; 25] = [
+        0x67, 0x64, 0x00, 0x28, 0xac, 0xd9, 0x40, 0x50, 0x05, 0xbb, 0x01, 0x6c, 0x80, 0x00, 0x00,
         0x03, 0x00, 0x80, 0x00, 0x00, 0x1e, 0x07, 0x8c, 0x18, 0xcb,
     ];
     /// A 640x480 Baseline SPS.
@@ -197,7 +218,7 @@ mod tests {
     #[test]
     fn waits_for_config_and_key() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), None);
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), None);
         core.push_video(base, false, false, 0, &frame(false))
             .unwrap();
         core.push_video(base, false, true, 0, &frame(true)).unwrap();
@@ -206,14 +227,14 @@ mod tests {
         core.push_video(base, false, false, 10, &frame(false))
             .unwrap();
         // Nothing usable yet: a delta before config, a key before config, a delta after.
-        assert!(RecorderCore::new(Vec::new(), None)
+        assert!(RecorderCore::new(Cursor::new(Vec::new()), None)
             .finish(base)
             .unwrap()
             .is_none());
 
         core.push_video(ms(base, 5), false, true, 20, &frame(true))
             .unwrap();
-        let file = core.finish(base).unwrap().expect("a file");
+        let file = core.finish(base).unwrap().expect("a file").into_inner();
         assert_eq!(count(&file, b"moof"), 1);
         assert_eq!(decode_times(&file, 1), [0]);
     }
@@ -221,7 +242,7 @@ mod tests {
     #[test]
     fn same_size_config_continues() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), None);
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), None);
         core.push_video(base, true, false, 0, &config(&SPS_720P))
             .unwrap();
         core.push_video(base, false, true, 0, &frame(true)).unwrap();
@@ -234,7 +255,7 @@ mod tests {
     #[test]
     fn size_change_ends() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), None);
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), None);
         core.push_video(base, true, false, 0, &config(&SPS_720P))
             .unwrap();
         core.push_video(base, false, true, 0, &frame(true)).unwrap();
@@ -247,7 +268,7 @@ mod tests {
     #[test]
     fn aligns_streams_by_arrival() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), Some(audio()));
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), Some(audio()));
         assert!(core.has_audio());
         core.push_video(base, true, false, 0, &config(&SPS_720P))
             .unwrap();
@@ -255,7 +276,7 @@ mod tests {
             .unwrap();
         core.push_audio(ms(base, 40), 900_000, &[0x21]).unwrap();
         core.push_audio(ms(base, 61), 921_333, &[0x21]).unwrap();
-        let file = core.finish(base).unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap().into_inner();
         assert_eq!(decode_times(&file, 1), [0]);
         // 40 ms at 48 kHz.
         assert_eq!(decode_times(&file, 2), [1920]);
@@ -264,20 +285,20 @@ mod tests {
     #[test]
     fn drops_audio_before_video() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), Some(audio()));
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), Some(audio()));
         core.push_audio(base, 100, &[0x21]).unwrap();
         core.push_video(ms(base, 10), true, false, 0, &config(&SPS_720P))
             .unwrap();
         core.push_video(ms(base, 10), false, true, 0, &frame(true))
             .unwrap();
-        let file = core.finish(base).unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap().into_inner();
         assert!(decode_times(&file, 2).is_empty());
     }
 
     #[test]
     fn reanchors_after_encoder_reset() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), None);
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), None);
         core.push_video(base, true, false, 0, &config(&SPS_720P))
             .unwrap();
         core.push_video(base, false, true, 9_000_000, &frame(true))
@@ -285,13 +306,17 @@ mod tests {
         core.push_video(ms(base, 33), false, false, 9_033_333, &frame(false))
             .unwrap();
         // RESET_VIDEO restarts the encoder, whose timestamps start over.
-        core.push_video(ms(base, 500), true, false, 0, &config(&SPS_720P))
+        let restarted = config(&SPS_720P_RESTARTED);
+        core.push_video(ms(base, 500), true, false, 0, &restarted)
+            .unwrap();
+        // A frame that was still on its way from the old encoder.
+        core.push_video(ms(base, 500), false, false, 9_066_666, &frame(false))
             .unwrap();
         core.push_video(ms(base, 500), false, true, 0, &frame(true))
             .unwrap();
         core.push_video(ms(base, 533), false, false, 33_333, &frame(false))
             .unwrap();
-        let file = core.finish(base).unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap().into_inner();
         // One fragment; the samples after the reset keep moving forward from 500 ms.
         let trun = file
             .windows(4)
@@ -301,16 +326,35 @@ mod tests {
             let at = trun + 4 + 4 + 8 + index * 12;
             u32::from_be_bytes(file[at..at + 4].try_into().unwrap())
         };
+        let size = |index: usize| {
+            let at = trun + 4 + 4 + 8 + index * 12 + 4;
+            u32::from_be_bytes(file[at..at + 4].try_into().unwrap())
+        };
+        assert_eq!(
+            u32::from_be_bytes(file[trun + 8..trun + 12].try_into().unwrap()),
+            4
+        );
         assert_eq!(duration(0), 3000);
         // 33 ms to 500 ms at 90 kHz.
         assert_eq!(duration(1), 42_000);
         assert_eq!(duration(2), 3000);
+        // The restarted key frame carries the new SPS and PPS: three 4-byte lengths + NALs.
+        let frame_len = frame(true).len() - 4;
+        assert_eq!(
+            size(2) as usize,
+            12 + SPS_720P_RESTARTED.len() + PPS.len() + frame_len
+        );
+        let sps_at = file
+            .windows(SPS_720P_RESTARTED.len())
+            .position(|window| window == SPS_720P_RESTARTED)
+            .expect("new SPS in the samples");
+        assert!(sps_at > trun);
     }
 
     #[test]
     fn last_frame_lasts_until_stop() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), None);
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), None);
         core.push_video(base, true, false, 0, &config(&SPS_720P))
             .unwrap();
         core.push_video(base, false, true, 0, &frame(true)).unwrap();
@@ -318,7 +362,8 @@ mod tests {
         let file = core
             .finish(base + Duration::from_secs(30))
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .into_inner();
         let trun = file
             .windows(4)
             .position(|window| window == b"trun")
@@ -331,13 +376,13 @@ mod tests {
     #[test]
     fn video_only_when_audio_fails() {
         let base = Instant::now();
-        let mut core = RecorderCore::new(Vec::new(), None);
+        let mut core = RecorderCore::new(Cursor::new(Vec::new()), None);
         assert!(!core.has_audio());
         core.push_video(base, true, false, 0, &config(&SPS_720P))
             .unwrap();
         core.push_video(base, false, true, 0, &frame(true)).unwrap();
         core.push_audio(ms(base, 5), 0, &[0x21]).unwrap();
-        let file = core.finish(base).unwrap().unwrap();
+        let file = core.finish(base).unwrap().unwrap().into_inner();
         assert_eq!(count(&file, b"trak"), 1);
     }
 
@@ -373,7 +418,7 @@ mod tests {
             .find(|p| p.0 == 1 && p.2)
             .map(|p| p.5.clone());
         let mut core = RecorderCore::new(
-            Vec::new(),
+            Cursor::new(Vec::new()),
             asc.map(|asc| AudioConfig::from_asc(&asc).unwrap()),
         );
         for (stream, arrived, config, key, pts, data) in packets {
@@ -386,7 +431,11 @@ mod tests {
                 core.push_audio(arrived, pts, &data).unwrap();
             }
         }
-        let file = core.finish(base).unwrap().expect("video was recorded");
+        let file = core
+            .finish(base)
+            .unwrap()
+            .expect("video was recorded")
+            .into_inner();
         std::fs::write(std::env::var("ZESP_DUMP_OUT").unwrap(), file).unwrap();
     }
 }

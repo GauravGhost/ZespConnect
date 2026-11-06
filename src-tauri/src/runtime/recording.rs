@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Seek, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -447,7 +447,7 @@ async fn next_audio(audio: &mut Option<mpsc::Receiver<AudioPacket>>) -> Option<A
     }
 }
 
-async fn record<W: Write + Send + 'static>(
+async fn record<W: Write + Seek + Send + 'static>(
     app: AppHandle,
     mut context: Context,
     mut core: RecorderCore<BufWriter<W>>,
@@ -553,7 +553,7 @@ async fn record<W: Write + Send + 'static>(
 }
 
 /// Close the file and, for the phone, copy it there.
-async fn save<W: Write>(
+async fn save<W: Write + Seek>(
     app: &AppHandle,
     context: &Context,
     core: RecorderCore<BufWriter<W>>,

@@ -1,10 +1,13 @@
 mod annexb;
 mod boxes;
 
-use std::io::{self, Write};
+use std::io::{self, Seek, SeekFrom, Write};
 
 use crate::error::{AppError, Result};
-use boxes::{Sample, AUDIO_TRACK, NON_SYNC_SAMPLE, SYNC_SAMPLE, VIDEO_TIMESCALE, VIDEO_TRACK};
+use boxes::{
+    Sample, AUDIO_TRACK, MOVIE_TIMESCALE, NON_SYNC_SAMPLE, SYNC_SAMPLE, VIDEO_TIMESCALE,
+    VIDEO_TRACK,
+};
 
 /// How much media a track buffers before it is written out as a fragment.
 const FRAGMENT_US: u64 = 1_000_000;
@@ -96,6 +99,8 @@ struct Track {
     /// Decode time of `samples[0]`.
     start: u64,
     span: u64,
+    /// Where the last completed sample ends.
+    end: u64,
     last_duration: u32,
     fallback_duration: u32,
 }
@@ -109,6 +114,7 @@ impl Track {
             samples: Vec::new(),
             start: 0,
             span: 0,
+            end: 0,
             last_duration: 0,
             fallback_duration,
         }
@@ -132,6 +138,7 @@ impl Track {
             self.start = sample.time;
         }
         self.span += u64::from(duration);
+        self.end = sample.time + u64::from(duration);
         self.last_duration = duration;
         self.samples.push(Sample {
             duration,
@@ -155,6 +162,12 @@ impl Track {
         }
     }
 
+    fn end_ms(&self) -> u64 {
+        u128::from(self.end)
+            .saturating_mul(u128::from(MOVIE_TIMESCALE))
+            .div_ceil(u128::from(self.timescale)) as u64
+    }
+
     fn take_fragment(&mut self, sequence: u32) -> Option<Vec<u8>> {
         if self.samples.is_empty() {
             return None;
@@ -166,27 +179,35 @@ impl Track {
     }
 }
 
-pub struct Fmp4Writer<W: Write> {
+pub struct Fmp4Writer<W: Write + Seek> {
     out: W,
+    /// Where the `moov` starts, to rewrite it with the length on finish.
+    moov_at: u64,
+    video_config: VideoConfig,
+    audio_config: Option<AudioConfig>,
     sequence: u32,
     video: Track,
     audio: Option<Track>,
 }
 
-impl<W: Write> Fmp4Writer<W> {
+impl<W: Write + Seek> Fmp4Writer<W> {
     /// Write the file header (`ftyp` + `moov`).
     pub fn new(mut out: W, video: VideoConfig, audio: Option<AudioConfig>) -> io::Result<Self> {
         out.write_all(&boxes::ftyp())?;
-        out.write_all(&boxes::moov(&video, audio.as_ref()))?;
+        let moov_at = out.stream_position()?;
+        out.write_all(&boxes::moov(&video, audio.as_ref(), 0))?;
         out.flush()?;
         let video_fallback = to_ticks(FALLBACK_VIDEO_US, VIDEO_TIMESCALE) as u32;
         Ok(Self {
             out,
+            moov_at,
             sequence: 0,
             video: Track::new(VIDEO_TRACK, VIDEO_TIMESCALE, video_fallback),
-            audio: audio.map(|config| {
+            audio: audio.as_ref().map(|config| {
                 Track::new(AUDIO_TRACK, config.sample_rate, AAC_FRAME_SAMPLES as u32)
             }),
+            video_config: video,
+            audio_config: audio,
         })
     }
 
@@ -229,7 +250,21 @@ impl<W: Write> Fmp4Writer<W> {
             track.release_held(None);
         }
         self.write_audio()?;
+        self.write_duration()?;
         Ok(self.out)
+    }
+
+    /// Rewrite the header with the recording's length. Only values change, so the `moov` keeps
+    /// its size and the fragments after it stay where they are.
+    fn write_duration(&mut self) -> io::Result<()> {
+        let audio_end = self.audio.as_ref().map_or(0, Track::end_ms);
+        let duration_ms = u32::try_from(self.video.end_ms().max(audio_end)).unwrap_or(u32::MAX);
+        let moov = boxes::moov(&self.video_config, self.audio_config.as_ref(), duration_ms);
+        let end = self.out.stream_position()?;
+        self.out.seek(SeekFrom::Start(self.moov_at))?;
+        self.out.write_all(&moov)?;
+        self.out.seek(SeekFrom::Start(end))?;
+        self.out.flush()
     }
 
     fn write_video(&mut self) -> io::Result<()> {
@@ -261,6 +296,8 @@ impl<W: Write> Fmp4Writer<W> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
 
     /// 1280x720 High profile SPS (from h264-reader's own test cases).
@@ -335,13 +372,14 @@ mod tests {
     }
 
     fn record(seconds: u64, with_audio: bool) -> Vec<u8> {
-        let mut writer = Fmp4Writer::new(Vec::new(), video(), with_audio.then(audio)).unwrap();
+        let mut writer =
+            Fmp4Writer::new(Cursor::new(Vec::new()), video(), with_audio.then(audio)).unwrap();
         for index in 0..seconds * 30 {
             writer
                 .push_video(index * 33_333, index % 30 == 0, &frame(index % 30 == 0))
                 .unwrap();
         }
-        writer.finish().unwrap()
+        writer.finish().unwrap().into_inner()
     }
 
     #[test]
@@ -359,10 +397,11 @@ mod tests {
 
     #[test]
     fn header_layout() {
-        let file = Fmp4Writer::new(Vec::new(), video(), Some(audio()))
+        let file = Fmp4Writer::new(Cursor::new(Vec::new()), video(), Some(audio()))
             .unwrap()
             .finish()
-            .unwrap();
+            .unwrap()
+            .into_inner();
         let top: Vec<_> = walk(&file).into_iter().map(|(kind, _)| kind).collect();
         assert_eq!(top, ["ftyp", "moov"]);
         let traks = |file: &[u8]| {
@@ -372,11 +411,30 @@ mod tests {
                 .count()
         };
         assert_eq!(traks(&file), 2);
-        let silent = Fmp4Writer::new(Vec::new(), video(), None)
+        let silent = Fmp4Writer::new(Cursor::new(Vec::new()), video(), None)
             .unwrap()
             .finish()
-            .unwrap();
+            .unwrap()
+            .into_inner();
         assert_eq!(traks(&silent), 1);
+    }
+
+    #[test]
+    fn finished_file_has_its_length() {
+        let file = record(3, false);
+        let moov = child(&file, "moov");
+        // mvhd: version/flags, created, modified, timescale, then duration.
+        assert_eq!(u32_at(child(moov, "mvhd"), 16), 3000);
+        let mehd = child(child(moov, "mvex"), "mehd");
+        assert_eq!(u32_at(mehd, 4), 3000);
+        // The rewritten header left the fragments intact.
+        assert!(
+            walk(&file)
+                .iter()
+                .filter(|(kind, _)| kind == "moof")
+                .count()
+                >= 3
+        );
     }
 
     #[test]
@@ -409,9 +467,9 @@ mod tests {
 
     #[test]
     fn single_sample_fragment_has_duration() {
-        let mut writer = Fmp4Writer::new(Vec::new(), video(), None).unwrap();
+        let mut writer = Fmp4Writer::new(Cursor::new(Vec::new()), video(), None).unwrap();
         writer.push_video(0, true, &frame(true)).unwrap();
-        let file = writer.finish().unwrap();
+        let file = writer.finish().unwrap().into_inner();
         let (_, moof) = walk(&file)
             .into_iter()
             .find(|(kind, _)| kind == "moof")
@@ -423,14 +481,14 @@ mod tests {
 
     #[test]
     fn audio_goes_to_its_own_track() {
-        let mut writer = Fmp4Writer::new(Vec::new(), video(), Some(audio())).unwrap();
+        let mut writer = Fmp4Writer::new(Cursor::new(Vec::new()), video(), Some(audio())).unwrap();
         writer.push_video(0, true, &frame(true)).unwrap();
         for index in 0..60 {
             writer
                 .push_audio(40_000 + index * 21_333, &[0x21, 0x10, 0x04])
                 .unwrap();
         }
-        let file = writer.finish().unwrap();
+        let file = writer.finish().unwrap().into_inner();
         let audio_moof = walk(&file)
             .into_iter()
             .filter(|(kind, _)| kind == "moof")
@@ -445,7 +503,7 @@ mod tests {
 
     #[test]
     fn truncated_file_still_parses() {
-        let mut file = Vec::new();
+        let mut file = Cursor::new(Vec::new());
         {
             let mut writer = Fmp4Writer::new(&mut file, video(), None).unwrap();
             for index in 0..60 {
@@ -455,6 +513,7 @@ mod tests {
             }
             // Dropped without `finish`, like a crash.
         }
+        let file = file.into_inner();
         let boxes = walk(&file);
         assert!(boxes.iter().any(|(kind, _)| kind == "moof"));
         assert_eq!(boxes.last().unwrap().0, "mdat");

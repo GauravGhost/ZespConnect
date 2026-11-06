@@ -3,7 +3,7 @@ use super::{AudioConfig, VideoConfig};
 pub const VIDEO_TRACK: u32 = 1;
 pub const AUDIO_TRACK: u32 = 2;
 pub const VIDEO_TIMESCALE: u32 = 90_000;
-const MOVIE_TIMESCALE: u32 = 1000;
+pub const MOVIE_TIMESCALE: u32 = 1000;
 /// `sample_depends_on = 2`: a key frame.
 pub const SYNC_SAMPLE: u32 = 0x0200_0000;
 /// `sample_depends_on = 1` and `sample_is_non_sync_sample`.
@@ -66,7 +66,8 @@ pub fn ftyp() -> Vec<u8> {
     bx(b"ftyp", b"iso6\0\0\0\0iso6isomavc1mp41")
 }
 
-pub fn moov(video: &VideoConfig, audio: Option<&AudioConfig>) -> Vec<u8> {
+/// `duration_ms` is the whole recording's length; 0 while it is still being written.
+pub fn moov(video: &VideoConfig, audio: Option<&AudioConfig>, duration_ms: u32) -> Vec<u8> {
     let next_track = if audio.is_some() {
         AUDIO_TRACK
     } else {
@@ -79,7 +80,7 @@ pub fn moov(video: &VideoConfig, audio: Option<&AudioConfig>) -> Vec<u8> {
         &Bytes::default()
             .zeros(8)
             .u32(MOVIE_TIMESCALE)
-            .u32(0)
+            .u32(duration_ms)
             .u32(0x0001_0000)
             .u16(0x0100)
             .zeros(10)
@@ -91,7 +92,9 @@ pub fn moov(video: &VideoConfig, audio: Option<&AudioConfig>) -> Vec<u8> {
 
     let mut body = mvhd;
     body.extend(video_trak(video));
-    let mut mvex = trex(VIDEO_TRACK);
+    // Players read a fragmented file's length from `mehd`.
+    let mut mvex = full(b"mehd", 0, 0, &duration_ms.to_be_bytes());
+    mvex.extend(trex(VIDEO_TRACK));
     if let Some(audio) = audio {
         body.extend(audio_trak(audio));
         mvex.extend(trex(AUDIO_TRACK));
