@@ -4,6 +4,37 @@ All notable changes to Zesp Connect are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-16
+
+### Mirror and control
+
+- Go fullscreen in a mirror window and press Escape to leave it. Mirror windows now follow
+  phone rotation.
+- Recordings have a seek bar and show their duration.
+- Game Mode: play with a controller passed through to the phone, choose resolution, FPS and
+  bitrate presets, and watch a live performance overlay.
+
+### Manage your device
+
+- App icons in the list and grid, cached between sessions.
+- Apps: export installed apps as APKs, including split APKs.
+- Processes panel with sorting, filtering and live CPU, memory and battery temperature
+  metrics.
+- Port forwarding management.
+- Developer options panel.
+
+### Debugging
+
+- Layout inspector: dump the view hierarchy, export it as XML and capture screenshots.
+- Crash reports and bug reports from the device.
+- Console: interactive shell sessions with streamed output, plus logcat filtering and
+  saving to a file.
+
+### Sound
+
+- Sound routing options for phone audio playback, with a dropdown to pick the output
+  device.
+
 ## [0.1.0] - 2026-11-05
 
 The first public release of Zesp Connect, a free and open source desktop app that brings
@@ -79,3 +110,4 @@ phone's Developer options.
     `xattr -cr "/Applications/Zesp Connect.app"` in Terminal.
 
 [0.1.0]: https://github.com/GauravGhost/ZespConnect/releases/tag/v0.1.0
+[0.2.0]: https://github.com/GauravGhost/ZespConnect/releases/tag/v0.2.0
